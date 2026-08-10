@@ -1,0 +1,8 @@
+[package]
+name = "memory_archive"
+edition = "2024.beta"
+
+[dependencies]
+
+[addresses]
+memory_archive = "0x0"

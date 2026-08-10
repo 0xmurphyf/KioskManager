@@ -5,3 +5,5 @@ dist/
 .env.*
 !.env.example
 *.log
+memory_archive/build/
+memory_archive/Move.lock

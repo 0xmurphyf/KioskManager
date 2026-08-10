@@ -91,6 +91,16 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 
 
 .archive-list{border-top:1px solid var(--line)}
+.chain-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:-8px 0 20px}
+.chain-source{font:11px "Courier New",monospace;letter-spacing:.12em;color:var(--dim);line-height:1.7}
+.chain-source strong{color:var(--paper);font-weight:400}
+.scan-status{min-height:20px;margin:0 0 16px;color:var(--dim);font:11px "Courier New",monospace;letter-spacing:.06em}
+.scan-status:before{content:"";display:inline-block;width:6px;height:6px;margin:0 8px 1px 0;border-radius:50%;background:var(--accent)}
+.scan-status.loading:before{animation:scannerPulse 1s ease-in-out infinite}
+.scan-status.ready:before{background:#79a786;box-shadow:0 0 10px rgba(121,167,134,.55)}
+.scan-status.error{color:#d8b8b1}.scan-status.error:before{background:var(--danger)}
+.chain-empty{padding:30px 0;color:var(--dim);line-height:1.7}
+@keyframes scannerPulse{50%{opacity:.22;transform:scale(.65)}}
 .archive-row{
   width:100%;display:grid;grid-template-columns:120px 1.15fr 1fr 140px;
   gap:18px;align-items:center;padding:18px 0;border:0;border-bottom:1px solid var(--line);
@@ -262,6 +272,7 @@ body.wallet-open{overflow:hidden}
   }
   .archive-row{grid-template-columns:90px 1fr}
   .archive-row .hide-mobile{display:none}
+  .chain-toolbar{align-items:flex-start;flex-direction:column}
   .detail{grid-template-columns:1fr}
   .artifact{min-height:52vh;border-right:0}
   .object-grid,.storage-grid{grid-template-columns:1fr}
@@ -318,8 +329,13 @@ body.wallet-open{overflow:hidden}
   <section class="section">
     <div class="section-head">
       <div><div class="eyebrow">THE ARCHIVE</div><h2>All Entries</h2></div>
-      <p>No price. No rarity. No owner. Only what someone chose to preserve.</p>
+      <p>Live immutable objects emitted by this archive contract on Sui Testnet.</p>
     </div>
+    <div class="chain-toolbar">
+      <div class="chain-source"><strong>LIVE INDEX · SUI TESTNET</strong><br>MemoryArchived events → immutable archive objects</div>
+      <button class="btn" id="scanArchivesBtn" type="button">Refresh on-chain data</button>
+    </div>
+    <div class="scan-status loading" id="archiveScanStatus">Preparing on-chain scanner…</div>
     <div class="archive-list" id="archiveList"></div>
   </section>
 </section>
@@ -573,6 +589,63 @@ function row(m,i){
     <span class="muted hide-mobile">“${m.quote}”</span>
     <span class="muted hide-mobile">${m.relative}</span>
   </button>`;
+}
+
+function shortHash(value, width=8){
+  if(!value)return "—";
+  return value.length>width+6?`${value.slice(0,width)}…${value.slice(-4)}`:value;
+}
+function escapeHtml(value){
+  return String(value??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
+}
+function relativeTime(ms){
+  const seconds=Math.max(0,Math.floor((Date.now()-ms)/1000));
+  if(seconds<60)return "just now";
+  if(seconds<3600)return `${Math.floor(seconds/60)} min ago`;
+  if(seconds<86400)return `${Math.floor(seconds/3600)} hr ago`;
+  return `${Math.floor(seconds/86400)} days ago`;
+}
+function archiveTitle(archive){
+  const artifact=archive.content?.artifact;
+  const balance=artifact?.balance;
+  return balance!==undefined?`${Number(balance)/1e9} SUI · sealed forever`:"Immutable Sui object";
+}
+function archiveMessage(archive){return archive.content?.message||"No message recorded."}
+function renderChainArchiveRows(archives){
+  return archives.map(archive=>`<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
+    <span class="archive-id">ARCHIVE·${escapeHtml(shortHash(archive.archiveId,6))}</span>
+    <span class="archive-title">${escapeHtml(archiveTitle(archive))}</span>
+    <span class="muted hide-mobile">“${escapeHtml(archiveMessage(archive))}”</span>
+    <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
+  </button>`).join("");
+}
+let chainArchives=[];
+window.renderChainArchives=function(archives){
+  chainArchives=archives;
+  archiveList.innerHTML=archives.length?renderChainArchiveRows(archives):'<div class="chain-empty">No immutable archive objects have been indexed for this contract yet.</div>';
+  recentList.innerHTML=archives.length?renderChainArchiveRows(archives.slice(0,3)):"";
+  document.querySelectorAll("[data-chain-archive]").forEach(button=>button.addEventListener("click",()=>openChainArchive(button.dataset.chainArchive)));
+}
+window.renderChainArchiveError=function(){
+  archiveList.innerHTML='<div class="chain-empty">The archive list is waiting for a Testnet response. Use the refresh control to try again.</div>';
+}
+function openChainArchive(archiveId){
+  const archive=chainArchives.find(item=>item.archiveId===archiveId);
+  if(!archive)return;
+  const content=archive.content||{};
+  detailId.textContent=`ARCHIVE·${shortHash(archive.archiveId,10)}`;
+  detailTitle.textContent=archiveTitle(archive).toUpperCase();
+  detailQuote.textContent=`“${archiveMessage(archive)}”`;
+  detailBy.textContent=shortHash(archive.archivedBy,10);
+  detailAddress.textContent=archive.archivedBy||"";
+  detailSignature.textContent=content.sealer_signature?`“${content.sealer_signature}”`:"No signature left.";
+  const date=new Date(archive.archivedAtMs);
+  detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toLocaleString();
+  detailAge.textContent=`Sui Testnet · policy version ${archive.policyVersion||"—"}`;
+  detailType.textContent=`Archive object ${shortHash(archive.archiveId,12)} · original ${shortHash(archive.originalObjectId,10)}`;
+  renderVisitorNotes();
+  showView("detail");
+  document.querySelector(".artifact").classList.add("revealed");
 }
 const whisperPoolState={
   active:[],
@@ -902,8 +975,8 @@ window.addEventListener("resize",()=>{
 });
 
 initWhisperPool();
-recentList.innerHTML=memories.slice(0,3).map(row).join("");
-archiveList.innerHTML=memories.map(row).join("");
+recentList.innerHTML='<div class="chain-empty">Loading the public on-chain record…</div>';
+archiveList.innerHTML='<div class="chain-empty">Connecting to the Sui Testnet index…</div>';
 
 let currentStep=1;
 function startWizard(){currentStep=1;showView("wizard");renderStep()}
@@ -927,6 +1000,6 @@ function completeArchive(){showToast("Simulating Sui transaction…");setTimeout
 function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeout(window.tt);window.tt=setTimeout(()=>toast.style.display="none",2000)}
 renderStep();
 </script>
-<script type="module" src="/src/wallet.js"></script>
+<script type="module" src="/src/app.js"></script>
 </body>
 </html>
