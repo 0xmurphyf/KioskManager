@@ -1,0 +1,9 @@
+[package]
+name = "image_artifacts"
+edition = "2024.beta"
+
+[dependencies]
+Sui = { local = "C:\\tmp\\sui-06734f6ff0af45d8632a14a4dc4b100197f6b1a2\\crates\\sui-framework\\packages\\sui-framework" }
+
+[addresses]
+image_artifacts = "0x0"

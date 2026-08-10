@@ -7,3 +7,7 @@ dist/
 *.log
 memory_archive/build/
 memory_archive/Move.lock
+test_artifacts/build/
+test_artifacts/Move.lock
+image_artifacts/build/
+image_artifacts/Move.lock
