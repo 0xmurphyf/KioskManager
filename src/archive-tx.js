@@ -75,7 +75,11 @@ export async function fetchOwnedObjects(client, address) {
 // passed by reference (its ID), and a fresh gas coin is split to cover the
 // archive fee. With STORAGE_NONE the hero image URI/hash are left empty, which
 // the contract's validate_metadata allows.
-export function buildArchiveTransaction({ objectId, message, sealerSignature }) {
+//
+// `archive_forever` is generic over `T: key + store`, so the concrete Move type
+// of the archived object MUST be supplied as a type argument — omitting it fails
+// VM verification with "VerificationOrDeserialization Error in command 1".
+export function buildArchiveTransaction({ objectId, typeArgument, message, sealerSignature }) {
   const tx = new Transaction();
 
   const messageArg = tx.pure.string(String(message ?? '').slice(0, 2048));
@@ -94,7 +98,7 @@ export function buildArchiveTransaction({ objectId, message, sealerSignature }) 
   // real SUI leaves the wallet.
   const [payment] = tx.splitCoins(tx.gas, [0]);
 
-  tx.moveCall({
+  const args = {
     target: `${PACKAGE_ID}::memory_archive::archive_forever`,
     arguments: [
       tx.object(POLICY_OBJECT_ID), // shared ArchivePolicy
@@ -107,14 +111,17 @@ export function buildArchiveTransaction({ objectId, message, sealerSignature }) 
       storageType,
       tx.object(CLOCK_OBJECT_ID), // Clock
     ],
-  });
+  };
+  if (typeArgument) args.typeArguments = [typeArgument];
+
+  tx.moveCall(args);
 
   return tx;
 }
 
 // Sign and execute via the connected dAppKit wallet on Testnet.
-export async function archiveObject({ client, dAppKit, objectId, message, sealerSignature }) {
-  const tx = buildArchiveTransaction({ objectId, message, sealerSignature });
+export async function archiveObject({ client, dAppKit, objectId, typeArgument, message, sealerSignature }) {
+  const tx = buildArchiveTransaction({ objectId, typeArgument, message, sealerSignature });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;
 }

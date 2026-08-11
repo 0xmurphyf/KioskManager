@@ -1029,8 +1029,9 @@ archiveList.innerHTML='<div class="chain-empty">Connecting to the Sui Testnet in
 
 let currentStep=1;
 let selectedObjectId=null;
+let selectedObjectType=null;
 let wizardObjectsLoaded=false;
-function startWizard(){currentStep=1;selectedObjectId=null;wizardObjectsLoaded=false;showView("wizard");renderStep()}
+function startWizard(){currentStep=1;selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;showView("wizard");renderStep()}
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
   progress.innerHTML="";
@@ -1043,6 +1044,7 @@ function selectObject(el){
   document.querySelectorAll('[data-step="2"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
   selectedObjectId=el.dataset.objectId||null;
+  selectedObjectType=el.dataset.type||null;
   objectNext.disabled=!selectedObjectId;
 }
 function selectOption(el,step){
@@ -1076,6 +1078,7 @@ function loadWizardObjects(){
       const button=document.createElement("button");
       button.className="option";
       button.dataset.objectId=obj.objectId;
+      button.dataset.type=obj.type;
       button.onclick=()=>selectObject(button);
       button.innerHTML=`<div class="object-thumb">${kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${escapeHtml(obj.objectId.slice(0,10))}…</p>`;
       grid.appendChild(button);
@@ -1089,6 +1092,7 @@ async function completeArchive(){
   const txApi=window.theArchiveTx;
   if(!connection){showToast("Connect a wallet first");return;}
   if(!selectedObjectId){showToast("Choose an object first");return;}
+  if(!selectedObjectType){showToast("Selected object has no type info");return;}
   if(confirmText.value.trim().toUpperCase()!=="ARCHIVE"){showToast("Type ARCHIVE to confirm");return;}
   archiveBtn.disabled=true;archiveBtn.textContent="ARCHIVING…";
   showToast("Confirm the transaction in your wallet…");
@@ -1096,7 +1100,7 @@ async function completeArchive(){
     const client=window.theArchiveWallet.dAppKit.getClient("testnet");
     const message=document.querySelector('[data-step="3"] textarea')?.value||"";
     const signature=document.querySelector('[data-step="3"] input')?.value||"";
-    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,message,sealerSignature:signature});
+    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     currentStep=7;renderStep();
   }catch(error){
