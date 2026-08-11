@@ -14,17 +14,20 @@ const CLOCK_OBJECT_ID = '0x6';
 const STORAGE_NONE = 0;
 
 // Helper: extract a readable object type + label from a Sui owned-object struct.
+// Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/
+// version/type/content) as well as the JSON-RPC `getOwnedObjects` shape.
 function describeObject(obj) {
-  const type = obj?.data?.type || obj?.data?.content?.type || 'Unknown object';
-  const fields = obj?.data?.content?.fields || {};
+  const data = obj?.data ?? obj;
+  const type = data?.type || data?.content?.type || 'Unknown object';
+  const fields = data?.content?.fields || {};
   const name =
     fields.name ||
     (fields.artifact && fields.artifact.fields && fields.artifact.fields.name) ||
     '';
   return {
-    objectId: obj.data.objectId,
+    objectId: data.objectId,
     type,
-    version: obj.data.version,
+    version: data.version,
     name: typeof name === 'string' ? name : '',
     isCoin: type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin'),
     balance:
@@ -32,21 +35,40 @@ function describeObject(obj) {
   };
 }
 
+// Returns true when the account is explicitly on Sui Testnet. When chain
+// metadata is unavailable (e.g. some injected wallets), we allow the call to
+// proceed and let the real Testnet client round-trip validate the network.
+export function isTestnetAccount(account) {
+  if (!account) return false;
+  const chains = account.chains || [];
+  if (chains.length === 0) return true;
+  return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
+}
+
 // Pull the objects the connected account actually owns, excluding the gas SUI
 // coin and shared/immutable objects (which cannot be archived because they are
-// not uniquely owned by this wallet).
+// not uniquely owned by this wallet). Uses listOwnedObjects which is available
+// on both the gRPC and JSON-RPC clients.
 export async function fetchOwnedObjects(client, address) {
   if (!client || !address) return [];
-  const result = await client.getOwnedObjects({
-    owner: address,
-    options: { showType: true, showContent: true, showDisplay: true },
-    // Skip coins of SUI so we don't default to archiving the user's gas.
-  });
-  const objects = (result.data || [])
+  const include = { showType: true, showContent: true, showDisplay: true };
+  const collected = [];
+  let cursor = null;
+  do {
+    // gRPC client exposes listOwnedObjects; fall back to getOwnedObjects for
+    // JSON-RPC clients just in case.
+    const result = client.listOwnedObjects
+      ? await client.listOwnedObjects({ owner: address, cursor, limit: 50, include })
+      : await client.getOwnedObjects({ owner: address, cursor, limit: 50, options: include });
+    const page = result.objects || result.data || [];
+    collected.push(...page);
+    cursor = result.hasNextPage ? result.cursor : null;
+  } while (cursor);
+
+  return collected
     .map(describeObject)
     .filter((o) => o.objectId && o.type !== '0x2::coin::Coin<0x2::sui::SUI>')
     .filter((o) => o.type !== '0x2::sui::SUI');
-  return objects;
 }
 
 // Build a `Transaction` that archives the given owned object. The object is
@@ -102,5 +124,6 @@ window.theArchiveTx = {
   fetchOwnedObjects,
   buildArchiveTransaction,
   archiveObject,
+  isTestnetAccount,
   POLICY_OBJECT_ID,
 };

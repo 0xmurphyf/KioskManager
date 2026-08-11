@@ -92,6 +92,15 @@ function getWalletAdapter(definition) {
   return wallet ? { type: 'standard', wallet } : null;
 }
 
+// The Archive contract lives on Sui Testnet, so we only allow accounts whose
+// wallet exposes the testnet chain. Mainnet/other accounts would sign a
+// transaction that can never reach the contract.
+function accountIsTestnet(account) {
+  if (!account) return false;
+  const chains = account.chains || [];
+  return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
+}
+
 function definitionForWallet(wallet) {
   const identity = normalizedWalletIdentity(wallet);
   return walletDefinitions.find((definition) =>
@@ -111,6 +120,7 @@ function activeConnection() {
       wallet: connection.wallet,
       walletName: connection.wallet?.name ?? 'Sui Wallet',
       address: connection.account.address,
+      chains: connection.account.chains,
     };
   }
   return phantomSession;
@@ -289,6 +299,13 @@ async function connectWallet(definition) {
       };
     } else {
       await dAppKit.connectWallet({ wallet: adapter.wallet });
+      // Mandatory Testnet check: disconnect and abort if the connected account
+      // is not on Sui Testnet (where the contract lives).
+      const connected = standardConnection();
+      if (connected.account && !accountIsTestnet(connected.account)) {
+        await dAppKit.disconnectWallet();
+        throw new Error('This wallet is not on Sui Testnet. Switch your wallet network to Testnet and reconnect.');
+      }
     }
 
     finishConnection(definition);
@@ -299,7 +316,7 @@ async function connectWallet(definition) {
       error?.code === 4001 || message.includes('reject') || message.includes('cancel');
     walletStatus.textContent = cancelled
       ? `${definition.label} connection was cancelled.`
-      : `${definition.label} could not connect. Check that Sui Mainnet is enabled.`;
+      : `${definition.label} could not connect. Make sure Sui Testnet is enabled in the wallet.`;
     showToast(cancelled ? 'Wallet connection cancelled' : 'Wallet connection failed');
   } finally {
     connectingWalletKey = null;

@@ -1057,6 +1057,10 @@ function loadWizardObjects(){
     grid.innerHTML='<div class="chain-empty">Connect a wallet first (step 1), then return here.</div>';
     return;
   }
+  if(!window.theArchiveTx.isTestnetAccount(connection)){
+    grid.innerHTML='<div class="chain-empty">Connected wallet is not on Sui Testnet. Reconnect with Testnet enabled.</div>';
+    return;
+  }
   wizardObjectsLoaded=true;
   grid.innerHTML='<div class="chain-empty">Loading your Testnet objects…</div>';
   const client=window.theArchiveWallet.dAppKit.getClient("testnet");
