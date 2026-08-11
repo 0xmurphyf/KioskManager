@@ -265,7 +265,7 @@ body.wallet-open{overflow:hidden}
 
 @media(max-width:900px){
   nav{gap:9px}
-  nav button:not(.wallet):not(.archive-direct):not(.wallet-top-disconnect){display:none}
+  nav button:not(.wallet):not(.archive-direct):not(.explore):not(.wallet-top-disconnect){display:none}
   .archive-direct{font-size:11px}
   .wallet-top-disconnect{padding:8px!important}
   .whisper-stage{
@@ -296,7 +296,7 @@ body.wallet-open{overflow:hidden}
 <header>
   <button class="brand" onclick="showView('home')">THE ARCHIVE</button>
   <nav>
-    <button onclick="showView('archive')">Explore</button>
+    <button class="explore" onclick="showView('archive')">Explore</button>
     <button onclick="showView('home');document.getElementById('whispers').scrollIntoView()">Whispers</button>
     <button class="archive-direct" type="button" onclick="startWizard()">Archive</button>
     <button class="wallet" id="walletBtn" type="button" aria-haspopup="dialog" aria-controls="walletDialog">Connect Wallet</button>
