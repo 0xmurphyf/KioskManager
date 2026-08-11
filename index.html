@@ -38,6 +38,9 @@ header{
 nav{display:flex;gap:20px;align-items:center}
 nav button{background:none;border:0;color:var(--dim)}
 .wallet{border:1px solid var(--line)!important;padding:9px 13px!important;color:var(--paper)!important}
+.archive-direct{color:var(--paper)!important;border-bottom:1px solid var(--accent)!important;padding:7px 0!important}
+.wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:11px}
+.wallet-top-disconnect:hover{color:var(--paper)!important;border-color:rgba(231,225,210,.42)!important}
 .view{display:none}.view.active{display:block}
 
 .hero{
@@ -261,7 +264,10 @@ body.wallet-open{overflow:hidden}
 }
 
 @media(max-width:900px){
-  nav button:not(.wallet){display:none}
+  nav{gap:9px}
+  nav button:not(.wallet):not(.archive-direct):not(.wallet-top-disconnect){display:none}
+  .archive-direct{font-size:11px}
+  .wallet-top-disconnect{padding:8px!important}
   .whisper-stage{
     min-height:86vh;height:86vh;
     padding:30px 0;
@@ -290,9 +296,11 @@ body.wallet-open{overflow:hidden}
 <header>
   <button class="brand" onclick="showView('home')">THE ARCHIVE</button>
   <nav>
-    <button onclick="showView('archive')">Archive</button>
+    <button onclick="showView('archive')">Explore</button>
     <button onclick="showView('home');document.getElementById('whispers').scrollIntoView()">Whispers</button>
+    <button class="archive-direct" type="button" onclick="startWizard()">Archive</button>
     <button class="wallet" id="walletBtn" type="button" aria-haspopup="dialog" aria-controls="walletDialog">Connect Wallet</button>
+    <button class="wallet-top-disconnect" id="walletDisconnectTopBtn" type="button" hidden>Disconnect</button>
   </nav>
 </header>
 

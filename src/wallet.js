@@ -53,6 +53,7 @@ const walletDialog = document.getElementById('walletDialog');
 const walletCloseButton = document.getElementById('walletCloseBtn');
 const walletStatus = document.getElementById('walletStatus');
 const walletDisconnectButton = document.getElementById('walletDisconnectBtn');
+const walletDisconnectTopButton = document.getElementById('walletDisconnectTopBtn');
 const walletOptionButtons = [...document.querySelectorAll('[data-wallet-key]')];
 
 let phantomSession = null;
@@ -185,12 +186,14 @@ function renderConnectionState() {
     walletButton.title = `${current.walletName} · ${current.address}`;
     walletButton.setAttribute('aria-label', `Wallet connected: ${current.walletName}`);
     walletDisconnectButton.hidden = false;
+    walletDisconnectTopButton.hidden = false;
     walletStatus.textContent = `${current.walletName} connected on Sui Mainnet · ${shortAddress(current.address)}`;
   } else {
     walletButton.textContent = reconnecting ? 'Reconnecting…' : 'Connect Wallet';
     walletButton.title = '';
     walletButton.setAttribute('aria-label', 'Connect Sui wallet');
     walletDisconnectButton.hidden = true;
+    walletDisconnectTopButton.hidden = true;
   }
 
   walletButton.setAttribute('aria-busy', String(connection.isConnecting || reconnecting));
@@ -324,6 +327,7 @@ walletDialog.querySelector('[data-wallet-close]').addEventListener('click', () =
   closeWalletDialog(),
 );
 walletDisconnectButton.addEventListener('click', disconnectCurrentWallet);
+walletDisconnectTopButton.addEventListener('click', disconnectCurrentWallet);
 
 for (const button of walletOptionButtons) {
   button.addEventListener('click', () => {
