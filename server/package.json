@@ -1,0 +1,16 @@
+{
+  "name": "the-archive-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node --experimental-sqlite index.mjs",
+    "test": "node --experimental-sqlite --test"
+  },
+  "dependencies": {
+    "@mysten/sui": "2.23.1"
+  }
+}

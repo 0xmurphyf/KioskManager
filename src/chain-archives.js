@@ -1,6 +1,12 @@
 export const PACKAGE_ID = '0x639d824b6a4de1b1491d69eaa79597336ab3be8dc9dff3bfd78cd333bf38a53b';
 export const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
 export const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
+const configuredArchiveApiUrl = import.meta.env.VITE_ARCHIVE_API_URL?.trim();
+export const ARCHIVE_API_URL = configuredArchiveApiUrl || '/api/archives';
+export const ARCHIVE_STREAM_URL = `${ARCHIVE_API_URL.replace(/\/+$/, '')}/stream`;
+
+const STATIC_CACHE_URL = '/archive-cache.json';
+const CACHE_REQUEST_TIMEOUT_MS = 3_000;
 
 const EVENTS_QUERY = `
   query ArchiveEvents($cursor: String, $eventType: String!) {
@@ -38,6 +44,55 @@ async function graphql(query, variables) {
   const body = await response.json();
   if (body.errors?.length) throw new Error(body.errors[0].message || 'Testnet index query failed');
   return body.data;
+}
+
+function archivesFromPayload(payload) {
+  const archives = Array.isArray(payload)
+    ? payload
+    : payload?.archives || payload?.data?.archives || payload?.data;
+
+  if (!Array.isArray(archives)) {
+    throw new Error('Archive cache returned an invalid payload');
+  }
+
+  return archives.sort((a, b) => Number(b.archivedAtMs || 0) - Number(a.archivedAtMs || 0));
+}
+
+async function fetchArchiveCache(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CACHE_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Archive cache returned HTTP ${response.status}`);
+
+    const payload = await response.json();
+    return {
+      archives: archivesFromPayload(payload),
+      generatedAt: payload?.generatedAt || payload?.updatedAt || '',
+      source: url === ARCHIVE_API_URL ? 'api' : 'static',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function loadCachedArchives() {
+  const errors = [];
+
+  for (const url of [ARCHIVE_API_URL, STATIC_CACHE_URL]) {
+    try {
+      return await fetchArchiveCache(url);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  throw new AggregateError(errors, 'No archive cache is available');
 }
 
 function valueOf(object, ...names) {
