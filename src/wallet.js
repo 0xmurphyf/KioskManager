@@ -2,6 +2,7 @@ import { createDAppKit } from '@mysten/dapp-kit-core';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 
 const MAINNET_GRPC_URL = 'https://fullnode.mainnet.sui.io:443';
+const TESTNET_GRPC_URL = 'https://fullnode.testnet.sui.io:443';
 const LAST_WALLET_KEY = 'the-archive:last-wallet';
 
 const walletDefinitions = [
@@ -35,11 +36,14 @@ const walletDefinitions = [
   },
 ];
 
+// The Archive contract is published on Sui Testnet (see PACKAGE_ID in
+// chain-archives.js). We connect wallets on Testnet so that the real
+// archive_forever transaction targets the same network the contract lives on.
 export const dAppKit = createDAppKit({
-  networks: ['mainnet'],
-  defaultNetwork: 'mainnet',
+  networks: ['testnet'],
+  defaultNetwork: 'testnet',
   createClient: (network) =>
-    new SuiGrpcClient({ network, baseUrl: MAINNET_GRPC_URL }),
+    new SuiGrpcClient({ network, baseUrl: TESTNET_GRPC_URL }),
   autoConnect: true,
   storageKey: 'the-archive:selected-wallet-and-address',
   slushWalletConfig: {
@@ -187,7 +191,7 @@ function renderConnectionState() {
     walletButton.setAttribute('aria-label', `Wallet connected: ${current.walletName}`);
     walletDisconnectButton.hidden = false;
     walletDisconnectTopButton.hidden = false;
-    walletStatus.textContent = `${current.walletName} connected on Sui Mainnet · ${shortAddress(current.address)}`;
+    walletStatus.textContent = `${current.walletName} connected on Sui Testnet · ${shortAddress(current.address)}`;
   } else {
     walletButton.textContent = reconnecting ? 'Reconnecting…' : 'Connect Wallet';
     walletButton.title = '';
