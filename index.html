@@ -1111,12 +1111,14 @@ function populateConfirmSummary(){
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
   }else if(heroLabel==='Just archive'){
     preview.hidden=false;
-    preview.innerHTML='<div class="hero-none">No hero image will be archived</div>';
+    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Hero preview">`;
   }else{
     preview.hidden=true;
     preview.innerHTML='';
   }
 }
+// Default hero used when "Just archive" is chosen (no original image available).
+const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1166,7 +1168,20 @@ async function completeArchive(){
     const client=window.theArchiveWallet.dAppKit.getClient("testnet");
     const message=document.querySelector('[data-step="3"] textarea')?.value||"";
     const signature=document.querySelector('[data-step="3"] input')?.value||"";
-    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature});
+    // Resolve the hero asset + storage type from the wizard choices.
+    const heroChoice=document.querySelector('[data-step="4"] .option.selected')?.dataset.label||"";
+    const objectImage=document.querySelector('[data-step="2"] .option.selected')?.dataset.image||"";
+    let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
+    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
+    if(useArweave && window.theArchiveArweave){
+      const imageUrl = heroChoice==="Just archive" ? DEFAULT_HERO_URL : (objectImage||DEFAULT_HERO_URL);
+      showToast("Uploading hero to Arweave…");
+      const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl, objectId:selectedObjectId, type:selectedObjectType });
+      storageType=txApi.STORAGE_ARWEAVE;
+      heroUri=uploaded.uri;
+      heroHash=uploaded.hashBytes;
+    }
+    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     currentStep=7;renderStep();
   }catch(error){
@@ -1181,5 +1196,6 @@ renderStep();
 </script>
 <script type="module" src="/src/app.js"></script>
 <script type="module" src="/src/archive-tx.js"></script>
+<script type="module" src="/src/arweave-storage.js"></script>
 </body>
 </html>
