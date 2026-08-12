@@ -30,6 +30,7 @@ function describeObject(obj) {
     version: data.version,
     name: typeof name === 'string' ? name : '',
     isCoin: type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin'),
+    imageUrl: data?.display?.data?.image_url || '',
     balance:
       fields.balance !== undefined ? BigInt(fields.balance) : undefined,
   };
