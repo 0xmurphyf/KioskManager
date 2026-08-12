@@ -443,7 +443,7 @@ body.wallet-open{overflow:hidden}
     <div class="step active" data-step="1">
       <h2>Choose an object</h2>
       <p>Select one object to remove from ownership forever. This is a real Sui Testnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
-      <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button></div>
+      <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button><button class="btn" type="button" onclick="refreshWizardObjects()">Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name…" oninput="renderFilteredObjects()">
         <div class="filter-tabs" id="objectFilter">
@@ -1345,6 +1345,12 @@ function loadWizardObjects(){
   }).catch(error=>{
     grid.innerHTML=`<div class="chain-empty">Could not load objects: ${escapeHtml(String(error.message||error))}</div>`;
   });
+}
+// Re-fetch the wallet's objects on demand (Refresh button), bypassing the
+// "already loaded" short-circuit used by the normal step navigation.
+function refreshWizardObjects(){
+  wizardObjectsLoaded=false;
+  loadWizardObjects();
 }
 async function completeArchive(){
   const connection=window.theArchiveWallet?.getConnection?.();
