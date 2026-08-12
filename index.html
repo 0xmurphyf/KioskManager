@@ -185,6 +185,8 @@ textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
 .fee-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.confirm-obj-name{display:block;font-size:13px;color:var(--paper);margin-bottom:4px}
+.confirm-coin-amt{display:block;margin-top:4px;font:11px "Courier New",monospace;color:var(--dim)}
 .fee-summary{margin-top:22px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0}
 .fee-total{font-family:Georgia,serif;font-size:clamp(16px,1.8vw,19px);border-bottom:0;padding-top:16px}
 .fee-total span:last-child{color:var(--paper)}
@@ -1117,6 +1119,7 @@ function renderFilteredObjects(){
     card.dataset.type=obj.type;
     card.dataset.image=obj.imageUrl||'';
     card.dataset.isCoin=obj.isCoin?'1':'';
+    card.dataset.name=obj.name||'';
     card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
     card.onclick=()=>selectObject(card);
     let extra='';
@@ -1146,7 +1149,7 @@ function renderStep(){
   if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
     const cell=document.getElementById("confirmObjectCell");
-    if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
+    if(cell) setConfirmObject(cell);
     populateConfirmSummary();
   }
 }
@@ -1158,8 +1161,33 @@ function selectObject(el){
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
   const cell=document.getElementById("confirmObjectCell");
-  if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
+  if(cell) setConfirmObject(cell);
   objectNext.disabled=!selectedObjectId;
+}
+// Render the object being archived into the confirmation cell: show the human
+// name (when known) ABOVE the object id, and — for a Coin — the partial amount
+// the user chose to freeze (vs. the whole balance). This is the "potential coin
+// flow" the user reviews before signing.
+function setConfirmObject(cell){
+  if(!selectedObjectId){ cell.innerHTML="—"; return; }
+  const card=document.querySelector('[data-step="1"] .option.selected');
+  const name=card?.dataset.name||"";
+  const isCoin=card?.dataset.isCoin==="1";
+  let line2=suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…");
+  if(isCoin){
+    const balRaw=card?.dataset.balance?BigInt(card.dataset.balance):0n;
+    const amtInput=card?.querySelector('.coin-amount input');
+    const raw=amtInput && amtInput.value.trim()!=='' ? Number(amtInput.value) : 0;
+    const fullSUI=balRaw? Number(balRaw)/1e9 : 0;
+    if(raw>0){
+      const mist=BigInt(Math.floor(raw*1e9+1e-6));
+      const partial = balRaw===0n || mist>=balRaw ? fullSUI : raw;
+      line2+=`<span class="confirm-coin-amt">Archive ${partial.toFixed(4)} of ${fullSUI.toFixed(4)} SUI</span>`;
+    }else{
+      line2+=`<span class="confirm-coin-amt">Whole coin · ${fullSUI.toFixed(4)} SUI</span>`;
+    }
+  }
+  cell.innerHTML = (name? `<strong class="confirm-obj-name">${escapeHtml(name)}</strong>` : "") + line2;
 }
 function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
