@@ -583,7 +583,7 @@ function addVisitorNote(){
   const notes=JSON.parse(localStorage.getItem(visitorStorageKey())||"[]");
   notes.unshift({
     text,
-    time:new Date().toLocaleString()
+    time:new Date().toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC")
   });
 
   localStorage.setItem(visitorStorageKey(),JSON.stringify(notes.slice(0,20)));
@@ -671,7 +671,20 @@ function archiveTitle(archive){
   const balance=artifact?.balance;
   return balance!==undefined?`${Number(balance)/1e9} SUI · sealed forever`:"Immutable Sui object";
 }
-function archiveMessage(archive){return capFirst(archive.content?.message||"No message recorded.")}
+// Label shown in place of a message when an entry was sealed with no message:
+// shows the frozen amount, e.g. "1E-7 SUI · SEALED FOREVER" or, for larger
+// amounts, "0.2425 SUI · SEALED FOREVER". Tiny balances use exponential notation.
+function sealedLabel(balance){
+  if(balance===undefined) return "SEALED FOREVER";
+  const sui=Number(balance)/1e9;
+  const amt = sui>0 && sui<0.001 ? sui.toExponential(0).toUpperCase() : sui.toFixed(4).replace(/\.?0+$/,"");
+  return `${amt} SUI · SEALED FOREVER`;
+}
+function archiveMessage(archive){
+  const msg=archive.content?.message;
+  if(msg && msg.trim()!=="") return capFirst(msg);
+  return sealedLabel(archive.content?.artifact?.balance);
+}
 function archiveDisplayTitle(archive){
   const artifact=archive.content?.artifact;
   if(artifact?.name)return artifact.name;
