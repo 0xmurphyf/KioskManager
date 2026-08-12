@@ -419,17 +419,22 @@ body.wallet-open{overflow:hidden}
     <div class="progress" id="progress"></div>
 
     <div class="step active" data-step="1">
-      <h2>Connect your wallet</h2>
-      <p>The object must be directly owned by this wallet.</p>
-      <div class="warning">This is a real Sui Testnet transaction. The selected object will be frozen and can never be recovered.</div>
+      <h2>Choose an object</h2>
+      <p>Select one object to remove from ownership forever. This is a real Sui Testnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button></div>
+      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Testnet objects.</div></div>
+      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
     </div>
 
     <div class="step" data-step="2">
-      <h2>Choose an object</h2>
-      <p>Select one object to remove from ownership forever. This is a real Sui Testnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
-      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet and continue to load your Testnet objects.</div></div>
-      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
+      <h2>Choose Image</h2>
+      <p>The image reference cannot be edited after archiving.</p>
+      <div class="storage-grid">
+        <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
+        <button class="option" data-label="Just archive" onclick="selectOption(this,2)">Just archive</button>
+      </div>
+      <div class="hero-preview" id="stepImagePreview"></div>
+      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
 
     <div class="step" data-step="3">
@@ -441,28 +446,17 @@ body.wallet-open{overflow:hidden}
     </div>
 
     <div class="step" data-step="4">
-      <h2>Choose the final image</h2>
-      <p>The image reference cannot be edited after archiving.</p>
+      <h2>Choose backup storage</h2>
+      <p>The URI and file hash become part of the immutable archive record.</p>
       <div class="storage-grid">
-        <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,4)">Use Original Image</button>
-        <button class="option" data-label="Just archive" onclick="selectOption(this,4)">Just archive</button>
+        <button class="option selected" data-label="Archive Hosted" onclick="selectOption(this,4)">Archive Hosted<br><span class="muted">0.20 SUI</span></button>
+        <button class="option" data-label="Independent Storage" onclick="selectOption(this,4)">Independent Storage<br><span class="muted">Network quoted</span></button>
+        <button class="option" data-label="No Media" onclick="selectOption(this,4)">No Media<br><span class="muted">Free</span></button>
       </div>
-      <div class="hero-preview" id="step4Preview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
 
     <div class="step" data-step="5">
-      <h2>Choose storage</h2>
-      <p>The URI and file hash become part of the immutable archive record.</p>
-      <div class="storage-grid">
-        <button class="option selected" data-label="Archive Hosted" onclick="selectOption(this,5)">Archive Hosted<br><span class="muted">0.20 SUI</span></button>
-        <button class="option" data-label="Independent Storage" onclick="selectOption(this,5)">Independent Storage<br><span class="muted">Network quoted</span></button>
-        <button class="option" data-label="No Media" onclick="selectOption(this,5)">No Media<br><span class="muted">Free</span></button>
-      </div>
-      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
-    </div>
-
-    <div class="step" data-step="6">
       <h2>Final confirmation</h2>
       <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0 SUI.</div>
       <div style="margin-top:22px">
@@ -1058,20 +1052,18 @@ let selectedObjectId=null;
 let selectedObjectType=null;
 let wizardObjectsLoaded=false;
 function startWizard(){
-  // First page decides based on wallet connection: if already connected, skip
-  // the connect step and go straight to object selection; otherwise show the
-  // connect step so the user can connect first.
-  const conn = window.theArchiveWallet && window.theArchiveWallet.getConnection ? window.theArchiveWallet.getConnection() : null;
-  currentStep = conn ? 2 : 1;
+  // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
+  // connected, the grid shows a connect prompt and the user connects there.
+  currentStep = 1;
   selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;showView("wizard");renderStep();
 }
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
   progress.innerHTML="";
-  for(let i=1;i<=6;i++){const x=document.createElement("i");if(i<=Math.min(currentStep,6))x.className="on";progress.appendChild(x)}
-  if(currentStep===2 && !wizardObjectsLoaded) loadWizardObjects();
-  if(currentStep===4) renderStep4Preview();
-  if(currentStep===6){
+  for(let i=1;i<=5;i++){const x=document.createElement("i");if(i<=Math.min(currentStep,5))x.className="on";progress.appendChild(x)}
+  if(currentStep===1 && !wizardObjectsLoaded) loadWizardObjects();
+  if(currentStep===2) renderStepImagePreview();
+  if(currentStep===5){
     const cell=document.getElementById("confirmObjectCell");
     if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
     populateConfirmSummary();
@@ -1080,7 +1072,7 @@ function renderStep(){
 function nextStep(){currentStep++;renderStep()}
 function prevStep(){currentStep=Math.max(1,currentStep-1);renderStep()}
 function selectObject(el){
-  document.querySelectorAll('[data-step="2"] .option').forEach(x=>x.classList.remove("selected"));
+  document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
@@ -1091,14 +1083,14 @@ function selectObject(el){
 function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
-  if(step===4) renderStep4Preview();
+  if(step===2) renderStepImagePreview();
 }
-function renderStep4Preview(){
-  const preview=document.getElementById("step4Preview");
+function renderStepImagePreview(){
   if(!preview)return;
-  const hero=document.querySelector('[data-step="4"] .option.selected');
+  const preview=document.getElementById("stepImagePreview");
+  const hero=document.querySelector('[data-step="2"] .option.selected');
   const label=hero?hero.dataset.label:"";
-  const objectImage=document.querySelector('[data-step="2"] .option.selected')?.dataset.image||"";
+  const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
   let url="";
   if(label==="Use Original Image") url=objectImage||DEFAULT_HERO_URL;
   else if(label==="Just archive") url=DEFAULT_HERO_URL;
@@ -1110,8 +1102,8 @@ function populateConfirmSummary(){
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value||"—";};
   const msgEl=document.querySelector('[data-step="3"] textarea');
   const sigEl=document.querySelector('[data-step="3"] input');
-  const hero=document.querySelector('[data-step="4"] .option.selected');
-  const storage=document.querySelector('[data-step="5"] .option.selected');
+  const hero=document.querySelector('[data-step="2"] .option.selected');
+  const storage=document.querySelector('[data-step="4"] .option.selected');
   set('confirmMessageCell', msgEl?msgEl.value.trim():"");
   set('confirmSignatureCell', sigEl?sigEl.value.trim():"");
   set('confirmHeroCell', hero?hero.dataset.label:"");
@@ -1121,7 +1113,7 @@ function populateConfirmSummary(){
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
   const heroLabel=hero?hero.dataset.label:'';
-  const objectImage=document.querySelector('[data-step="2"] .option.selected')?.dataset.image||'';
+  const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||'';
   if(heroLabel==='Use Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
@@ -1185,8 +1177,8 @@ async function completeArchive(){
     const message=document.querySelector('[data-step="3"] textarea')?.value||"";
     const signature=document.querySelector('[data-step="3"] input')?.value||"";
     // Resolve the hero asset + storage type from the wizard choices.
-    const heroChoice=document.querySelector('[data-step="4"] .option.selected')?.dataset.label||"";
-    const objectImage=document.querySelector('[data-step="2"] .option.selected')?.dataset.image||"";
+    const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
+    const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
     if(useArweave && window.theArchiveArweave){

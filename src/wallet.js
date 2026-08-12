@@ -249,7 +249,7 @@ function finishConnection(definition) {
   const shouldAdvance = pendingWizardAdvance;
   pendingWizardAdvance = false;
   closeWalletDialog({ cancelWizard: false });
-  if (shouldAdvance && typeof window.nextStep === 'function') window.nextStep();
+  if (shouldAdvance && typeof window.renderStep === 'function') window.renderStep();
 }
 
 function phantomAddress(response) {
@@ -338,7 +338,7 @@ async function disconnectCurrentWallet() {
 walletButton.addEventListener('click', () => openWalletDialog());
 wizardWalletButton.addEventListener('click', () => {
   if (activeConnection()) {
-    window.nextStep();
+    window.renderStep();
   } else {
     openWalletDialog({ fromWizard: true });
   }
