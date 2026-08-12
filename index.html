@@ -146,8 +146,12 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .memory{font-family:Georgia,serif;font-size:clamp(20px,2vw,26px);line-height:1.48}
 .label{font:11px "Courier New",monospace;letter-spacing:.18em;color:var(--accent);margin-top:28px}
 .detail-line{display:grid;grid-template-columns:130px 1fr;gap:18px;padding:12px 0;border-bottom:1px solid var(--line);text-align:left}
-.detail-center{max-width:320px;margin:18px auto 0;text-align:center}
-.detail-center .detail-line{display:flex;justify-content:center;gap:12px;grid-template-columns:none;border-bottom:0;padding:6px 0}
+.detail-block{margin-top:10px;text-align:center}
+.detail-archived{display:flex;flex-direction:column;gap:4px;font-family:Georgia,serif;font-size:clamp(15px,1.6vw,18px)}
+.detail-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:280px;margin:20px auto 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.detail-meta-item{display:flex;flex-direction:column;gap:6px;padding:14px 10px}
+.detail-meta-item+.detail-meta-item{border-left:1px solid var(--line)}
+.detail-meta-item .muted{font:11px "Courier New",monospace;letter-spacing:.12em}
 
 .wizard{max-width:1050px;margin:0 auto;padding:50px 24px 90px}
 .progress{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:20px 0 32px}
@@ -385,13 +389,17 @@ body.wallet-open{overflow:hidden}
       <div class="label">MEMORY</div>
       <div class="memory" id="detailQuote">“This was the last thing I thought I would keep forever.”</div>
       <div class="label">SEALED BY</div>
-      <p><span id="detailBy">Murphy</span><br><span class="muted" id="detailAddress">0x9ab4...c12d</span></p>
       <p id="detailSignature">“The world changed faster than I did.”</p>
       <div class="label">ARCHIVED</div>
-      <p><span id="detailDate">14 Jul 2026 · 14:32 UTC</span><br><span class="muted" id="detailAge">Memory age: 1 day</span></p>
-      <div class="detail-center">
-        <div class="detail-line"><span class="muted">Status</span><span>Immutable</span></div>
-        <div class="detail-line"><span class="muted">Owner</span><span>None</span></div>
+      <div class="detail-block">
+        <div class="detail-archived">
+          <span id="detailDate">14 Jul 2026 · 14:32 UTC</span>
+          <span class="muted" id="detailAge">Memory age: 1 day</span>
+        </div>
+        <div class="detail-meta-grid">
+          <div class="detail-meta-item"><span class="muted">Status</span><span>Immutable</span></div>
+          <div class="detail-meta-item"><span class="muted">Owner</span><span>None</span></div>
+        </div>
       </div>
 
       <div class="archive-ending">
@@ -579,17 +587,8 @@ function openDetail(i){
     detailId.innerHTML=suiscanLink(m.address, `ARCHIVE•${m.code}`);
     detailTitle.textContent=m.title.toUpperCase();
     detailQuote.textContent=`“${m.quote}”`;
-    const hasSignature = m.signature && m.signature.trim() !== "" && m.signature !== "No name left.";
-
-    if(!hasSignature){
-      detailBy.textContent="anonymous";
-      detailAddress.innerHTML="";
-      detailSignature.textContent="No signature left.";
-    }else{
-      detailBy.textContent=m.by;
-      detailAddress.innerHTML=suiscanLink(m.address);
-      detailSignature.textContent=`“${m.signature}”`;
-    }
+    const sig = m.signature && m.signature.trim() !== "" && m.signature !== "No name left." ? m.signature.trim() : "anonymous";
+    detailSignature.textContent=`“${sig}”`;
     detailDate.textContent=m.date;
     detailAge.textContent=m.age;
     renderVisitorNotes();
@@ -697,15 +696,8 @@ function openChainArchive(archiveId){
   detailId.innerHTML=suiscanLink(archive.archiveId, `ARCHIVE·${shortHash(archive.archiveId,10)}`);
   detailTitle.textContent=archiveDisplayTitle(archive).toUpperCase();
   detailQuote.textContent=`“${archiveMessage(archive)}”`;
-  const hasSignature = content.sealer_signature && content.sealer_signature.trim() !== "";
-  if(!hasSignature){
-    detailBy.textContent="anonymous";
-    detailAddress.innerHTML="";
-  }else{
-    detailBy.textContent=shortHash(archive.archivedBy,10);
-    detailAddress.innerHTML=archive.archivedBy?suiscanLink(archive.archivedBy):"—";
-  }
-  detailSignature.textContent=content.sealer_signature?`“${content.sealer_signature}”`:"No signature left.";
+  const sig=content.sealer_signature && content.sealer_signature.trim()!=="" ? content.sealer_signature.trim() : "anonymous";
+  detailSignature.textContent=`“${sig}”`;
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
   detailAge.textContent=`Sui Testnet · policy version ${archive.policyVersion||"—"}`;
