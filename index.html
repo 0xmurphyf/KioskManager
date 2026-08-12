@@ -38,7 +38,7 @@ header{
 nav{display:flex;gap:20px;align-items:center}
 nav button{background:none;border:0;color:var(--dim)}
 .wallet{border:1px solid var(--line)!important;padding:9px 13px!important;color:var(--paper)!important}
-.archive-direct{color:var(--paper)!important;border-bottom:1px solid var(--accent)!important;padding:7px 0!important}
+.archive-direct{color:var(--paper)!important;padding:7px 0!important}
 .wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:11px}
 .wallet-top-disconnect:hover{color:var(--paper)!important;border-color:rgba(231,225,210,.42)!important}
 .view{display:none}.view.active{display:block}
@@ -407,7 +407,7 @@ body.wallet-open{overflow:hidden}
     <div class="step active" data-step="1">
       <h2>Connect your wallet</h2>
       <p>The object must be directly owned by this wallet.</p>
-      <div class="warning">Prototype only. No real Sui transaction will occur.</div>
+      <div class="warning">This is a real Sui Testnet transaction. The selected object will be frozen and can never be recovered.</div>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button></div>
     </div>
 
@@ -1031,7 +1031,14 @@ let currentStep=1;
 let selectedObjectId=null;
 let selectedObjectType=null;
 let wizardObjectsLoaded=false;
-function startWizard(){currentStep=1;selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;showView("wizard");renderStep()}
+function startWizard(){
+  // First page decides based on wallet connection: if already connected, skip
+  // the connect step and go straight to object selection; otherwise show the
+  // connect step so the user can connect first.
+  const conn = window.theArchiveWallet && window.theArchiveWallet.getConnection ? window.theArchiveWallet.getConnection() : null;
+  currentStep = conn ? 2 : 1;
+  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;showView("wizard");renderStep();
+}
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
   progress.innerHTML="";
