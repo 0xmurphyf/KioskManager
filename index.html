@@ -422,7 +422,6 @@ body.wallet-open{overflow:hidden}
 
       <div class="visitor-book">
         <div class="eyebrow">VISITOR BOOK</div>
-        <h3>Leave one sentence.</h3>
         <p>No likes. No comments. Only a quiet acknowledgement.</p>
         <div class="visitor-form">
           <input id="visitorInput" type="text" maxlength="120" placeholder="I remember this.">
@@ -791,7 +790,7 @@ async function fetchLatestArchiveId(sender) {
   const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
   const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
   const body = {
-    query: `query($s:String!,$t:String!){ events(first:1, filter:{sender:$s, type:$t}){ nodes{ contents{ json } } } }`,
+    query: `query($s:String!,$t:String!){ events(last:1, filter:{sender:$s, type:$t}){ nodes{ contents{ json } } } }`,
     variables: { s: sender, t: EVENT_TYPE },
   };
   const r = await fetch(GRAPHQL_ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
