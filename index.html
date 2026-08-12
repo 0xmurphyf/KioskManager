@@ -148,8 +148,8 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .detail-line{display:grid;grid-template-columns:130px 1fr;gap:18px;padding:12px 0;border-bottom:1px solid var(--line);text-align:left}
 .detail-block{margin-top:10px;text-align:center}
 .detail-archived{display:flex;flex-direction:column;gap:4px;font-family:Georgia,serif;font-size:clamp(15px,1.6vw,18px)}
-.detail-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:280px;margin:20px auto 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.detail-meta-item{display:flex;flex-direction:column;gap:6px;padding:14px 10px}
+.detail-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:280px;margin:20px auto 0}
+.detail-meta-item{display:flex;flex-direction:column;gap:6px;padding:10px}
 .detail-meta-item+.detail-meta-item{border-left:1px solid var(--line)}
 .detail-meta-item .muted{font:11px "Courier New",monospace;letter-spacing:.12em}
 
@@ -178,6 +178,9 @@ textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
 .fee-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.fee-summary{margin-top:22px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0}
+.fee-total{font-family:Georgia,serif;font-size:clamp(16px,1.8vw,19px);border-bottom:0;padding-top:16px}
+.fee-total span:last-child{color:var(--paper)}
 .success{text-align:center;padding:70px 20px}
 .seal{width:88px;height:88px;border:1px solid var(--paper);border-radius:50%;display:grid;place-items:center;margin:0 auto 24px;font-family:Georgia,serif;font-size:34px}
 .toast{position:fixed;right:24px;bottom:24px;border:1px solid var(--line);background:#151510;padding:13px 16px;display:none;z-index:40}
@@ -469,10 +472,8 @@ body.wallet-open{overflow:hidden}
 
     <div class="step" data-step="5">
       <h2>Final confirmation</h2>
-      <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0 SUI.</div>
+      <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0.0919 SUI.</div>
       <div style="margin-top:22px">
-        <div class="fee-row"><span>Archive Fee</span><span>0 SUI (policy)</span></div>
-        <div class="fee-row"><span>Network Gas</span><span>Testnet estimated</span></div>
         <div class="fee-row"><span>Object to archive</span><span id="confirmObjectCell">—</span></div>
         <div class="fee-row"><span>Hero Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
@@ -480,6 +481,11 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row"><span>Backup storage</span><span id="confirmStorageCell">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
+      <div class="fee-summary">
+        <div class="fee-row"><span>Archive Fee</span><span id="confirmArchiveFee">0.0919 SUI</span></div>
+        <div class="fee-row"><span>Backup Fee</span><span id="confirmBackupFee">—</span></div>
+        <div class="fee-row fee-total"><span>Total</span><span id="confirmTotalFee">—</span></div>
+      </div>
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
     </div>
@@ -1132,6 +1138,20 @@ function populateConfirmSummary(){
   }else{
     preview.hidden=true;
     preview.innerHTML='';
+  }
+  // Fee summary: archive fee is fixed; backup fee depends on the chosen storage.
+  const ARCHIVE_FEE=0.0919;
+  const backupLabel=storage?storage.dataset.label:'';
+  const backupMap={ 'Walrus':0.20, 'Arweave':'Network quoted', 'No backup':0 };
+  const backupFee=backupMap[backupLabel];
+  document.getElementById('confirmArchiveFee').textContent=`${ARCHIVE_FEE} SUI`;
+  if(backupFee==='Network quoted'){
+    document.getElementById('confirmBackupFee').textContent='Network quoted';
+    document.getElementById('confirmTotalFee').textContent=`${ARCHIVE_FEE} + network`;
+  }else{
+    const total=(ARCHIVE_FEE + (backupFee||0)).toFixed(4);
+    document.getElementById('confirmBackupFee').textContent=backupFee?`${backupFee} SUI`:'Free';
+    document.getElementById('confirmTotalFee').textContent=`${total} SUI`;
   }
 }
 // Default hero used when "Just archive" is chosen (no original image available).
