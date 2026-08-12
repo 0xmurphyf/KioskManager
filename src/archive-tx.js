@@ -17,6 +17,16 @@ const STORAGE_ARWEAVE = 2;
 // Helper: extract a readable object type + label from a Sui owned-object struct.
 // Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/
 // version/type/content) as well as the JSON-RPC `getOwnedObjects` shape.
+// Derive a coin's display symbol from its Move type, e.g.
+//  0x2::coin::Coin<...::suilfg_memefi::SUILFG_MEMEFI> -> "SUILFG_MEMEFI"
+//  0x2::coin::Coin<0x2::sui::SUI>                    -> "SUI"
+function coinSymbol(type) {
+  const m = type.match(/::coin::Coin<(?:[^>]*::)?([^>]+)>$/);
+  if (!m) return '';
+  const last = m[1].split('::').pop();
+  return last || '';
+}
+
 function describeObject(obj) {
   const data = obj?.data ?? obj;
   const type = data?.type || data?.content?.type || 'Unknown object';
@@ -25,9 +35,11 @@ function describeObject(obj) {
   // Normalise both so `balance` is read regardless of which client answered.
   const content = data?.content || {};
   const fields = content.fields || content;
+  const isCoin = type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin');
   const name =
     fields.name ||
     (fields.artifact && fields.artifact.fields && fields.artifact.fields.name) ||
+    (isCoin ? coinSymbol(type) : '') ||
     '';
   const balanceRaw =
     fields.balance !== undefined ? fields.balance : content.balance;
@@ -36,7 +48,7 @@ function describeObject(obj) {
     type,
     version: data.version,
     name: typeof name === 'string' ? name : '',
-    isCoin: type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin'),
+    isCoin,
     imageUrl: data?.display?.data?.image_url || '',
     balance:
       balanceRaw !== undefined ? BigInt(balanceRaw) : undefined,
@@ -76,6 +88,7 @@ export async function fetchOwnedObjects(client, address) {
           version: c.version,
           balance: c.balance !== undefined ? BigInt(c.balance) : undefined,
           isCoin: true,
+          name: coinSymbol(c.type) || 'SUI',
         });
       }
       cursor = res.hasNextPage ? res.cursor : null;
@@ -99,10 +112,11 @@ export async function fetchOwnedObjects(client, address) {
     .map(describeObject)
     // Drop SUI coins (already fetched with balance above); keep non-SUI coins so
     // they remain selectable (archived whole, since listOwnedObjects gives no balance).
-    .filter((o) => !o.isCoin || o.type !== '0x2::coin::Coin<0x2::sui::SUI>');
+    // Match the SUI tail regardless of the 0x-padding the RPC may apply.
+    .filter((o) => !o.isCoin || !o.type.endsWith('::sui::SUI>'));
 
   return [...coins, ...others].filter(
-    (o) => o.objectId && o.type !== '0x2::sui::SUI',
+    (o) => o.objectId && !o.type.endsWith('::sui::SUI>'),
   );
 }
 
