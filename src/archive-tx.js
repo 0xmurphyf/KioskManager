@@ -69,14 +69,21 @@ export async function fetchOwnedObjects(client, address) {
 
   return collected
     .map(describeObject)
-    .filter((o) => o.objectId && o.type !== '0x2::coin::Coin<0x2::sui::SUI>')
-    .filter((o) => o.type !== '0x2::sui::SUI');
+    // Keep Coin objects too (the wizard lets the user archive a chosen amount),
+    // but drop the bare `0x2::sui::SUI` balance type which is not an owned object.
+    .filter((o) => o.objectId && o.type !== '0x2::sui::SUI');
 }
 
 // Build a `Transaction` that archives the given owned object. The object is
 // passed by reference (its ID), and a fresh gas coin is split to cover the
 // archive fee. With STORAGE_NONE the hero image URI/hash are left empty, which
 // the contract's validate_metadata allows.
+//
+// For Coin objects the caller may pass `amount` (in MIST). When `amount` is set
+// and is less than the coin's full balance, the transaction splits that amount
+// off `tx.gas` into a fresh Coin object and archives *that* — so only the chosen
+// quantity is frozen, the remainder stays spendable. `typeArgument` must then be
+// the concrete coin type, e.g. `0x2::coin::Coin<0x2::sui::SUI>`.
 //
 // `archive_forever` is generic over `T: key + store`, so the concrete Move type
 // of the archived object MUST be supplied as a type argument — omitting it fails
@@ -89,6 +96,7 @@ export function buildArchiveTransaction({
   storageType = STORAGE_NONE,
   heroUri = '',
   heroHash = [],
+  amount,
 }) {
   const tx = new Transaction();
 
@@ -110,11 +118,25 @@ export function buildArchiveTransaction({
   // "UnusedValueWithoutDrop". The policy fee is currently 0, so no SUI moves.
   const payment = tx.gas;
 
+  // The artifact: either the selected object, or — for a partial Coin archive —
+  // a freshly split Coin of the requested amount.
+  let artifactArg;
+  let typeArg = typeArgument;
+  if (amount !== undefined && amount !== null && typeArgument && typeArgument.includes('::coin::Coin<')) {
+    const [coinType] = typeArgument.split('::Coin<');
+    const fullCoinType = `${coinType}::Coin<${typeArgument.split('::Coin<')[1]}`;
+    const split = tx.splitCoins(tx.gas, [tx.pure.u64(String(amount))]);
+    artifactArg = split[0];
+    typeArg = fullCoinType;
+  } else {
+    artifactArg = tx.object(objectId);
+  }
+
   const args = {
     target: `${PACKAGE_ID}::memory_archive::archive_forever`,
     arguments: [
       tx.object(POLICY_OBJECT_ID), // shared ArchivePolicy
-      tx.object(objectId), // the artifact to archive
+      artifactArg, // the artifact to archive (object or split coin)
       payment, // &mut Coin<SUI> for the fee (gas itself, unused at fee 0)
       messageArg,
       signatureArg,
@@ -124,7 +146,7 @@ export function buildArchiveTransaction({
       tx.object(CLOCK_OBJECT_ID), // Clock
     ],
   };
-  if (typeArgument) args.typeArguments = [typeArgument];
+  if (typeArg) args.typeArguments = [typeArg];
 
   tx.moveCall(args);
 
@@ -142,6 +164,7 @@ export async function archiveObject({
   storageType = STORAGE_NONE,
   heroUri = '',
   heroHash = [],
+  amount,
 }) {
   const tx = buildArchiveTransaction({
     objectId,
@@ -151,6 +174,7 @@ export async function archiveObject({
     storageType,
     heroUri,
     heroHash,
+    amount,
   });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;

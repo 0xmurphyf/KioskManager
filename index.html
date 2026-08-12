@@ -166,6 +166,8 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .filter-tabs{display:flex;gap:8px}
 .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
+.coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+.coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .option{
   border:1px solid var(--line);background:#11110e;color:var(--paper);
   min-height:170px;padding:18px;text-align:left
@@ -1114,8 +1116,19 @@ function renderFilteredObjects(){
     card.dataset.objectId=obj.objectId;
     card.dataset.type=obj.type;
     card.dataset.image=obj.imageUrl||'';
+    card.dataset.isCoin=obj.isCoin?'1':'';
+    card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
     card.onclick=()=>selectObject(card);
-    card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>`;
+    let extra='';
+    if(obj.isCoin){
+      const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
+      extra=`<div class="coin-amount" onclick="event.stopPropagation()">
+        <label>Amount (SUI)</label>
+        <input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}">
+        <span class="muted">max ${fullSUI.toFixed(4)} SUI — leave blank to archive all</span>
+      </div>`;
+    }
+    card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
     grid.appendChild(card);
   }
 }
@@ -1270,7 +1283,20 @@ async function completeArchive(){
       heroUri=uploaded.uri;
       heroHash=uploaded.hashBytes;
     }
-    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash});
+    // Resolve a partial Coin amount, if the selected object is a coin and the
+    // user entered one. Blank / zero => archive the whole coin object.
+    let amount;
+    const selCard=document.querySelector('[data-step="1"] .option.selected');
+    if(selCard && selCard.dataset.isCoin==='1'){
+      const amtInput=selCard.querySelector('.coin-amount input');
+      const raw=amtInput && amtInput.value.trim()!=='' ? parseFloat(amtInput.value) : 0;
+      if(raw>0){
+        const bal=selCard.dataset.balance?BigInt(selCard.dataset.balance):0n;
+        const mist=BigInt(Math.round(raw*1e9));
+        amount = bal>0n && mist<bal ? mist : undefined; // partial only when strictly less than full
+      }
+    }
+    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash,amount});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     currentStep=7;renderStep();
   }catch(error){
