@@ -1284,16 +1284,20 @@ async function completeArchive(){
       heroHash=uploaded.hashBytes;
     }
     // Resolve a partial Coin amount, if the selected object is a coin and the
-    // user entered one. Blank / zero => archive the whole coin object.
+    // user entered one. Blank / zero => archive the whole coin object. If the
+    // entered amount meets-or-exceeds the full balance, archive the whole coin
+    // (rather than silently failing to split). Absent balance data => whole coin.
     let amount;
     const selCard=document.querySelector('[data-step="1"] .option.selected');
     if(selCard && selCard.dataset.isCoin==='1'){
       const amtInput=selCard.querySelector('.coin-amount input');
-      const raw=amtInput && amtInput.value.trim()!=='' ? parseFloat(amtInput.value) : 0;
+      const raw=amtInput && amtInput.value.trim()!=='' ? Number(amtInput.value) : 0;
       if(raw>0){
         const bal=selCard.dataset.balance?BigInt(selCard.dataset.balance):0n;
-        const mist=BigInt(Math.round(raw*1e9));
-        amount = bal>0n && mist<bal ? mist : undefined; // partial only when strictly less than full
+        // Use BigInt-safe rounding: round(SUI*1e9) via string math to avoid float error.
+        const mist=BigInt(Math.floor(raw*1e9 + 1e-6));
+        if(bal===0n || mist>=bal) amount=undefined; // whole coin
+        else amount=mist; // partial split
       }
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash,amount});

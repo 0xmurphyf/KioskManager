@@ -20,11 +20,17 @@ const STORAGE_ARWEAVE = 2;
 function describeObject(obj) {
   const data = obj?.data ?? obj;
   const type = data?.type || data?.content?.type || 'Unknown object';
-  const fields = data?.content?.fields || {};
+  // gRPC returns a Coin's Move struct as raw JSON in `content` (e.g.
+  // { id, balance }); the JSON-RPC client wraps it as `content.fields`.
+  // Normalise both so `balance` is read regardless of which client answered.
+  const content = data?.content || {};
+  const fields = content.fields || content;
   const name =
     fields.name ||
     (fields.artifact && fields.artifact.fields && fields.artifact.fields.name) ||
     '';
+  const balanceRaw =
+    fields.balance !== undefined ? fields.balance : content.balance;
   return {
     objectId: data.objectId,
     type,
@@ -33,7 +39,7 @@ function describeObject(obj) {
     isCoin: type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin'),
     imageUrl: data?.display?.data?.image_url || '',
     balance:
-      fields.balance !== undefined ? BigInt(fields.balance) : undefined,
+      balanceRaw !== undefined ? BigInt(balanceRaw) : undefined,
   };
 }
 
@@ -119,13 +125,16 @@ export function buildArchiveTransaction({
   const payment = tx.gas;
 
   // The artifact: either the selected object, or — for a partial Coin archive —
-  // a freshly split Coin of the requested amount.
+  // a freshly split Coin of the requested amount. The split MUST come from the
+  // selected coin object (objectId), NOT tx.gas — otherwise we'd freeze part of
+  // the user's gas and leave the selected coin untouched. The remainder of the
+  // selected coin stays with the user.
   let artifactArg;
   let typeArg = typeArgument;
   if (amount !== undefined && amount !== null && typeArgument && typeArgument.includes('::coin::Coin<')) {
     const [coinType] = typeArgument.split('::Coin<');
     const fullCoinType = `${coinType}::Coin<${typeArgument.split('::Coin<')[1]}`;
-    const split = tx.splitCoins(tx.gas, [tx.pure.u64(String(amount))]);
+    const split = tx.splitCoins(tx.object(objectId), [tx.pure.u64(String(amount))]);
     artifactArg = split[0];
     typeArg = fullCoinType;
   } else {

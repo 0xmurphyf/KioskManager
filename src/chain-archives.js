@@ -1,7 +1,7 @@
 export const PACKAGE_ID = '0x639d824b6a4de1b1491d69eaa79597336ab3be8dc9dff3bfd78cd333bf38a53b';
 export const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
 export const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
-const configuredArchiveApiUrl = import.meta.env.VITE_ARCHIVE_API_URL?.trim();
+const configuredArchiveApiUrl = import.meta.env?.VITE_ARCHIVE_API_URL?.trim();
 export const ARCHIVE_API_URL = configuredArchiveApiUrl || '/api/archives';
 export const ARCHIVE_STREAM_URL = `${ARCHIVE_API_URL.replace(/\/+$/, '')}/stream`;
 
