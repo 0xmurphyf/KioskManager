@@ -41,6 +41,8 @@ nav button{background:none;border:0;color:var(--dim)}
 .archive-direct{color:var(--paper)!important;padding:7px 0!important}
 .wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:11px}
 .wallet-top-disconnect:hover{color:var(--paper)!important;border-color:rgba(231,225,210,.42)!important}
+.addr-link{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);word-break:break-all}
+.addr-link:hover{opacity:.8}
 .view{display:none}.view.active{display:block}
 
 .hero{
@@ -455,8 +457,9 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row"><span>Archive Fee</span><span>0 SUI (policy)</span></div>
         <div class="fee-row"><span>Storage</span><span>None (selected)</span></div>
         <div class="fee-row"><span>Network Gas</span><span>Testnet estimated</span></div>
+        <div class="fee-row"><span>Object to archive</span><span id="confirmObjectCell">—</span></div>
       </div>
-      <div class="field"><label>Type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
+      <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
     </div>
 
@@ -567,11 +570,11 @@ function openDetail(i){
 
     if(!hasSignature){
       detailBy.textContent="Unknown";
-      detailAddress.textContent="";
+      detailAddress.innerHTML="";
       detailSignature.textContent="No signature left.";
     }else{
       detailBy.textContent=m.by;
-      detailAddress.textContent=m.address;
+      detailAddress.innerHTML=suiscanLink(m.address);
       detailSignature.textContent=`“${m.signature}”`;
     }
     detailSignature.textContent=`“${m.signature}”`;
@@ -608,6 +611,12 @@ function shortHash(value, width=8){
   if(!value)return "—";
   return value.length>width+6?`${value.slice(0,width)}…${value.slice(-4)}`:value;
 }
+// Suiscan (Testnet) link for any Sui object/account address.
+function suiscanUrl(address){return `https://suiscan.xyz/testnet/object/${encodeURIComponent(address||"")}`;}
+function suiscanLink(address, label){
+  const text=label||shortHash(address,10);
+  return `<a class="addr-link" href="${suiscanUrl(address)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
+}
 function escapeHtml(value){
   return String(value??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
 }
@@ -643,7 +652,7 @@ function renderLiveChainArchiveRows(archives){
     const imageUrl=archiveImageUrl(archive);
     const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:"";
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
-      <span class="archive-id">${image}ARCHIVE · ${escapeHtml(shortHash(archive.archiveId,6))}</span>
+      <span class="archive-id">${image}<a class="addr-link" href="${suiscanUrl(archive.archiveId)}" target="_blank" rel="noopener noreferrer">ARCHIVE · ${escapeHtml(shortHash(archive.archiveId,6))}</a></span>
       <span class="archive-title">${escapeHtml(archiveDisplayTitle(archive))}</span>
       <span class="muted hide-mobile">${escapeHtml(archiveMessage(archive))}</span>
       <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
@@ -652,7 +661,7 @@ function renderLiveChainArchiveRows(archives){
 }
 function renderChainArchiveRows(archives){
   return archives.map(archive=>`<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
-    <span class="archive-id">ARCHIVE·${escapeHtml(shortHash(archive.archiveId,6))}</span>
+    <span class="archive-id"><a class="addr-link" href="${suiscanUrl(archive.archiveId)}" target="_blank" rel="noopener noreferrer">ARCHIVE·${escapeHtml(shortHash(archive.archiveId,6))}</a></span>
     <span class="archive-title">${escapeHtml(archiveTitle(archive))}</span>
     <span class="muted hide-mobile">“${escapeHtml(archiveMessage(archive))}”</span>
     <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
@@ -677,7 +686,7 @@ function openChainArchive(archiveId){
   detailTitle.textContent=archiveDisplayTitle(archive).toUpperCase();
   detailQuote.textContent=`“${archiveMessage(archive)}”`;
   detailBy.textContent=shortHash(archive.archivedBy,10);
-  detailAddress.textContent=archive.archivedBy||"";
+  detailAddress.innerHTML=archive.archivedBy?suiscanLink(archive.archivedBy):"—";
   detailSignature.textContent=content.sealer_signature?`“${content.sealer_signature}”`:"No signature left.";
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toLocaleString();
@@ -1044,6 +1053,10 @@ function renderStep(){
   progress.innerHTML="";
   for(let i=1;i<=6;i++){const x=document.createElement("i");if(i<=Math.min(currentStep,6))x.className="on";progress.appendChild(x)}
   if(currentStep===2 && !wizardObjectsLoaded) loadWizardObjects();
+  if(currentStep===6){
+    const cell=document.getElementById("confirmObjectCell");
+    if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
+  }
 }
 function nextStep(){currentStep++;renderStep()}
 function prevStep(){currentStep=Math.max(1,currentStep-1);renderStep()}
@@ -1052,6 +1065,8 @@ function selectObject(el){
   el.classList.add("selected");
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
+  const cell=document.getElementById("confirmObjectCell");
+  if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
   objectNext.disabled=!selectedObjectId;
 }
 function selectOption(el,step){
@@ -1082,13 +1097,13 @@ function loadWizardObjects(){
     for(const obj of objects){
       const label=obj.name||obj.type.split("::").pop();
       const kind=obj.isCoin?"COIN":(obj.type.includes("NFT")||obj.type.toLowerCase().includes("voxx")?"NFT":"OBJ");
-      const button=document.createElement("button");
-      button.className="option";
-      button.dataset.objectId=obj.objectId;
-      button.dataset.type=obj.type;
-      button.onclick=()=>selectObject(button);
-      button.innerHTML=`<div class="object-thumb">${kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${escapeHtml(obj.objectId.slice(0,10))}…</p>`;
-      grid.appendChild(button);
+      const card=document.createElement("div");
+      card.className="option";
+      card.dataset.objectId=obj.objectId;
+      card.dataset.type=obj.type;
+      card.onclick=()=>selectObject(card);
+      card.innerHTML=`<div class="object-thumb">${kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+"…")}</p>`;
+      grid.appendChild(card);
     }
   }).catch(error=>{
     grid.innerHTML=`<div class="chain-empty">Could not load objects: ${escapeHtml(String(error.message||error))}</div>`;
