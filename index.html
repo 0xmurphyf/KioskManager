@@ -606,8 +606,9 @@ function openDetail(i){
     setTimeout(()=>{
     detailId.innerHTML=suiscanLink(m.address, `ARCHIVE•${m.code}`);
     detailTitle.textContent=m.title.toUpperCase();
-    detailQuote.textContent=`“${m.quote}”`;
-    const sig = m.signature && m.signature.trim() !== "" && m.signature !== "No name left." ? m.signature.trim() : "anonymous";
+    detailQuote.textContent=`“${capFirst(m.quote)}”`;
+    const sigRaw = m.signature && m.signature.trim() !== "" && m.signature !== "No name left." ? m.signature.trim() : "anonymous";
+    const sig = capFirst(sigRaw);
     detailSignature.textContent=`“${sig}”`;
     detailDate.textContent=m.date;
     detailAge.textContent=m.age;
@@ -650,6 +651,10 @@ function suiscanLink(address, label){
 function escapeHtml(value){
   return String(value??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
 }
+function capFirst(value){
+  const s=String(value??"").trim();
+  return s? s.charAt(0).toUpperCase()+s.slice(1) : s;
+}
 function relativeTime(ms){
   const seconds=Math.max(0,Math.floor((Date.now()-ms)/1000));
   if(seconds<60)return "just now";
@@ -662,7 +667,7 @@ function archiveTitle(archive){
   const balance=artifact?.balance;
   return balance!==undefined?`${Number(balance)/1e9} SUI · sealed forever`:"Immutable Sui object";
 }
-function archiveMessage(archive){return archive.content?.message||"No message recorded."}
+function archiveMessage(archive){return capFirst(archive.content?.message||"No message recorded.")}
 function archiveDisplayTitle(archive){
   const artifact=archive.content?.artifact;
   if(artifact?.name)return artifact.name;
@@ -716,7 +721,8 @@ function openChainArchive(archiveId){
   detailId.innerHTML=suiscanLink(archive.archiveId, `ARCHIVE·${shortHash(archive.archiveId,10)}`);
   detailTitle.textContent=archiveDisplayTitle(archive).toUpperCase();
   detailQuote.textContent=`“${archiveMessage(archive)}”`;
-  const sig=content.sealer_signature && content.sealer_signature.trim()!=="" ? content.sealer_signature.trim() : "anonymous";
+  const sigRaw=content.sealer_signature && content.sealer_signature.trim()!=="" ? content.sealer_signature.trim() : "anonymous";
+  const sig=capFirst(sigRaw);
   detailSignature.textContent=`“${sig}”`;
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
@@ -1176,8 +1182,8 @@ function populateConfirmSummary(){
   const sigEl=document.querySelector('[data-step="3"] input');
   const hero=document.querySelector('[data-step="2"] .option.selected');
   const storage=document.querySelector('[data-step="4"] .option.selected');
-  set('confirmMessageCell', msgEl?msgEl.value.trim():"");
-  set('confirmSignatureCell', sigEl?sigEl.value.trim():"");
+  set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
+  set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
   set('confirmHeroCell', hero?hero.dataset.label:"");
   set('confirmStorageCell', storage?storage.dataset.label:"");
   // Hero image preview: when "Use Original Image" is chosen and the selected
