@@ -671,19 +671,23 @@ function archiveTitle(archive){
   const balance=artifact?.balance;
   return balance!==undefined?`${Number(balance)/1e9} SUI · sealed forever`:"Immutable Sui object";
 }
-// Label shown in place of a message when an entry was sealed with no message:
-// shows the frozen amount, e.g. "1E-7 SUI · SEALED FOREVER" or, for larger
-// amounts, "0.2425 SUI · SEALED FOREVER". Tiny balances use exponential notation.
-function sealedLabel(balance){
-  if(balance===undefined) return "SEALED FOREVER";
-  const sui=Number(balance)/1e9;
-  const amt = sui>0 && sui<0.001 ? sui.toExponential(0).toUpperCase() : sui.toFixed(4).replace(/\.?0+$/,"");
-  return `${amt} SUI · SEALED FOREVER`;
+// Label shown in place of a message when an entry was sealed with no message.
+// Coins show the frozen amount (e.g. "1E-7 SUI · SEALED FOREVER"); objects/NFTs
+// without a balance fall back to their name when known ("VoxxFile · SEALED
+// FOREVER"), and finally to just "SEALED FOREVER".
+function sealedLabel(balance, name){
+  if(balance!==undefined) {
+    const sui=Number(balance)/1e9;
+    const amt = sui>0 && sui<0.001 ? sui.toExponential(0).toUpperCase() : sui.toFixed(4).replace(/\.?0+$/,"");
+    return `${amt} SUI · SEALED FOREVER`;
+  }
+  if(name && name.trim()!=="") return `${name.trim()} · SEALED FOREVER`;
+  return "SEALED FOREVER";
 }
 function archiveMessage(archive){
   const msg=archive.content?.message;
   if(msg && msg.trim()!=="") return capFirst(msg);
-  return sealedLabel(archive.content?.artifact?.balance);
+  return sealedLabel(archive.content?.artifact?.balance, archive.content?.artifact?.name);
 }
 function archiveDisplayTitle(archive){
   const artifact=archive.content?.artifact;
