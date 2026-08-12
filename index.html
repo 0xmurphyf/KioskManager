@@ -1086,16 +1086,26 @@ function selectOption(el,step){
   if(step===2) renderStepImagePreview();
 }
 function renderStepImagePreview(){
-  if(!preview)return;
   const preview=document.getElementById("stepImagePreview");
+  if(!preview)return;
   const hero=document.querySelector('[data-step="2"] .option.selected');
   const label=hero?hero.dataset.label:"";
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
-  let url="";
-  if(label==="Use Original Image") url=objectImage||DEFAULT_HERO_URL;
-  else if(label==="Just archive") url=DEFAULT_HERO_URL;
-  if(url){preview.hidden=false;preview.innerHTML=`<img src="${escapeHtml(url)}" alt="Selected hero preview">`;}
-  else{preview.hidden=true;preview.innerHTML="";}
+  if(label==="Use Original Image"){
+    if(objectImage){
+      preview.hidden=false;
+      preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
+    }else{
+      preview.hidden=false;
+      preview.innerHTML=`<div class="hero-none">This object has no display image — nothing to show here.</div>`;
+    }
+  }else if(label==="Just archive"){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
+  }else{
+    preview.hidden=true;
+    preview.innerHTML="";
+  }
 }
 function validateConfirm(){archiveBtn.disabled=confirmText.value.trim().toUpperCase()!=="ARCHIVE"}
 function populateConfirmSummary(){
