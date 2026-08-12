@@ -701,7 +701,10 @@ function safeImageUrl(value){
   }catch{return ""}
 }
 function archiveImageUrl(archive){
-  return safeImageUrl(archive.content?.hero_image_uri||archive.content?.artifact?.image_url||"");
+  const onChain=safeImageUrl(archive.content?.hero_image_uri||archive.content?.artifact?.image_url||"");
+  // STORAGE_NONE archives carry no on-chain hero; fall back to the canonical
+  // memory-vial asset so Just-archive / no-image entries still show an image.
+  return onChain || CONTRACT_HERO_URL;
 }
 function renderLiveChainArchiveRows(archives){
   return archives.map(archive=>{
@@ -1391,15 +1394,11 @@ async function completeArchive(){
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
-    // Default contract hero: the canonical raw GitHub asset — used for "Just
-    // archive" and for "Use Original Image" when the object has no display image.
-    if(heroChoice==="Just archive" || (heroChoice==="Use Original Image" && !objectImage)){
-      heroUri=CONTRACT_HERO_URL;
-    }
     if(useArweave && window.theArchiveArweave){
-      // When a real original image exists, prefer uploading it to Arweave so the
-      // on-chain hero points at the actual artifact; otherwise the canonical
-      // GitHub hero URL already set above stays as heroUri.
+      // When a real original image exists, upload it to Arweave so the on-chain
+      // hero points at the actual artifact. For STORAGE_NONE (no Arweave) the
+      // contract forbids a non-empty hero URI, so we leave heroUri empty and the
+      // UI falls back to CONTRACT_HERO_URL for display only.
       const imageUrl = heroChoice==="Just archive" ? CONTRACT_HERO_URL : (objectImage||CONTRACT_HERO_URL);
       showToast("Uploading hero to Arweave…");
       const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl, objectId:selectedObjectId, type:selectedObjectType });
