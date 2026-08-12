@@ -446,6 +446,7 @@ body.wallet-open{overflow:hidden}
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,4)">Use Original Image</button>
         <button class="option" data-label="Just archive" onclick="selectOption(this,4)">Just archive</button>
       </div>
+      <div class="hero-preview" id="step4Preview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
 
@@ -1068,6 +1069,7 @@ function renderStep(){
   progress.innerHTML="";
   for(let i=1;i<=6;i++){const x=document.createElement("i");if(i<=Math.min(currentStep,6))x.className="on";progress.appendChild(x)}
   if(currentStep===2 && !wizardObjectsLoaded) loadWizardObjects();
+  if(currentStep===4) renderStep4Preview();
   if(currentStep===6){
     const cell=document.getElementById("confirmObjectCell");
     if(cell) cell.innerHTML=selectedObjectId?suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…"):"—";
@@ -1088,6 +1090,19 @@ function selectObject(el){
 function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
+  if(step===4) renderStep4Preview();
+}
+function renderStep4Preview(){
+  const preview=document.getElementById("step4Preview");
+  if(!preview)return;
+  const hero=document.querySelector('[data-step="4"] .option.selected');
+  const label=hero?hero.dataset.label:"";
+  const objectImage=document.querySelector('[data-step="2"] .option.selected')?.dataset.image||"";
+  let url="";
+  if(label==="Use Original Image") url=objectImage||DEFAULT_HERO_URL;
+  else if(label==="Just archive") url=DEFAULT_HERO_URL;
+  if(url){preview.hidden=false;preview.innerHTML=`<img src="${escapeHtml(url)}" alt="Selected hero preview">`;}
+  else{preview.hidden=true;preview.innerHTML="";}
 }
 function validateConfirm(){archiveBtn.disabled=confirmText.value.trim().toUpperCase()!=="ARCHIVE"}
 function populateConfirmSummary(){
