@@ -579,7 +579,7 @@ function openDetail(i){
     const hasSignature = m.signature && m.signature.trim() !== "" && m.signature !== "No name left.";
 
     if(!hasSignature){
-      detailBy.textContent="Unknown";
+      detailBy.textContent="anonymous";
       detailAddress.innerHTML="";
       detailSignature.textContent="No signature left.";
     }else{
@@ -587,7 +587,6 @@ function openDetail(i){
       detailAddress.innerHTML=suiscanLink(m.address);
       detailSignature.textContent=`“${m.signature}”`;
     }
-    detailSignature.textContent=`“${m.signature}”`;
     detailDate.textContent=m.date;
     detailAge.textContent=m.age;
     detailType.textContent=m.type;
@@ -695,8 +694,14 @@ function openChainArchive(archiveId){
   detailId.innerHTML=suiscanLink(archive.archiveId, `ARCHIVE·${shortHash(archive.archiveId,10)}`);
   detailTitle.textContent=archiveDisplayTitle(archive).toUpperCase();
   detailQuote.textContent=`“${archiveMessage(archive)}”`;
-  detailBy.textContent=shortHash(archive.archivedBy,10);
-  detailAddress.innerHTML=archive.archivedBy?suiscanLink(archive.archivedBy):"—";
+  const hasSignature = content.sealer_signature && content.sealer_signature.trim() !== "";
+  if(!hasSignature){
+    detailBy.textContent="anonymous";
+    detailAddress.innerHTML="";
+  }else{
+    detailBy.textContent=shortHash(archive.archivedBy,10);
+    detailAddress.innerHTML=archive.archivedBy?suiscanLink(archive.archivedBy):"—";
+  }
   detailSignature.textContent=content.sealer_signature?`“${content.sealer_signature}”`:"No signature left.";
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toLocaleString();
