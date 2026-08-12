@@ -12,6 +12,7 @@ const POLICY_OBJECT_ID =
   '0xa3bc87bb4e816bc2ab1b46bf39333ea7e62f6113329cd21e4a0fee4155a3d9e6';
 const CLOCK_OBJECT_ID = '0x6';
 const STORAGE_NONE = 0;
+const STORAGE_ARWEAVE = 2;
 
 // Helper: extract a readable object type + label from a Sui owned-object struct.
 // Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/
@@ -80,19 +81,28 @@ export async function fetchOwnedObjects(client, address) {
 // `archive_forever` is generic over `T: key + store`, so the concrete Move type
 // of the archived object MUST be supplied as a type argument — omitting it fails
 // VM verification with "VerificationOrDeserialization Error in command 1".
-export function buildArchiveTransaction({ objectId, typeArgument, message, sealerSignature }) {
+export function buildArchiveTransaction({
+  objectId,
+  typeArgument,
+  message,
+  sealerSignature,
+  storageType = STORAGE_NONE,
+  heroUri = '',
+  heroHash = [],
+}) {
   const tx = new Transaction();
 
   const messageArg = tx.pure.string(String(message ?? '').slice(0, 2048));
   const signatureArg = tx.pure.string(
     String(sealerSignature ?? '').slice(0, 256),
   );
-  const emptyUri = tx.pure.string('');
-  // For STORAGE_NONE the contract's validate_metadata requires BOTH
-  // hero_image_uri and hero_image_hash to be empty, so the hash must be an empty
-  // vector (not a zero-filled one).
-  const emptyHash = tx.pure.vector('u8', []);
-  const storageType = tx.pure.u8(STORAGE_NONE);
+  // hero_image_uri / hero_image_hash are only meaningful when a real storage
+  // backend is used. For STORAGE_NONE both must be empty (contract asserts this).
+  const emptyUri = tx.pure.string(String(heroUri ?? ''));
+  // The hash must be a 32-byte vector when storage != NONE; empty otherwise.
+  const hashVector = Array.isArray(heroHash) && heroHash.length ? heroHash : [];
+  const emptyHash = tx.pure.vector('u8', hashVector);
+  const storageArg = tx.pure.u8(storageType);
 
   // archive_forever takes `payment` as &mut Coin<SUI> and does NOT consume it.
   // Passing tx.gas directly (instead of a split coin) avoids creating an unused
@@ -110,7 +120,7 @@ export function buildArchiveTransaction({ objectId, typeArgument, message, seale
       signatureArg,
       emptyUri,
       emptyHash,
-      storageType,
+      storageArg,
       tx.object(CLOCK_OBJECT_ID), // Clock
     ],
   };
@@ -122,8 +132,26 @@ export function buildArchiveTransaction({ objectId, typeArgument, message, seale
 }
 
 // Sign and execute via the connected dAppKit wallet on Testnet.
-export async function archiveObject({ client, dAppKit, objectId, typeArgument, message, sealerSignature }) {
-  const tx = buildArchiveTransaction({ objectId, typeArgument, message, sealerSignature });
+export async function archiveObject({
+  client,
+  dAppKit,
+  objectId,
+  typeArgument,
+  message,
+  sealerSignature,
+  storageType = STORAGE_NONE,
+  heroUri = '',
+  heroHash = [],
+}) {
+  const tx = buildArchiveTransaction({
+    objectId,
+    typeArgument,
+    message,
+    sealerSignature,
+    storageType,
+    heroUri,
+    heroHash,
+  });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;
 }
@@ -135,4 +163,6 @@ window.theArchiveTx = {
   archiveObject,
   isTestnetAccount,
   POLICY_OBJECT_ID,
+  STORAGE_NONE,
+  STORAGE_ARWEAVE,
 };

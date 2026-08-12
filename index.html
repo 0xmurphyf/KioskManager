@@ -444,7 +444,7 @@ body.wallet-open{overflow:hidden}
       <p>The image reference cannot be edited after archiving.</p>
       <div class="storage-grid">
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,4)">Use Original Image</button>
-        <button class="option" data-label="No Hero Image" onclick="selectOption(this,4)">No Hero Image</button>
+        <button class="option" data-label="Just archive" onclick="selectOption(this,4)">Just archive</button>
       </div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
@@ -1109,7 +1109,7 @@ function populateConfirmSummary(){
   if(heroLabel==='Use Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
-  }else if(heroLabel==='No Hero Image'){
+  }else if(heroLabel==='Just archive'){
     preview.hidden=false;
     preview.innerHTML='<div class="hero-none">No hero image will be archived</div>';
   }else{
