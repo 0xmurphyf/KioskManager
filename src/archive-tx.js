@@ -68,38 +68,19 @@ export function isTestnetAccount(account) {
   return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
 }
 
-// Pull the objects the connected account actually owns. Coins are fetched via
-// `listCoins` (the gRPC/JSON-RPC client returns `balance` there with the correct
-// read mask); the gRPC `listOwnedObjects` does NOT populate `content` unless the
-// include keys exactly match its expected shape, so relying on it for coin
-// balances silently yields `undefined` and breaks partial-amount archiving.
-// Non-coin objects come from `listOwnedObjects`.
-const SUI_TYPE_ARG = '0x2::sui::SUI';
+// Pull the objects the connected account actually owns. We fetch everything via
+// `listOwnedObjects`, then for every distinct COIN type we call `listCoins`
+// (passing the inner canonical coin type, e.g. `0x97…::suilfg_memefi::SUILFG_MEMEFI`)
+// to obtain the real balance. listCoins is the only reliable source of `balance`
+// with the gRPC read mask; `listOwnedObjects` does not populate `content`/`balance`
+// for coins. This lets partial-amount archiving work for ANY coin type, not just SUI.
 export async function fetchOwnedObjects(client, address) {
   if (!client || !address) return [];
 
-  // --- Coins (need balance) ---
-  const coins = [];
-  if (client.listCoins) {
-    let cursor = null;
-    do {
-      const res = await client.listCoins({ owner: address, coinType: SUI_TYPE_ARG, cursor, limit: 50 });
-      for (const c of res.objects || []) {
-        coins.push({
-          objectId: c.objectId,
-          type: c.type,
-          version: c.version,
-          balance: c.balance !== undefined ? BigInt(c.balance) : undefined,
-          isCoin: true,
-          name: coinSymbol(c.type) || 'SUI',
-        });
-      }
-      cursor = res.hasNextPage ? res.cursor : null;
-    } while (cursor);
-  }
-
-  // --- Everything else (non-coin owned objects) ---
-  const include = client.listOwnedObjects ? { content: true, display: true } : { showType: true, showContent: true, showDisplay: true };
+  // --- All owned objects (gRPC listOwnedObjects gives type/content/display) ---
+  const include = client.listOwnedObjects
+    ? { content: true, display: true }
+    : { showType: true, showContent: true, showDisplay: true };
   const collected = [];
   let cursor = null;
   do {
@@ -111,16 +92,49 @@ export async function fetchOwnedObjects(client, address) {
     cursor = result.hasNextPage ? result.cursor : null;
   } while (cursor);
 
-  const others = collected
-    .map(describeObject)
-    // Drop SUI coins (already fetched with balance above); keep non-SUI coins so
-    // they remain selectable (archived whole, since listOwnedObjects gives no balance).
-    // Match the SUI tail regardless of the 0x-padding the RPC may apply.
-    .filter((o) => !o.isCoin || !o.type.endsWith('::sui::SUI>'));
+  const described = collected.map(describeObject);
+  const coins = described.filter((o) => o.isCoin);
+  const nonCoins = described.filter((o) => !o.isCoin && o.objectId);
 
-  return [...coins, ...others].filter(
-    (o) => o.objectId && !o.type.endsWith('::sui::SUI>'),
-  );
+  // --- Real balances for every distinct coin type via listCoins ---
+  // Extract the inner coin type (the part inside `0x2::coin::Coin<...>`) and
+  // canonicalise each `0x`-segment (strip leading zeros) so listCoins matches.
+  const innerTypeOf = (t) => {
+    const m = t.match(/::Coin<(.+)>$/);
+    return m ? m[1] : t;
+  };
+  const norm = (s) =>
+    s
+      .split('::')
+      .map((seg) => (seg.startsWith('0x') ? seg.replace(/0x0+/, '0x') : seg))
+      .join('::');
+
+  const balanceByObject = new Map();
+  const distinctTypes = [...new Set(coins.map((c) => norm(innerTypeOf(c.type))))];
+  if (client.listCoins) {
+    for (const it of distinctTypes) {
+      let c = null;
+      do {
+        const res = await client.listCoins({ owner: address, coinType: it, cursor: c, limit: 50 });
+        for (const obj of res.objects || []) {
+          balanceByObject.set(
+            obj.objectId,
+            obj.balance !== undefined ? BigInt(obj.balance) : undefined,
+          );
+        }
+        c = res.hasNextPage ? res.cursor : null;
+      } while (c);
+    }
+  }
+
+  // Attach the fetched balance to each coin; non-coin objects pass through.
+  // SUI is no longer special-cased — it is just another coin type with a balance.
+  const coinResults = coins.map((o) => ({
+    ...o,
+    balance: balanceByObject.has(o.objectId) ? balanceByObject.get(o.objectId) : o.balance,
+  }));
+
+  return [...coinResults, ...nonCoins].filter((o) => o.objectId);
 }
 
 // Build a `Transaction` that archives the given owned object. The object is
