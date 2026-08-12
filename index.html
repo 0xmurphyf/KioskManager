@@ -686,7 +686,7 @@ function renderLiveChainArchiveRows(archives){
   return archives.map(archive=>{
     const imageUrl=archiveImageUrl(archive);
     const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:`<span class="archive-row-image placeholder">—</span>`;
-    const sig=archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous";
+    const sig=capFirst(archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous");
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
       ${image}
       <span class="muted">${escapeHtml(archiveMessage(archive))}</span>
@@ -922,7 +922,7 @@ function mountWhisper(memoryIndex){
   if(!m)return false;
   const el=createWhisperNode();
   el.classList.add(`kind-${archiveImageUrl(m)?"nft":"coin"}`);
-  const sig=m.content?.sealer_signature && m.content.sealer_signature.trim()!=="" ? m.content.sealer_signature.trim() : "anonymous";
+  const sig=capFirst(m.content?.sealer_signature && m.content.sealer_signature.trim()!=="" ? m.content.sealer_signature.trim() : "anonymous");
   el.innerHTML=`<q class="memory-mask">${maskQuote(archiveMessage(m))}</q><div class="whisper-meta">BY ${escapeHtml(sig.slice(0,42))} · ${relativeTime(m.archivedAtMs)}</div>`;
   el.onclick=()=>openChainArchive(m.archiveId);
 
