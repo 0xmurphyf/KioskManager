@@ -53,18 +53,40 @@ export function isTestnetAccount(account) {
   return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
 }
 
-// Pull the objects the connected account actually owns, excluding the gas SUI
-// coin and shared/immutable objects (which cannot be archived because they are
-// not uniquely owned by this wallet). Uses listOwnedObjects which is available
-// on both the gRPC and JSON-RPC clients.
+// Pull the objects the connected account actually owns. Coins are fetched via
+// `listCoins` (the gRPC/JSON-RPC client returns `balance` there with the correct
+// read mask); the gRPC `listOwnedObjects` does NOT populate `content` unless the
+// include keys exactly match its expected shape, so relying on it for coin
+// balances silently yields `undefined` and breaks partial-amount archiving.
+// Non-coin objects come from `listOwnedObjects`.
+const SUI_TYPE_ARG = '0x2::sui::SUI';
 export async function fetchOwnedObjects(client, address) {
   if (!client || !address) return [];
-  const include = { showType: true, showContent: true, showDisplay: true };
+
+  // --- Coins (need balance) ---
+  const coins = [];
+  if (client.listCoins) {
+    let cursor = null;
+    do {
+      const res = await client.listCoins({ owner: address, coinType: SUI_TYPE_ARG, cursor, limit: 50 });
+      for (const c of res.objects || []) {
+        coins.push({
+          objectId: c.objectId,
+          type: c.type,
+          version: c.version,
+          balance: c.balance !== undefined ? BigInt(c.balance) : undefined,
+          isCoin: true,
+        });
+      }
+      cursor = res.hasNextPage ? res.cursor : null;
+    } while (cursor);
+  }
+
+  // --- Everything else (non-coin owned objects) ---
+  const include = client.listOwnedObjects ? { content: true, display: true } : { showType: true, showContent: true, showDisplay: true };
   const collected = [];
   let cursor = null;
   do {
-    // gRPC client exposes listOwnedObjects; fall back to getOwnedObjects for
-    // JSON-RPC clients just in case.
     const result = client.listOwnedObjects
       ? await client.listOwnedObjects({ owner: address, cursor, limit: 50, include })
       : await client.getOwnedObjects({ owner: address, cursor, limit: 50, options: include });
@@ -73,11 +95,15 @@ export async function fetchOwnedObjects(client, address) {
     cursor = result.hasNextPage ? result.cursor : null;
   } while (cursor);
 
-  return collected
+  const others = collected
     .map(describeObject)
-    // Keep Coin objects too (the wizard lets the user archive a chosen amount),
-    // but drop the bare `0x2::sui::SUI` balance type which is not an owned object.
-    .filter((o) => o.objectId && o.type !== '0x2::sui::SUI');
+    // Drop SUI coins (already fetched with balance above); keep non-SUI coins so
+    // they remain selectable (archived whole, since listOwnedObjects gives no balance).
+    .filter((o) => !o.isCoin || o.type !== '0x2::coin::Coin<0x2::sui::SUI>');
+
+  return [...coins, ...others].filter(
+    (o) => o.objectId && o.type !== '0x2::sui::SUI',
+  );
 }
 
 // Build a `Transaction` that archives the given owned object. The object is
