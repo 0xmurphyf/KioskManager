@@ -1338,6 +1338,10 @@ function populateConfirmSummary(){
 }
 // Default hero used when "Just archive" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
+// Canonical hero URL written to the contract when the user picks "Just archive"
+// or "Use Original Image" with no display image. Uses the raw GitHub asset so it
+// resolves reliably from any viewer (including the on-chain archive detail).
+const CONTRACT_HERO_URL='https://raw.githubusercontent.com/0xmurphyf/TheArchive/main/public/archive-assets/memory-vial.png';
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1387,8 +1391,16 @@ async function completeArchive(){
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
+    // Default contract hero: the canonical raw GitHub asset — used for "Just
+    // archive" and for "Use Original Image" when the object has no display image.
+    if(heroChoice==="Just archive" || (heroChoice==="Use Original Image" && !objectImage)){
+      heroUri=CONTRACT_HERO_URL;
+    }
     if(useArweave && window.theArchiveArweave){
-      const imageUrl = heroChoice==="Just archive" ? DEFAULT_HERO_URL : (objectImage||DEFAULT_HERO_URL);
+      // When a real original image exists, prefer uploading it to Arweave so the
+      // on-chain hero points at the actual artifact; otherwise the canonical
+      // GitHub hero URL already set above stays as heroUri.
+      const imageUrl = heroChoice==="Just archive" ? CONTRACT_HERO_URL : (objectImage||CONTRACT_HERO_URL);
       showToast("Uploading hero to Arweave…");
       const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl, objectId:selectedObjectId, type:selectedObjectType });
       storageType=txApi.STORAGE_ARWEAVE;
