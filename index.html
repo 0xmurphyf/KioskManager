@@ -492,7 +492,8 @@ body.wallet-open{overflow:hidden}
       <h2>Final confirmation</h2>
       <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0.0919 SUI.</div>
       <div style="margin-top:22px">
-        <div class="fee-row"><span>Object to archive</span><span id="confirmObjectCell">—</span></div>
+        <div class="fee-row"><span>Object Name</span><span id="confirmObjectName">—</span></div>
+        <div class="fee-row"><span>Object ID</span><span id="confirmObjectId">—</span></div>
         <div class="fee-row"><span>Hero Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
@@ -514,7 +515,7 @@ body.wallet-open{overflow:hidden}
         <div class="eyebrow">ARCHIVED</div>
         <h2>This object now belongs to history.</h2>
         <p>It no longer belongs to you. It no longer belongs to us.</p>
-        <div class="actions"><button class="btn primary" onclick="showView('detail')">View Entry</button><button class="btn" onclick="startWizard()">Archive Another</button></div>
+        <div class="actions"><button class="btn primary" onclick="viewJustArchived()">View Entry</button><button class="btn" onclick="startWizard()">Archive Another</button></div>
       </div>
     </div>
   </div>
@@ -738,6 +739,62 @@ function openChainArchive(archiveId){
   renderVisitorNotes();
   showView("detail");
   document.querySelector(".artifact").classList.add("revealed");
+}
+// --- Route the success view to the entry we just archived ---
+let lastArchivedId = null;
+// Given a successful tx result, find the newly frozen Memory object id. Prefer the
+// effects' created objects (a `Memory<...>` type); fall back to the latest
+// MemoryArchived event emitted by the sender.
+async function resolveArchivedId(result, sender, fallbackArtifactId) {
+  try {
+    const created = result?.effects?.created || result?.effects?.objectChanges?.filter(o => o.type === 'created') || [];
+    for (const c of created) {
+      const t = c.objectType || c.type || '';
+      if (t.includes('::memory_archive::Memory<')) return c.objectId || c.objectId;
+    }
+  } catch (_) {}
+  if (sender) {
+    try {
+      const aid = await fetchLatestArchiveId(sender);
+      if (aid) return aid;
+    } catch (_) {}
+  }
+  return null;
+}
+// Ensure the just-archived entry is present in chainArchives so openChainArchive
+// can render it without waiting for a full re-index.
+function ensureChainArchive(archiveId, { message, sealerSignature, artifactId } = {}) {
+  if (!archiveId) return;
+  if (chainArchives.some(a => a.archiveId === archiveId)) return;
+  chainArchives.unshift({
+    archiveId,
+    archivedAtMs: Date.now(),
+    policyVersion: '1',
+    content: {
+      message: message || '',
+      sealer_signature: sealerSignature || '',
+      artifact: { id: artifactId || '' },
+    },
+  });
+}
+// Open the entry we just archived from the success screen.
+function viewJustArchived() {
+  if (lastArchivedId) openChainArchive(lastArchivedId);
+  else showView('detail');
+}
+// Query the most recent MemoryArchived event for a given sender (Testnet GraphQL).
+async function fetchLatestArchiveId(sender) {
+  const PACKAGE_ID = '0x639d824b6a4de1b1491d69eaa79597336ab3be8dc9dff3bfd78cd333bf38a53b';
+  const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
+  const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
+  const body = {
+    query: `query($s:String!,$t:String!){ events(first:1, filter:{sender:$s, type:$t}){ nodes{ contents{ json } } } }`,
+    variables: { s: sender, t: EVENT_TYPE },
+  };
+  const r = await fetch(GRAPHQL_ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  const node = j?.data?.events?.nodes?.[0];
+  return node?.contents?.json?.archive_id || null;
 }
 const whisperPoolState={
   active:[],
@@ -1148,8 +1205,7 @@ function renderStep(){
   if(currentStep===1 && !wizardObjectsLoaded) loadWizardObjects();
   if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
-    const cell=document.getElementById("confirmObjectCell");
-    if(cell) setConfirmObject(cell);
+    setConfirmObject();
     populateConfirmSummary();
   }
 }
@@ -1160,20 +1216,21 @@ function selectObject(el){
   el.classList.add("selected");
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
-  const cell=document.getElementById("confirmObjectCell");
-  if(cell) setConfirmObject(cell);
+  setConfirmObject();
   objectNext.disabled=!selectedObjectId;
 }
-// Render the object being archived into the confirmation cell: show the human
-// name (when known) ABOVE the object id, and — for a Coin — the partial amount
-// the user chose to freeze (vs. the whole balance). This is the "potential coin
-// flow" the user reviews before signing.
-function setConfirmObject(cell){
-  if(!selectedObjectId){ cell.innerHTML="—"; return; }
+// Render the object being archived into the two confirmation cells: Object Name
+// and Object ID (with the Coin partial-amount sub-line). This is the "potential
+// coin flow" the user reviews before signing.
+function setConfirmObject(){
+  const nameEl=document.getElementById("confirmObjectName");
+  const idEl=document.getElementById("confirmObjectId");
+  if(!selectedObjectId){ if(nameEl)nameEl.textContent="—"; if(idEl)idEl.textContent="—"; return; }
   const card=document.querySelector('[data-step="1"] .option.selected');
   const name=card?.dataset.name||"";
   const isCoin=card?.dataset.isCoin==="1";
-  let line2=suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…");
+  if(nameEl) nameEl.textContent=name||"—";
+  let idHtml=suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…");
   if(isCoin){
     const balRaw=card?.dataset.balance?BigInt(card.dataset.balance):0n;
     const amtInput=card?.querySelector('.coin-amount input');
@@ -1182,12 +1239,12 @@ function setConfirmObject(cell){
     if(raw>0){
       const mist=BigInt(Math.floor(raw*1e9+1e-6));
       const partial = balRaw===0n || mist>=balRaw ? fullSUI : raw;
-      line2+=`<span class="confirm-coin-amt">Archive ${partial.toFixed(4)} of ${fullSUI.toFixed(4)} SUI</span>`;
+      idHtml+=`<span class="confirm-coin-amt">Archive ${partial.toFixed(4)} of ${fullSUI.toFixed(4)} SUI</span>`;
     }else{
-      line2+=`<span class="confirm-coin-amt">Whole coin · ${fullSUI.toFixed(4)} SUI</span>`;
+      idHtml+=`<span class="confirm-coin-amt">Whole coin · ${fullSUI.toFixed(4)} SUI</span>`;
     }
   }
-  cell.innerHTML = (name? `<strong class="confirm-obj-name">${escapeHtml(name)}</strong>` : "") + line2;
+  if(idEl) idEl.innerHTML=idHtml;
 }
 function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
@@ -1330,6 +1387,14 @@ async function completeArchive(){
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash,amount});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
+    // Capture the newly created archive object id so the success view routes to
+    // the entry we just froze (not the hardcoded demo detail).
+    const sender = window.theArchiveWallet?.getConnection?.()?.address;
+    const archivedId = await resolveArchivedId(result, sender, selectedObjectId);
+    if (archivedId) {
+      lastArchivedId = archivedId;
+      ensureChainArchive(archivedId, { message, sealerSignature: signature, artifactId: selectedObjectId });
+    }
     currentStep=7;renderStep();
   }catch(error){
     archiveBtn.disabled=false;archiveBtn.textContent="ARCHIVE FOREVER";
