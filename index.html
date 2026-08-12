@@ -440,8 +440,8 @@ body.wallet-open{overflow:hidden}
     <div class="step" data-step="3">
       <h2>Leave a message</h2>
       <p>This message becomes part of the permanent record.</p>
-      <div class="field"><label>Message</label><textarea>This was the last thing I thought I would keep forever.</textarea></div>
-      <div class="field"><label>Signature</label><input type="text" value="The world changed faster than I did."></div>
+      <div class="field"><label>Message</label><textarea></textarea></div>
+      <div class="field"><label>Signature</label><input type="text" value=""></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
 
@@ -463,9 +463,9 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row"><span>Archive Fee</span><span>0 SUI (policy)</span></div>
         <div class="fee-row"><span>Network Gas</span><span>Testnet estimated</span></div>
         <div class="fee-row"><span>Object to archive</span><span id="confirmObjectCell">—</span></div>
+        <div class="fee-row"><span>Hero Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
-        <div class="fee-row"><span>Hero Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Backup storage</span><span id="confirmStorageCell">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
