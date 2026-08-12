@@ -87,23 +87,24 @@ export function buildArchiveTransaction({ objectId, typeArgument, message, seale
     String(sealerSignature ?? '').slice(0, 256),
   );
   const emptyUri = tx.pure.string('');
-  // 32-byte zeroed content hash, required to be exactly CONTENT_HASH_BYTES
-  // (32) for non-NONE storage; for STORAGE_NONE the contract ignores it, but we
-  // still pass a 32-byte vector to satisfy the argument shape.
-  const emptyHash = tx.pure.vector('u8', new Array(32).fill(0));
+  // For STORAGE_NONE the contract's validate_metadata requires BOTH
+  // hero_image_uri and hero_image_hash to be empty, so the hash must be an empty
+  // vector (not a zero-filled one).
+  const emptyHash = tx.pure.vector('u8', []);
   const storageType = tx.pure.u8(STORAGE_NONE);
 
-  // A gas coin is required for the archive_fee split. We split 0 from gas so
-  // the call has a coin object to pass; the policy fee is currently 0, so no
-  // real SUI leaves the wallet.
-  const [payment] = tx.splitCoins(tx.gas, [0]);
+  // archive_forever takes `payment` as &mut Coin<SUI> and does NOT consume it.
+  // Passing tx.gas directly (instead of a split coin) avoids creating an unused
+  // result with no `drop` ability, which would fail with
+  // "UnusedValueWithoutDrop". The policy fee is currently 0, so no SUI moves.
+  const payment = tx.gas;
 
   const args = {
     target: `${PACKAGE_ID}::memory_archive::archive_forever`,
     arguments: [
       tx.object(POLICY_OBJECT_ID), // shared ArchivePolicy
       tx.object(objectId), // the artifact to archive
-      payment, // &mut Coin<SUI> for the fee
+      payment, // &mut Coin<SUI> for the fee (gas itself, unused at fee 0)
       messageArg,
       signatureArg,
       emptyUri,
