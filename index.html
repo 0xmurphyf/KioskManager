@@ -160,7 +160,12 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .step.active{display:block}
 .step h2{font-size:clamp(30px,3vw,38px);margin:0 0 8px}
 .step p{color:var(--dim);line-height:1.7}
-.object-grid,.storage-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px}
+.object-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:16px}
+.object-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:18px}
+.object-controls input[type=text]{flex:1;min-width:180px}
+.filter-tabs{display:flex;gap:8px}
+.filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
+.filter-tab.selected{border-color:var(--paper);color:var(--paper)}
 .option{
   border:1px solid var(--line);background:#11110e;color:var(--paper);
   min-height:170px;padding:18px;text-align:left
@@ -436,6 +441,15 @@ body.wallet-open{overflow:hidden}
       <h2>Choose an object</h2>
       <p>Select one object to remove from ownership forever. This is a real Sui Testnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button></div>
+      <div class="object-controls">
+        <input type="text" id="objectSearch" placeholder="Search by name…" oninput="renderFilteredObjects()">
+        <div class="filter-tabs" id="objectFilter">
+          <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
+          <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
+          <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
+          <button class="filter-tab" data-kind="object" onclick="setObjectFilter('object',this)">Object</button>
+        </div>
+      </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Testnet objects.</div></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
     </div>
@@ -1056,6 +1070,49 @@ let currentStep=1;
 let selectedObjectId=null;
 let selectedObjectType=null;
 let wizardObjectsLoaded=false;
+let wizardObjects=[];
+let wizardFilter='all';
+function setObjectFilter(kind,el){
+  wizardFilter=kind;
+  document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+  renderFilteredObjects();
+}
+function renderFilteredObjects(){
+  const grid=document.getElementById('objectGrid');
+  if(!grid)return;
+  const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
+  const list=wizardObjects.filter(o=>{
+    const kind=o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')?'nft':'object');
+    if(wizardFilter!=='all' && kind!==wizardFilter)return false;
+    if(q){
+      const label=(o.name||o.type.split('::').pop()).toLowerCase();
+      if(!label.includes(q) && !(o.type.toLowerCase().includes(q)))return false;
+    }
+    return true;
+  });
+  if(!wizardObjects.length){
+    grid.innerHTML='<div class="chain-empty">Connect a wallet to load your Testnet objects.</div>';
+    return;
+  }
+  if(!list.length){
+    grid.innerHTML='<div class="chain-empty">No objects match your search.</div>';
+    return;
+  }
+  grid.innerHTML='';
+  for(const obj of list){
+    const label=obj.name||obj.type.split('::').pop();
+    const kind=obj.isCoin?'COIN':(obj.type.includes('NFT')||obj.type.toLowerCase().includes('voxx')?'NFT':'OBJ');
+    const card=document.createElement('div');
+    card.className='option';
+    card.dataset.objectId=obj.objectId;
+    card.dataset.type=obj.type;
+    card.dataset.image=obj.imageUrl||'';
+    card.onclick=()=>selectObject(card);
+    card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>`;
+    grid.appendChild(card);
+  }
+}
 function startWizard(){
   // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
   // connected, the grid shows a connect prompt and the user connects there.
@@ -1171,23 +1228,12 @@ function loadWizardObjects(){
   grid.innerHTML='<div class="chain-empty">Loading your Testnet objects…</div>';
   const client=window.theArchiveWallet.dAppKit.getClient("testnet");
   window.theArchiveTx.fetchOwnedObjects(client,connection.address).then(objects=>{
+    wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Testnet object first.</div>';
       return;
     }
-    grid.innerHTML="";
-    for(const obj of objects){
-      const label=obj.name||obj.type.split("::").pop();
-      const kind=obj.isCoin?"COIN":(obj.type.includes("NFT")||obj.type.toLowerCase().includes("voxx")?"NFT":"OBJ");
-      const card=document.createElement("div");
-      card.className="option";
-      card.dataset.objectId=obj.objectId;
-      card.dataset.type=obj.type;
-      card.dataset.image=obj.imageUrl||"";
-      card.onclick=()=>selectObject(card);
-      card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+"…")}</p>`;
-      grid.appendChild(card);
-    }
+    renderFilteredObjects();
   }).catch(error=>{
     grid.innerHTML=`<div class="chain-empty">Could not load objects: ${escapeHtml(String(error.message||error))}</div>`;
   });
