@@ -146,6 +146,8 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .memory{font-family:Georgia,serif;font-size:clamp(20px,2vw,26px);line-height:1.48}
 .label{font:11px "Courier New",monospace;letter-spacing:.18em;color:var(--accent);margin-top:28px}
 .detail-line{display:grid;grid-template-columns:130px 1fr;gap:18px;padding:12px 0;border-bottom:1px solid var(--line);text-align:left}
+.detail-center{max-width:320px;margin:18px auto 0;text-align:center}
+.detail-center .detail-line{display:flex;justify-content:center;gap:12px;grid-template-columns:none;border-bottom:0;padding:6px 0}
 
 .wizard{max-width:1050px;margin:0 auto;padding:50px 24px 90px}
 .progress{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:20px 0 32px}
@@ -387,10 +389,10 @@ body.wallet-open{overflow:hidden}
       <p id="detailSignature">“The world changed faster than I did.”</p>
       <div class="label">ARCHIVED</div>
       <p><span id="detailDate">14 Jul 2026 · 14:32 UTC</span><br><span class="muted" id="detailAge">Memory age: 1 day</span></p>
-      <div class="label">ARTIFACT</div>
-      <div class="detail-line"><span class="muted">Type</span><span id="detailType">0xabc::voxx::Voxx</span></div>
-      <div class="detail-line"><span class="muted">Status</span><span>Immutable</span></div>
-      <div class="detail-line"><span class="muted">Owner</span><span>None</span></div>
+      <div class="detail-center">
+        <div class="detail-line"><span class="muted">Status</span><span>Immutable</span></div>
+        <div class="detail-line"><span class="muted">Owner</span><span>None</span></div>
+      </div>
 
       <div class="archive-ending">
         <span>Archived forever.</span>
@@ -590,7 +592,6 @@ function openDetail(i){
     }
     detailDate.textContent=m.date;
     detailAge.textContent=m.age;
-    detailType.textContent=m.type;
     renderVisitorNotes();
 
     showView("detail");
@@ -661,9 +662,11 @@ function renderLiveChainArchiveRows(archives){
   return archives.map(archive=>{
     const imageUrl=archiveImageUrl(archive);
     const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:`<span class="archive-row-image placeholder">—</span>`;
+    const sig=archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous";
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
       ${image}
       <span class="muted">${escapeHtml(archiveMessage(archive))}</span>
+      <span class="muted hide-mobile">${escapeHtml(sig)}</span>
       <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
     </button>`;
   }).join("");
@@ -706,7 +709,6 @@ function openChainArchive(archiveId){
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
   detailAge.textContent=`Sui Testnet · policy version ${archive.policyVersion||"—"}`;
-  detailType.innerHTML=`${suiscanLink(archive.archiveId, shortHash(archive.archiveId,12))} · original ${suiscanLink(archive.originalObjectId, shortHash(archive.originalObjectId,10))}`;
   const imageUrl=archiveImageUrl(archive);
   detailImage.hidden=!imageUrl;
   if(imageUrl)detailImage.src=imageUrl;
