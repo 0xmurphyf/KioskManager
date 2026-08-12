@@ -36,10 +36,13 @@ function describeObject(obj) {
   const content = data?.content || {};
   const fields = content.fields || content;
   const isCoin = type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin');
+  // Fallback label for non-coins: last segment of the Move type (e.g.
+  // 0x…::voxx::VoxxFile -> "VoxxFile"), so the Object Name row is never blank.
+  const typeTail = type.split('::').pop().replace(/>$/, '');
   const name =
     fields.name ||
     (fields.artifact && fields.artifact.fields && fields.artifact.fields.name) ||
-    (isCoin ? coinSymbol(type) : '') ||
+    (isCoin ? coinSymbol(type) : typeTail) ||
     '';
   const balanceRaw =
     fields.balance !== undefined ? fields.balance : content.balance;

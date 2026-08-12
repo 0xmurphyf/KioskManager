@@ -766,14 +766,17 @@ async function resolveArchivedId(result, sender, fallbackArtifactId) {
 function ensureChainArchive(archiveId, { message, sealerSignature, artifactId } = {}) {
   if (!archiveId) return;
   if (chainArchives.some(a => a.archiveId === archiveId)) return;
+  const card = document.querySelector('[data-step="1"] .option.selected');
+  const name = card?.dataset.name || '';
+  const balance = card?.dataset.balance ? Number(card.dataset.balance) / 1e9 : undefined;
   chainArchives.unshift({
     archiveId,
     archivedAtMs: Date.now(),
     policyVersion: '1',
     content: {
       message: message || '',
-      sealer_signature: sealerSignature || '',
-      artifact: { id: artifactId || '' },
+      sealerSignature: sealerSignature || '',
+      artifact: { id: artifactId || '', name, balance: balance !== undefined ? balance * 1e9 : undefined },
     },
   });
 }
@@ -1262,8 +1265,9 @@ function renderStepImagePreview(){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
     }else{
+      // No original display image: fall back to the default hero (same as "Just archive").
       preview.hidden=false;
-      preview.innerHTML=`<div class="hero-none">This object has no display image — nothing to show here.</div>`;
+      preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
     }
   }else if(label==="Just archive"){
     preview.hidden=false;
@@ -1293,13 +1297,15 @@ function populateConfirmSummary(){
   if(heroLabel==='Use Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
-  }else if(heroLabel==='Just archive'){
+  }else if(heroLabel==='Just archive' || (heroLabel==='Use Original Image' && !objectImage)){
+    // "Use Original Image" with no original image falls back to the default hero.
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Hero preview">`;
   }else{
     preview.hidden=true;
     preview.innerHTML='';
   }
+}
   // Fee summary: archive fee is fixed; backup fee depends on the chosen storage.
   const ARCHIVE_FEE=0.0919;
   const backupLabel=storage?storage.dataset.label:'';
