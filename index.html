@@ -661,9 +661,8 @@ function renderLiveChainArchiveRows(archives){
     const imageUrl=archiveImageUrl(archive);
     const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:"";
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
-      <span class="archive-id">${image}ARCHIVE · ${escapeHtml(shortHash(archive.archiveId,6))}</span>
-      <span class="archive-title">${escapeHtml(archiveDisplayTitle(archive))}</span>
-      <span class="muted hide-mobile">${escapeHtml(archiveMessage(archive))}</span>
+      ${image}
+      <span class="muted">${escapeHtml(archiveMessage(archive))}</span>
       <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
     </button>`;
   }).join("");
@@ -704,9 +703,9 @@ function openChainArchive(archiveId){
   }
   detailSignature.textContent=content.sealer_signature?`“${content.sealer_signature}”`:"No signature left.";
   const date=new Date(archive.archivedAtMs);
-  detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toLocaleString();
+  detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
   detailAge.textContent=`Sui Testnet · policy version ${archive.policyVersion||"—"}`;
-  detailType.innerHTML=`Archive object: ${suiscanLink(archive.archiveId, shortHash(archive.archiveId,12))} · original ${suiscanLink(archive.originalObjectId, shortHash(archive.originalObjectId,10))}`;
+  detailType.innerHTML=`${suiscanLink(archive.archiveId, shortHash(archive.archiveId,12))} · original ${suiscanLink(archive.originalObjectId, shortHash(archive.originalObjectId,10))}`;
   const imageUrl=archiveImageUrl(archive);
   detailImage.hidden=!imageUrl;
   if(imageUrl)detailImage.src=imageUrl;
