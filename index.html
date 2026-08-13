@@ -190,8 +190,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .popup-link button{height:46px;white-space:nowrap}
 .final-image-upload #finalImageName{color:var(--dim)}
 .final-image-upload #uploadFinalBtn:disabled{opacity:.45;cursor:not-allowed}
-.popup-link-label{display:block;margin-top:18px;color:var(--dim);font:10px "Courier New",monospace;letter-spacing:.14em;text-transform:uppercase}
-.field{margin:20px 0}
+.cover-link[hidden]{display:none}
+.cover-link{display:flex;gap:10px;align-items:stretch;margin-top:14px}
+.cover-link input[type=url]{box-sizing:border-box;flex:1;min-width:0;height:46px;background:#0f0f0d;border:1px solid var(--line);border-radius:0;color:var(--paper);padding:0 14px;font:13px "Courier New",monospace;outline:none}
+.cover-link input[type=url]:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(154,128,96,.14)}
+.cover-link button{height:46px;white-space:nowrap}
 .field label{display:block;margin-bottom:8px;color:var(--dim);font-size:12px}
 textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:14px}
 textarea{min-height:140px}
@@ -475,10 +478,14 @@ body.wallet-open{overflow:hidden}
       <p>The image reference cannot be edited after archiving.</p>
       <div class="storage-grid">
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
-        <button class="option" data-label="Just archive" onclick="selectOption(this,2)">Just archive</button>
+        <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
       </div>
       <div class="final-image-upload">
         <button class="btn" type="button" id="uploadFinalBtn" onclick="openFinalImagePopup()">Upload image</button>
+      </div>
+      <div class="cover-link" id="coverLinkSection" hidden>
+        <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
+        <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
       </div>
       <div class="hero-preview" id="stepImagePreview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
@@ -561,17 +568,12 @@ body.wallet-open{overflow:hidden}
       </div>
       <button class="wallet-close" id="finalImageCloseBtn" type="button" aria-label="Close final image uploader">×</button>
     </div>
-    <p class="wallet-status">Choose an image file or enter an online image link.</p>
+    <p class="wallet-status">Choose an image file from your device.</p>
     <div class="final-image-upload popup-upload">
       <button class="btn primary" type="button" id="popupUploadFinalBtn">Upload</button>
       <button class="btn" type="button" id="popupClearFinalBtn" hidden>Clear</button>
       <input type="file" id="finalImageFile" accept="image/*" hidden>
       <input type="text" id="finalImageName" placeholder="No file selected" readonly>
-    </div>
-    <div class="popup-link-label">Or use an online image</div>
-    <div class="final-image-link popup-link">
-      <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
-      <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
     </div>
   </section>
 </div>
@@ -1297,7 +1299,11 @@ function setConfirmObject(){
 function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
-  if(step===2) renderStepImagePreview();
+  if(step===2){
+    const linkSection=document.getElementById("coverLinkSection");
+    if(linkSection)linkSection.hidden=el.dataset.label!=="Online Image";
+    renderStepImagePreview();
+  }
 }
 function renderStepImagePreview(){
   const preview=document.getElementById("stepImagePreview");
@@ -1311,16 +1317,28 @@ function renderStepImagePreview(){
   const hero=document.querySelector('[data-step="2"] .option.selected');
   const label=hero?hero.dataset.label:"";
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
+  const linkSection=document.getElementById("coverLinkSection");
+  if(linkSection)linkSection.hidden=label!=="Online Image";
+  if(label==="Online Image"){
+    if(uploadedFinalImage){
+      preview.hidden=false;
+      preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Online cover preview">`;
+    }else{
+      preview.hidden=true;
+      preview.innerHTML="";
+    }
+    return;
+  }
   if(label==="Use Original Image"){
     if(objectImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
     }else{
-      // No original display image: fall back to the default hero (same as "Just archive").
+      // No original display image: fall back to the default hero (same as "Online Image").
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
     }
-  }else if(label==="Just archive"){
+  }else if(label==="Online Image"){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
   }else{
@@ -1351,7 +1369,7 @@ function populateConfirmSummary(){
   if(heroLabel==='Use Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
-  }else if(heroLabel==='Just archive' || (heroLabel==='Use Original Image' && !objectImage)){
+  }else if(heroLabel==='Online Image' || (heroLabel==='Use Original Image' && !objectImage)){
     // "Use Original Image" with no original image falls back to the default hero.
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Hero preview">`;
@@ -1360,9 +1378,9 @@ function populateConfirmSummary(){
     preview.innerHTML='';
   }
 }
-// Default hero used when "Just archive" is chosen (no original image available).
+// Default hero used when "Online Image" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
-// Canonical hero URL written to the contract when the user picks "Just archive"
+// Canonical hero URL written to the contract when the user picks "Online Image"
 // or "Use Original Image" with no display image. Uses the raw GitHub asset so it
 // resolves reliably from any viewer (including the on-chain archive detail).
 const CONTRACT_HERO_URL='https://raw.githubusercontent.com/0xmurphyf/TheArchive/main/public/archive-assets/memory-vial.png';
@@ -1426,7 +1444,7 @@ async function completeArchive(){
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
-    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
+    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Online Image";
     if(useArweave){
       const hasOriginal = heroChoice==="Use Original Image" && !!objectImage;
       if(hasOriginal && window.theArchiveArweave){
@@ -1438,7 +1456,7 @@ async function completeArchive(){
         heroUri=uploaded.uri;
         heroHash=uploaded.hashBytes;
       }else{
-        // "Just archive", or "Use Original Image" with no display image: hardcode
+        // "Online Image", or "Use Original Image" with no display image: hardcode
         // the canonical GitHub PNG on-chain under STORAGE_ARWEAVE with its SHA-256
         // (32 bytes) as the content hash. validate_metadata requires a non-empty
         // URI + 32-byte hash when storage != NONE; this satisfies it without a
@@ -1503,24 +1521,24 @@ function wireFinalImageUpload(){
   const pageUploadBtn=document.getElementById("uploadFinalBtn");
   const popupUploadBtn=document.getElementById("popupUploadFinalBtn");
   const popupClearBtn=document.getElementById("popupClearFinalBtn");
+  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn)return;
   const imageUrlInput=document.getElementById("finalImageUrl");
   const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
-  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn||!imageUrlInput||!useUrlBtn)return;
   popupUploadBtn.addEventListener("click",()=>{fileInput.value="";fileInput.click();});
   document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
   document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
   popupClearBtn?.addEventListener("click",()=>{
     fileInput.value="";
     nameInput.value="";
-    imageUrlInput.value="";
+    if(imageUrlInput)imageUrlInput.value="";
     uploadedFinalImage=null;
     pageUploadBtn.disabled=false;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
     renderStepImagePreview();
   });
-  useUrlBtn.addEventListener("click",()=>{
-    const raw=imageUrlInput.value.trim();
+  useUrlBtn?.addEventListener("click",()=>{
+    const raw=imageUrlInput?.value.trim()||"";
     let url;
     try{ url=new URL(raw); }catch(_){ showToast("Enter a valid image link"); return; }
     if(!["http:","https:"].includes(url.protocol)){ showToast("Enter an http(s) image link"); return; }
