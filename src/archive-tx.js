@@ -92,6 +92,7 @@ export async function fetchOwnedObjects(client, address) {
 
   const listOwned = client.core?.listOwnedObjects?.bind(client.core) || client.listOwnedObjects?.bind(client);
   const listCoins = client.core?.listCoins?.bind(client.core) || client.listCoins?.bind(client);
+  const getCoinMetadata = client.core?.getCoinMetadata?.bind(client.core) || client.getCoinMetadata?.bind(client);
   if (!listOwned) throw new Error('Sui client cannot list owned objects');
   const include = client.core ? { json: true, display: true } : { content: true, display: true };
   const collected = [];
@@ -140,9 +141,23 @@ export async function fetchOwnedObjects(client, address) {
 
   // Attach the fetched balance to each coin; non-coin objects pass through.
   // SUI is no longer special-cased — it is just another coin type with a balance.
-  const coinResults = coins.map((o) => ({
-    ...o,
-    balance: balanceByObject.has(o.objectId) ? balanceByObject.get(o.objectId) : o.balance,
+  const coinResults = await Promise.all(coins.map(async (o) => {
+    let imageUrl=o.imageUrl;
+    if(!imageUrl && getCoinMetadata){
+      try{
+        const innerType=norm(innerTypeOf(o.type));
+        const metaResult=await getCoinMetadata({coinType:innerType});
+        const meta=metaResult?.coinMetadata || metaResult?.metadata || metaResult || {};
+        imageUrl=meta?.iconUrl || meta?.icon_url || meta?.icon || '';
+      }catch(error){
+        console.debug('[owned-objects] coin metadata unavailable', o.type, error);
+      }
+    }
+    return {
+      ...o,
+      imageUrl,
+      balance: balanceByObject.has(o.objectId) ? balanceByObject.get(o.objectId) : o.balance,
+    };
   }));
 
   return [...coinResults, ...nonCoins].filter((o) => o.objectId);
