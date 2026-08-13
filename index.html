@@ -347,7 +347,8 @@ body.wallet-open{overflow:hidden}
   .chain-toolbar{align-items:flex-start;flex-direction:column}
   .detail{grid-template-columns:1fr}
   .artifact{min-height:52vh;border-right:0}
-  .storage-grid{grid-template-columns:1fr}
+  .storage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .storage-grid .option{padding:12px 6px;font-size:10px;line-height:1.2}
   .section{padding:64px 20px}
 }
 </style>
