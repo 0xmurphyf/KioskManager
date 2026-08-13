@@ -202,7 +202,9 @@ textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
 .fee-row{display:grid;grid-template-columns:minmax(0,1fr) 150px;align-items:center;column-gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
-.fee-row>span:last-child{width:auto;min-width:0;text-align:right;white-space:nowrap;font:12px "Courier New",monospace}
+.fee-row>span:last-child{width:auto;min-width:0;justify-self:end;text-align:right;white-space:nowrap;font:12px "Courier New",monospace}
+.fee-row>span:last-child[id="confirmObjectId"]{max-width:100%;overflow-wrap:anywhere;word-break:break-all}
+.fee-row>span:last-child[id="confirmMessageCell"],.fee-row>span:last-child[id="confirmSignatureCell"]{max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.45;max-height:3.1em;overflow:hidden}
 .confirm-obj-name{display:block;font-size:13px;color:var(--paper);margin-bottom:4px}
 .confirm-coin-amt{display:block;margin-top:4px;font:11px "Courier New",monospace;color:var(--dim)}
 .fee-summary{margin-top:22px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0}
@@ -513,11 +515,11 @@ body.wallet-open{overflow:hidden}
       <h2>Final confirmation</h2>
       <div class="warning">Once archived, this object is permanently sealed. It cannot be transferred, sold, edited, or recovered.<br>No administrator can return it.</div>
       <div style="margin-top:22px">
-        <div class="fee-row"><span>Object Name</span><span id="confirmObjectName" style="text-align:right;max-width:60%">—</span></div>
-        <div class="fee-row"><span>Object ID</span><span id="confirmObjectId" style="text-align:right;max-width:60%">—</span></div>
+        <div class="fee-row"><span>Object Name</span><span id="confirmObjectName">—</span></div>
+        <div class="fee-row"><span>Object ID</span><span id="confirmObjectId">—</span></div>
         <div class="fee-row"><span>Final Image</span><span id="confirmHeroCell">—</span></div>
-        <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
-        <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
+        <div class="fee-row"><span>Message</span><span id="confirmMessageCell">—</span></div>
+        <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell">—</span></div>
         <div class="fee-row"><span>Archive fee</span><span id="confirmArchiveFee">Loading…</span></div>
         <div class="fee-row"><span>Estimated gas</span><span id="confirmGasEstimate">—</span></div>
         <div class="fee-row fee-total"><span>Estimated total</span><span id="confirmTotalCost">—</span></div>
