@@ -34,12 +34,10 @@ function coinSymbol(type) {
 
 function describeObject(obj) {
   const data = obj?.data ?? obj;
-  const type = data?.type || data?.content?.type || 'Unknown object';
-  // gRPC returns a Coin's Move struct as raw JSON in `content` (e.g.
-  // { id, balance }); the JSON-RPC client wraps it as `content.fields`.
-  // Normalise both so `balance` is read regardless of which client answered.
-  const content = data?.content || {};
-  const fields = content.fields || content;
+  const rawContent = data?.json || data?.content || data?.contentJson || {};
+  const contentJson = rawContent?.json || rawContent?.fields || rawContent;
+  const fields = contentJson?.fields || contentJson;
+  const type = data?.type || data?.objectType || fields?.type || 'Unknown object';
   const isCoin = type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin');
   // Fallback label for non-coins: last segment of the Move type (e.g.
   // 0x…::voxx::VoxxFile -> "VoxxFile"), so the Object Name row is never blank.
@@ -49,14 +47,17 @@ function describeObject(obj) {
     (fields.artifact && fields.artifact.fields && fields.artifact.fields.name) ||
     (isCoin ? coinSymbol(type) : typeTail) ||
     '';
-  const balanceRaw =
-    fields.balance !== undefined ? fields.balance : content.balance;
-  const display = data?.display?.data || data?.display || {};
+  const balanceRaw = fields.balance !== undefined ? fields.balance : contentJson?.balance;
+  const display = data?.display?.output || data?.display?.data || data?.display || fields?.display?.output || fields?.display?.data || fields?.display || contentJson?.display?.output || contentJson?.display?.data || contentJson?.display || {};
+  const displayFields = display?.data || display;
   const imageUrl =
     fields.image_url ||
     fields.imageUrl ||
-    display.image_url ||
-    display.imageUrl ||
+    fields.url ||
+    displayFields.image_url ||
+    displayFields.imageUrl ||
+    displayFields.url ||
+    displayFields.image ||
     '';
   return {
     objectId: data.objectId,
@@ -89,22 +90,20 @@ function isMainnetAccount(account) {
 export async function fetchOwnedObjects(client, address) {
   if (!client || !address) return [];
 
-  // --- All owned objects (gRPC listOwnedObjects gives type/content/display) ---
-  const include = client.listOwnedObjects
-    ? { content: true, display: true }
-    : { showType: true, showContent: true, showDisplay: true };
+  const listOwned = client.core?.listOwnedObjects?.bind(client.core) || client.listOwnedObjects?.bind(client);
+  const listCoins = client.core?.listCoins?.bind(client.core) || client.listCoins?.bind(client);
+  if (!listOwned) throw new Error('Sui client cannot list owned objects');
+  const include = client.core ? { json: true, display: true } : { content: true, display: true };
   const collected = [];
   let cursor = null;
   do {
-    const result = client.listOwnedObjects
-      ? await client.listOwnedObjects({ owner: address, cursor, limit: 50, include })
-      : await client.getOwnedObjects({ owner: address, cursor, limit: 50, options: include });
+    const result = await listOwned({ owner: address, cursor, limit: 50, include });
     const page = result.objects || result.data || [];
     collected.push(...page);
     cursor = result.hasNextPage ? result.cursor : null;
   } while (cursor);
 
-  const described = collected.map(describeObject);
+  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object');
   const coins = described.filter((o) => o.isCoin);
   const nonCoins = described.filter((o) => !o.isCoin && o.objectId);
 
@@ -123,11 +122,11 @@ export async function fetchOwnedObjects(client, address) {
 
   const balanceByObject = new Map();
   const distinctTypes = [...new Set(coins.map((c) => norm(innerTypeOf(c.type))))];
-  if (client.listCoins) {
+  if (listCoins) {
     for (const it of distinctTypes) {
       let c = null;
       do {
-        const res = await client.listCoins({ owner: address, coinType: it, cursor: c, limit: 50 });
+        const res = await listCoins({ owner: address, coinType: it, cursor: c, limit: 50 });
         for (const obj of res.objects || []) {
           balanceByObject.set(
             obj.objectId,
