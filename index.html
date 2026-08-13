@@ -387,6 +387,14 @@ body.wallet-open{overflow:hidden}
     </div>
     <div class="archive-list" id="recentList"></div>
   </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div><div class="eyebrow">PUBLIC ATTENTION</div><h2>Most checked artifact</h2></div>
+      <p>The immutable memory visitors return to most often.</p>
+    </div>
+    <div class="archive-list" id="mostCheckedList"></div>
+  </section>
 </section>
 
 <section id="archive" class="view">
@@ -757,11 +765,33 @@ function renderChainArchiveRows(archives){
     <span class="muted hide-mobile">${escapeHtml(relativeTime(archive.archivedAtMs))}</span>
   </button>`).join("");
 }
+function archiveLocalCheckCount(archiveId){
+  try{return Number(localStorage.getItem(`archive-checks-${archiveId}`)||0)||0}catch{return 0}
+}
+function recordArchiveCheck(archiveId){
+  try{
+    const next=archiveLocalCheckCount(archiveId)+1;
+    localStorage.setItem(`archive-checks-${archiveId}`,String(next));
+    return next;
+  }catch{return archiveLocalCheckCount(archiveId)}
+}
+function archiveCheckCount(archive){
+  const value=archive?.checks ?? archive?.checkCount ?? archive?.views ?? archive?.viewCount ?? archive?.content?.checks ?? archive?.content?.check_count ?? archive?.content?.view_count;
+  const count=Number(value);
+  return (Number.isFinite(count) && count>=0 ? count : 0)+archiveLocalCheckCount(archive?.archiveId);
+}
+function renderMostCheckedArtifact(archives){
+  const target=document.getElementById('mostCheckedList');
+  if(!target)return;
+  const ranked=[...archives].sort((a,b)=>archiveCheckCount(b)-archiveCheckCount(a) || Number(b.archivedAtMs||0)-Number(a.archivedAtMs||0));
+  target.innerHTML=ranked.length ? renderLiveChainArchiveRows(ranked.slice(0,1)) : '<div class="chain-empty">No checked artifacts yet.</div>';
+}
 let chainArchives=[];
 window.renderChainArchives=function(archives){
   chainArchives=archives;
   archiveList.innerHTML=archives.length?renderLiveChainArchiveRows(archives):'<div class="chain-empty">No immutable archive objects have been indexed for this contract yet.</div>';
   recentList.innerHTML=archives.length?renderLiveChainArchiveRows(archives.slice(0,3)):"";
+  renderMostCheckedArtifact(archives);
   document.querySelectorAll("[data-chain-archive]").forEach(button=>button.addEventListener("click",()=>openChainArchive(button.dataset.chainArchive)));
   initWhisperPool();
 }
@@ -771,6 +801,8 @@ window.renderChainArchiveError=function(){
 function openChainArchive(archiveId){
   const archive=chainArchives.find(item=>item.archiveId===archiveId);
   if(!archive)return;
+  recordArchiveCheck(archiveId);
+  renderMostCheckedArtifact(chainArchives);
   const content=archive.content||{};
   detailId.innerHTML=suiscanLink(archive.archiveId, `ARCHIVE·${shortHash(archive.archiveId,10)}`);
   detailTitle.textContent=archiveDisplayTitle(archive).toUpperCase();
