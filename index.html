@@ -178,7 +178,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .hero-preview{margin-top:18px;overflow:hidden;background:transparent}
 .hero-preview img{width:100%;aspect-ratio:1/1;max-height:none;object-fit:contain;display:block;background:transparent}
 .hero-preview .hero-none{padding:22px;text-align:center;color:var(--dim);font-style:italic}
-.final-image-upload{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.final-image-dialog[hidden]{display:none}
+.final-image-dialog{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px}
+.final-image-backdrop{position:absolute;inset:0;background:rgba(4,4,3,.82);backdrop-filter:blur(12px)}
+.final-image-panel{position:relative;width:min(480px,100%);border:1px solid var(--line);background:#11110e;padding:26px;box-shadow:0 30px 100px rgba(0,0,0,.55)}
+.popup-upload{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
 .final-image-upload #finalImageName{flex:1;min-width:160px;background:#0f0f0d;border:1px solid var(--line);color:var(--dim);padding:11px}
 .final-image-upload #uploadFinalBtn:disabled{opacity:.45;cursor:not-allowed}
 .field{margin:20px 0}
@@ -468,9 +472,7 @@ body.wallet-open{overflow:hidden}
         <button class="option" data-label="Just archive" onclick="selectOption(this,2)">Just archive</button>
       </div>
       <div class="final-image-upload">
-        <button class="btn" type="button" id="uploadFinalBtn" onclick="document.getElementById('finalImageFile').click()">Upload final image</button>
-        <input type="file" id="finalImageFile" accept="image/*" hidden>
-        <input type="text" id="finalImageName" placeholder="No file selected" readonly>
+        <button class="btn" type="button" id="uploadFinalBtn" onclick="openFinalImagePopup()">Upload final image</button>
       </div>
       <div class="hero-preview" id="stepImagePreview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
@@ -495,9 +497,6 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
-      <div class="fee-summary">
-        <div class="fee-row"><span>Archive Fee</span><span id="confirmArchiveFee">0.0919 SUI</span></div>
-      </div>
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
     </div>
@@ -543,6 +542,26 @@ body.wallet-open{overflow:hidden}
       </button>
     </div>
     <button class="btn wallet-disconnect" id="walletDisconnectBtn" type="button" hidden>Disconnect current wallet</button>
+  </section>
+</div>
+
+<div class="final-image-dialog" id="finalImageDialog" role="dialog" aria-modal="true" aria-labelledby="finalImageDialogTitle" hidden>
+  <div class="final-image-backdrop" data-final-image-close></div>
+  <section class="final-image-panel">
+    <div class="wallet-panel-head">
+      <div>
+        <div class="wallet-network">FINAL IMAGE</div>
+        <h2 id="finalImageDialogTitle">Upload final image</h2>
+      </div>
+      <button class="wallet-close" id="finalImageCloseBtn" type="button" aria-label="Close final image uploader">×</button>
+    </div>
+    <p class="wallet-status">Choose an image file from your device.</p>
+    <div class="final-image-upload popup-upload">
+      <button class="btn primary" type="button" id="popupUploadFinalBtn">Upload</button>
+      <button class="btn" type="button" id="popupClearFinalBtn" hidden>Clear</button>
+      <input type="file" id="finalImageFile" accept="image/*" hidden>
+      <input type="text" id="finalImageName" placeholder="No file selected" readonly>
+    </div>
   </section>
 </div>
 
@@ -1329,9 +1348,6 @@ function populateConfirmSummary(){
     preview.hidden=true;
     preview.innerHTML='';
   }
-  // Fee summary: only the archive fee is shown now (backup fee / total removed).
-  const ARCHIVE_FEE=0.0919;
-  document.getElementById('confirmArchiveFee').textContent=`${ARCHIVE_FEE} SUI`;
 }
 // Default hero used when "Just archive" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
@@ -1462,31 +1478,47 @@ function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeo
 // GitHub PNG (the contract can't store a local file), but the preview reflects
 // the user's chosen image.
 let uploadedFinalImage=null;
+function openFinalImagePopup(){
+  const dialog=document.getElementById("finalImageDialog");
+  if(dialog){dialog.hidden=false;document.body.classList.add("wallet-open");}
+}
+function closeFinalImagePopup(){
+  const dialog=document.getElementById("finalImageDialog");
+  if(dialog){dialog.hidden=true;document.body.classList.remove("wallet-open");}
+}
 function wireFinalImageUpload(){
   const fileInput=document.getElementById("finalImageFile");
   const nameInput=document.getElementById("finalImageName");
-  const uploadBtn=document.getElementById("uploadFinalBtn");
-  if(!fileInput||!nameInput||!uploadBtn)return;
+  const pageUploadBtn=document.getElementById("uploadFinalBtn");
+  const popupUploadBtn=document.getElementById("popupUploadFinalBtn");
+  const popupClearBtn=document.getElementById("popupClearFinalBtn");
+  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn)return;
+  popupUploadBtn.addEventListener("click",()=>fileInput.click());
+  document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
+  document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
+  popupClearBtn?.addEventListener("click",()=>{
+    fileInput.value="";
+    nameInput.value="";
+    uploadedFinalImage=null;
+    pageUploadBtn.disabled=false;
+    popupUploadBtn.disabled=false;
+    popupClearBtn.hidden=true;
+    renderStepImagePreview();
+  });
   fileInput.addEventListener("change",()=>{
     const file=fileInput.files&&fileInput.files[0];
-    if(!file){ return; }
+    if(!file)return;
     const reader=new FileReader();
     reader.onload=()=>{
       uploadedFinalImage=reader.result;
       nameInput.value=file.name;
-      uploadBtn.disabled=true;          // disable once a file is selected (re-enables when cleared)
+      pageUploadBtn.disabled=true;
+      popupUploadBtn.disabled=true;
+      popupClearBtn.hidden=false;
       renderStepImagePreview();
+      closeFinalImagePopup();
     };
     reader.readAsDataURL(file);
-  });
-  // Allow re-upload by clearing the name field (sets upload button active again).
-  nameInput.addEventListener("input",()=>{
-    if(!nameInput.value.trim()){
-      uploadedFinalImage=null;
-      uploadBtn.disabled=false;
-      fileInput.value="";
-      renderStepImagePreview();
-    }
   });
 }
 renderStep();
