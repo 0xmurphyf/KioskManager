@@ -21,6 +21,9 @@ importers:
       arweave:
         specifier: ^1.15.7
         version: 1.15.7
+      heic2any:
+        specifier: ^0.0.4
+        version: 0.0.4
     devDependencies:
       vite:
         specifier: 8.1.4
@@ -372,6 +375,9 @@ packages:
   graphql@16.14.2:
     resolution: {integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
+
+  heic2any@0.0.4:
+    resolution: {integrity: sha512-3lLnZiDELfabVH87htnRolZ2iehX9zwpRyGNz22GKXIu0fznlblf0/ftppXKNqS26dqFSeqfIBhAmAj/uSp0cA==}
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -916,6 +922,8 @@ snapshots:
       - graphql
 
   graphql@16.14.2: {}
+
+  heic2any@0.0.4: {}
 
   inherits@2.0.4: {}
 
