@@ -776,7 +776,8 @@ function openChainArchive(archiveId){
   detailSignature.textContent=`“${sig}”`;
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
-  detailAge.textContent=`Sui Testnet · policy version ${archive.policyVersion||"—"}`;
+  const sourceLabel={0:"Original",1:"Online",2:"Uploaded"}[Number(content.source_type ?? archive.sourceType ?? 0)]||"Image";
+  detailAge.textContent=`Sui Testnet · ${sourceLabel} image`;
   const imageUrl=archiveImageUrl(archive);
   detailImage.hidden=!imageUrl;
   if(imageUrl)detailImage.src=imageUrl;
@@ -808,7 +809,7 @@ async function resolveArchivedId(result, sender, fallbackArtifactId) {
 }
 // Ensure the just-archived entry is present in chainArchives so openChainArchive
 // can render it without waiting for a full re-index.
-function ensureChainArchive(archiveId, { message, sealerSignature, artifactId } = {}) {
+function ensureChainArchive(archiveId, { message, sealerSignature, artifactId, imageUrl, imageHash, sourceType, storageType } = {}) {
   if (!archiveId) return;
   if (chainArchives.some(a => a.archiveId === archiveId)) return;
   const card = document.querySelector('[data-step="1"] .option.selected');
@@ -817,10 +818,15 @@ function ensureChainArchive(archiveId, { message, sealerSignature, artifactId } 
   chainArchives.unshift({
     archiveId,
     archivedAtMs: Date.now(),
-    policyVersion: '1',
+    sourceType: Number(sourceType ?? 0),
+    storageType: Number(storageType ?? 0),
     content: {
       message: message || '',
-      sealerSignature: sealerSignature || '',
+      sealer_signature: sealerSignature || '',
+      image_url: imageUrl || '',
+      image_hash: imageHash || '',
+      source_type: Number(sourceType ?? 0),
+      storage_type: Number(storageType ?? 0),
       artifact: { id: artifactId || '', name, balance: balance !== undefined ? balance * 1e9 : undefined },
     },
   });
@@ -1523,7 +1529,15 @@ async function completeArchive(){
     const archivedId = await resolveArchivedId(result, sender, selectedObjectId);
     if (archivedId) {
       lastArchivedId = archivedId;
-      ensureChainArchive(archivedId, { message, sealerSignature: signature, artifactId: selectedObjectId });
+      ensureChainArchive(archivedId, {
+        message,
+        sealerSignature: signature,
+        artifactId: selectedObjectId,
+        imageUrl: heroUri,
+        imageHash: heroHash,
+        sourceType,
+        storageType,
+      });
     }
     currentStep=7;renderStep();
   }catch(error){
