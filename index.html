@@ -479,9 +479,7 @@ body.wallet-open{overflow:hidden}
       <div class="storage-grid">
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
         <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
-      </div>
-      <div class="final-image-upload">
-        <button class="btn" type="button" id="uploadFinalBtn" onclick="openFinalImagePopup()">Upload image</button>
+        <button class="option" data-label="Upload image" onclick="selectOption(this,2)">Upload image</button>
       </div>
       <div class="cover-link" id="coverLinkSection" hidden>
         <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
@@ -1300,9 +1298,11 @@ function selectOption(el,step){
   document.querySelectorAll(`[data-step="${step}"] .option`).forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
   if(step===2){
+    const label=el.dataset.label||"";
     const linkSection=document.getElementById("coverLinkSection");
-    if(linkSection)linkSection.hidden=el.dataset.label!=="Online Image";
+    if(linkSection)linkSection.hidden=label!=="Online Image";
     renderStepImagePreview();
+    if(label==="Upload image")openFinalImagePopup();
   }
 }
 function renderStepImagePreview(){
@@ -1317,6 +1317,16 @@ function renderStepImagePreview(){
     if(onlineImageUrl){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
+    }else{
+      preview.hidden=true;
+      preview.innerHTML="";
+    }
+    return;
+  }
+  if(label==="Upload image"){
+    if(uploadedFinalImageSource==="local" && uploadedFinalImage){
+      preview.hidden=false;
+      preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
     }else{
       preview.hidden=true;
       preview.innerHTML="";
@@ -1355,7 +1365,7 @@ function populateConfirmSummary(){
   if(heroLabel==='Online Image' && onlineImageUrl){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
-  }else if(heroLabel==='Use Original Image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
+  }else if(heroLabel==='Upload image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
   }else if(heroLabel==='Use Original Image' && objectImage){
@@ -1435,7 +1445,7 @@ async function completeArchive(){
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
-    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Online Image";
+    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
     if(useArweave){
       const hasOriginal = heroChoice==="Use Original Image" && !!objectImage;
       if(hasOriginal && window.theArchiveArweave){
@@ -1514,7 +1524,7 @@ function wireFinalImageUpload(){
   const pageUploadBtn=document.getElementById("uploadFinalBtn");
   const popupUploadBtn=document.getElementById("popupUploadFinalBtn");
   const popupClearBtn=document.getElementById("popupClearFinalBtn");
-  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn)return;
+  if(!fileInput||!nameInput||!popupUploadBtn)return;
   const imageUrlInput=document.getElementById("finalImageUrl");
   const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
   popupUploadBtn.addEventListener("click",()=>{fileInput.value="";fileInput.click();});
@@ -1527,7 +1537,6 @@ function wireFinalImageUpload(){
     uploadedFinalImage=null;
     uploadedFinalImageSource=null;
     onlineImageUrl=null;
-    pageUploadBtn.disabled=false;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
     renderStepImagePreview();
@@ -1544,8 +1553,7 @@ function wireFinalImageUpload(){
       uploadedFinalImage=null;
       uploadedFinalImageSource="online";
       nameInput.value=candidate;
-      pageUploadBtn.disabled=false;
-      popupUploadBtn.disabled=false;
+        popupUploadBtn.disabled=false;
       popupClearBtn.hidden=false;
       renderStepImagePreview();
       closeFinalImagePopup();
@@ -1562,8 +1570,7 @@ function wireFinalImageUpload(){
       uploadedFinalImageSource="local";
       onlineImageUrl=null;
       nameInput.value=file.name;
-      pageUploadBtn.disabled=false;
-      popupUploadBtn.disabled=false;
+        popupUploadBtn.disabled=false;
       popupClearBtn.hidden=false;
       renderStepImagePreview();
       closeFinalImagePopup();
