@@ -181,12 +181,16 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .final-image-dialog[hidden]{display:none}
 .final-image-dialog{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px}
 .final-image-backdrop{position:absolute;inset:0;background:rgba(4,4,3,.82);backdrop-filter:blur(12px)}
-.final-image-panel{position:relative;width:min(480px,100%);border:1px solid var(--line);background:#11110e;padding:26px;box-shadow:0 30px 100px rgba(0,0,0,.55)}
-.popup-upload{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
-.popup-link{display:flex;gap:10px;align-items:center;margin-top:12px}
-.popup-link input{flex:1;min-width:0}
-.final-image-upload #finalImageName{flex:1;min-width:160px;background:#0f0f0d;border:1px solid var(--line);color:var(--dim);padding:11px}
+.final-image-panel{position:relative;width:min(520px,100%);border:1px solid var(--line);background:#11110e;padding:28px;box-shadow:0 30px 100px rgba(0,0,0,.55)}
+.popup-upload{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:20px}
+.popup-link{display:flex;gap:10px;align-items:stretch;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.popup-link input[type=url],.final-image-upload #finalImageName{box-sizing:border-box;flex:1;min-width:0;height:46px;background:#0f0f0d;border:1px solid var(--line);border-radius:0;color:var(--paper);padding:0 14px;font:13px "Courier New",monospace;outline:none;transition:border-color .2s,box-shadow .2s}
+.popup-link input[type=url]::placeholder{color:var(--dim);opacity:.8}
+.popup-link input[type=url]:focus,.final-image-upload #finalImageName:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(154,128,96,.14)}
+.popup-link button{height:46px;white-space:nowrap}
+.final-image-upload #finalImageName{color:var(--dim)}
 .final-image-upload #uploadFinalBtn:disabled{opacity:.45;cursor:not-allowed}
+.popup-link-label{display:block;margin-top:18px;color:var(--dim);font:10px "Courier New",monospace;letter-spacing:.14em;text-transform:uppercase}
 .field{margin:20px 0}
 .field label{display:block;margin-bottom:8px;color:var(--dim);font-size:12px}
 textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:14px}
@@ -564,6 +568,7 @@ body.wallet-open{overflow:hidden}
       <input type="file" id="finalImageFile" accept="image/*" hidden>
       <input type="text" id="finalImageName" placeholder="No file selected" readonly>
     </div>
+    <div class="popup-link-label">Or use an online image</div>
     <div class="final-image-link popup-link">
       <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
       <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
