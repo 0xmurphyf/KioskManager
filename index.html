@@ -476,17 +476,6 @@ body.wallet-open{overflow:hidden}
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
     </div>
 
-    <div class="step" data-step="4">
-      <h2>Choose backup storage</h2>
-      <p>The URI and file hash become part of the immutable archive record.</p>
-      <div class="storage-grid">
-        <button class="option selected" data-label="Walrus" onclick="selectOption(this,4)">Walrus<br><span class="muted">0.20 SUI</span></button>
-        <button class="option" data-label="Arweave" onclick="selectOption(this,4)">Arweave<br><span class="muted">Network quoted</span></button>
-        <button class="option" data-label="No backup" onclick="selectOption(this,4)">No backup<br><span class="muted">Free</span></button>
-      </div>
-      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
-    </div>
-
     <div class="step" data-step="5">
       <h2>Final confirmation</h2>
       <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0.0919 SUI.</div>
@@ -1222,8 +1211,10 @@ function startWizard(){
 }
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
+  const steps=[1,2,3,5,7];
+  const pos=steps.indexOf(currentStep);
   progress.innerHTML="";
-  for(let i=1;i<=5;i++){const x=document.createElement("i");if(i<=Math.min(currentStep,5))x.className="on";progress.appendChild(x)}
+  for(let i=0;i<steps.length;i++){const x=document.createElement("i");if(pos>=0 && i<=pos)x.className="on";progress.appendChild(x)}
   if(currentStep===1 && !wizardObjectsLoaded) loadWizardObjects();
   if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
@@ -1231,8 +1222,8 @@ function renderStep(){
     populateConfirmSummary();
   }
 }
-function nextStep(){currentStep++;renderStep()}
-function prevStep(){currentStep=Math.max(1,currentStep-1);renderStep()}
+function nextStep(){currentStep++; if(currentStep===4)currentStep++; renderStep()}
+function prevStep(){currentStep--; if(currentStep===4)currentStep--; renderStep()}
 function selectObject(el){
   document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
@@ -1302,11 +1293,13 @@ function populateConfirmSummary(){
   const msgEl=document.querySelector('[data-step="3"] textarea');
   const sigEl=document.querySelector('[data-step="3"] input');
   const hero=document.querySelector('[data-step="2"] .option.selected');
-  const storage=document.querySelector('[data-step="4"] .option.selected');
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
   set('confirmHeroCell', hero?hero.dataset.label:"");
-  set('confirmStorageCell', storage?storage.dataset.label:"");
+  // Backup storage page was removed; the on-chain storage type is now derived
+  // from the hero choice in completeArchive (Arweave when a hero is stored,
+  // none otherwise). Reflect that here for the confirmation summary.
+  set('confirmStorageCell', (hero?.dataset.label==='Use Original Image' || hero?.dataset.label==='Just archive') ? 'Arweave' : 'No backup');
   // Hero image preview: when "Use Original Image" is chosen and the selected
   // object has a display image, show it; otherwise show the choice label.
   const preview=document.getElementById('confirmHeroPreview');
@@ -1324,20 +1317,16 @@ function populateConfirmSummary(){
     preview.hidden=true;
     preview.innerHTML='';
   }
-  // Fee summary: archive fee is fixed; backup fee depends on the chosen storage.
+  // Fee summary: archive fee is fixed; backup fee depends on the chosen hero
+  // (Arweave when a hero image is stored, else none).
   const ARCHIVE_FEE=0.0919;
-  const backupLabel=storage?storage.dataset.label:'';
-  const backupMap={ 'Walrus':0.20, 'Arweave':'Network quoted', 'No backup':0 };
-  const backupFee=backupMap[backupLabel];
+  const heroSel=document.querySelector('[data-step="2"] .option.selected');
+  const heroLbl=heroSel?heroSel.dataset.label:'';
+  const usesBackup = (heroLbl==='Use Original Image' || heroLbl==='Just archive');
+  const backupFee = usesBackup ? 0 : 0; // Arweave path is free under current policy
   document.getElementById('confirmArchiveFee').textContent=`${ARCHIVE_FEE} SUI`;
-  if(backupFee==='Network quoted'){
-    document.getElementById('confirmBackupFee').textContent='Network quoted';
-    document.getElementById('confirmTotalFee').textContent=`${ARCHIVE_FEE} + network`;
-  }else{
-    const total=(ARCHIVE_FEE + (backupFee||0)).toFixed(4);
-    document.getElementById('confirmBackupFee').textContent=backupFee?`${backupFee} SUI`:'Free';
-    document.getElementById('confirmTotalFee').textContent=`${total} SUI`;
-  }
+  document.getElementById('confirmBackupFee').textContent=usesBackup?'Arweave (free)':'Free';
+  document.getElementById('confirmTotalFee').textContent=`${ARCHIVE_FEE.toFixed(4)} SUI`;
 }
 // Default hero used when "Just archive" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
@@ -1345,6 +1334,18 @@ const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
 // or "Use Original Image" with no display image. Uses the raw GitHub asset so it
 // resolves reliably from any viewer (including the on-chain archive detail).
 const CONTRACT_HERO_URL='https://raw.githubusercontent.com/0xmurphyf/TheArchive/main/public/archive-assets/memory-vial.png';
+// The contract requires a 32-byte content hash alongside a non-empty hero URI
+// (validate_metadata: E_INVALID_HASH_LENGTH). We hardcode the SHA-256 of the
+// canonical PNG (fetched once, cached) so Just-archive / no-image entries can
+// store the GitHub URL on-chain under STORAGE_ARWEAVE without a real upload.
+let _contractHeroHash=null;
+async function getContractHeroHash(){
+  if(_contractHeroHash) return _contractHeroHash;
+  const res=await fetch(CONTRACT_HERO_URL);
+  const buf=new Uint8Array(await res.arrayBuffer());
+  _contractHeroHash=Array.from(crypto.subtle ? new Uint8Array(await crypto.subtle.digest('SHA-256', buf)) : []);
+  return _contractHeroHash;
+}
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1394,17 +1395,26 @@ async function completeArchive(){
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Use Original Image" || heroChoice==="Just archive";
-    if(useArweave && window.theArchiveArweave){
-      // When a real original image exists, upload it to Arweave so the on-chain
-      // hero points at the actual artifact. For STORAGE_NONE (no Arweave) the
-      // contract forbids a non-empty hero URI, so we leave heroUri empty and the
-      // UI falls back to CONTRACT_HERO_URL for display only.
-      const imageUrl = heroChoice==="Just archive" ? CONTRACT_HERO_URL : (objectImage||CONTRACT_HERO_URL);
-      showToast("Uploading hero to Arweave…");
-      const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl, objectId:selectedObjectId, type:selectedObjectType });
-      storageType=txApi.STORAGE_ARWEAVE;
-      heroUri=uploaded.uri;
-      heroHash=uploaded.hashBytes;
+    if(useArweave){
+      const hasOriginal = heroChoice==="Use Original Image" && !!objectImage;
+      if(hasOriginal && window.theArchiveArweave){
+        // Real original image present and Arweave available: upload it so the
+        // on-chain hero points at the actual artifact.
+        showToast("Uploading hero to Arweave…");
+        const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl:objectImage, objectId:selectedObjectId, type:selectedObjectType });
+        storageType=txApi.STORAGE_ARWEAVE;
+        heroUri=uploaded.uri;
+        heroHash=uploaded.hashBytes;
+      }else{
+        // "Just archive", or "Use Original Image" with no display image: hardcode
+        // the canonical GitHub PNG on-chain under STORAGE_ARWEAVE with its SHA-256
+        // (32 bytes) as the content hash. validate_metadata requires a non-empty
+        // URI + 32-byte hash when storage != NONE; this satisfies it without a
+        // real upload.
+        heroUri=CONTRACT_HERO_URL;
+        storageType=txApi.STORAGE_ARWEAVE;
+        heroHash=await getContractHeroHash();
+      }
     }
     // Resolve a partial Coin amount, if the selected object is a coin and the
     // user entered one. Blank / zero => archive the whole coin object. If the
