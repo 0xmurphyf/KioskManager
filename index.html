@@ -480,7 +480,8 @@ body.wallet-open{overflow:hidden}
       <div class="storage-grid">
         <button class="option selected" data-label="Original Image" onclick="selectOption(this,2)">Original Image</button>
         <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
-        <button class="option" data-label="Upload image" onclick="selectOption(this,2)">Upload image</button>
+        <button class="option" data-label="Memory vials" onclick="selectOption(this,2)">Memory vials</button>
+        <button class="option" data-label="Upload Image" onclick="selectOption(this,2)">Upload Image</button>
       </div>
       <div class="cover-link" id="coverLinkSection" hidden>
         <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
@@ -567,7 +568,7 @@ body.wallet-open{overflow:hidden}
     <div class="wallet-panel-head">
       <div>
         <div class="wallet-network">FINAL IMAGE</div>
-        <h2 id="finalImageDialogTitle">Upload image</h2>
+        <h2 id="finalImageDialogTitle">Upload Image</h2>
       </div>
       <button class="wallet-close" id="finalImageCloseBtn" type="button" aria-label="Close final image uploader">×</button>
     </div>
@@ -1335,7 +1336,7 @@ function nextStep(){
       showToast("Enter and load an Online Image link first");
       return;
     }
-    if(label==="Upload image" && !uploadedFinalImageBlob){
+    if(label==="Upload Image" && !uploadedFinalImageBlob){
       showToast("Upload an image first");
       return;
     }
@@ -1391,7 +1392,7 @@ function selectOption(el,step){
     const linkSection=document.getElementById("coverLinkSection");
     if(linkSection)linkSection.hidden=label!=="Online Image";
     renderStepImagePreview();
-    if(label==="Upload image")openFinalImagePopup();
+    if(label==="Upload Image")openFinalImagePopup();
   }
 }
 function renderStepImagePreview(){
@@ -1412,7 +1413,7 @@ function renderStepImagePreview(){
     }
     return;
   }
-  if(label==="Upload image"){
+  if(label==="Upload Image"){
     if(uploadedFinalImageSource==="local" && uploadedFinalImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
@@ -1422,13 +1423,18 @@ function renderStepImagePreview(){
     }
     return;
   }
+  if(label==="Memory vials"){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(CONTRACT_HERO_URL)}" alt="Memory vials cover preview">`;
+    return;
+  }
   if(label==="Original Image"){
     if(objectImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
     }else{
       preview.hidden=false;
-      preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default cover preview">`;
+      preview.innerHTML='<div class="chain-empty">No Image Found</div>';
     }
     return;
   }
@@ -1443,7 +1449,7 @@ function populateConfirmSummary(){
   const hero=document.querySelector('[data-step="2"] .option.selected');
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
-  const heroSource=hero?.dataset.label==='Online Image' ? 'Online' : hero?.dataset.label==='Upload image' ? 'Uploaded' : 'Original';
+  const heroSource=hero?.dataset.label==='Online Image' ? 'Online' : hero?.dataset.label==='Upload Image' ? 'Uploaded' : hero?.dataset.label==='Memory vials' ? 'Memory vials' : 'Original';
   set('confirmHeroCell',heroSource);
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
@@ -1452,15 +1458,18 @@ function populateConfirmSummary(){
   if(heroLabel==='Online Image' && onlineImageUrl){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
-  }else if(heroLabel==='Upload image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
+  }else if(heroLabel==='Upload Image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
+  }else if(heroLabel==='Memory vials'){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(CONTRACT_HERO_URL)}" alt="Memory vials cover preview">`;
   }else if(heroLabel==='Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
   }else if(heroLabel==='Original Image'){
     preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default cover preview">`;
+    preview.innerHTML='<div class="chain-empty">No Image Found</div>';
   }else{
     preview.hidden=true;
     preview.innerHTML='';
@@ -1548,7 +1557,7 @@ async function completeArchive(){
     // or the TheArchive server upload URL. No decentralized-storage upload is used.
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
     let storageType=txApi.STORAGE_NONE, sourceType=txApi.SOURCE_ORIGINAL, heroUri="", heroHash=[];
-    const useImage = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
+    const useImage = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Memory vials" || heroChoice==="Upload Image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
       throw new Error("Choose and load an Online Image link first");
     }
@@ -1572,7 +1581,12 @@ async function completeArchive(){
         storageType=txApi.STORAGE_EXTERNAL;
         sourceType=txApi.SOURCE_ONLINE;
         heroHash=await getImageHash(heroUri);
-      }else if(heroChoice==="Upload image"){
+      }else if(heroChoice==="Memory vials"){
+        heroUri=CONTRACT_HERO_URL;
+        storageType=txApi.STORAGE_EXTERNAL;
+        sourceType=txApi.SOURCE_ORIGINAL;
+        heroHash=await getContractHeroHash();
+      }else if(heroChoice==="Upload Image"){
         if(!uploadedFinalImageBlob) throw new Error("Choose an image file first");
         showToast("Uploading image to archive server…");
         const uploadResponse=await fetch('/api/uploads',{method:'POST',headers:{'content-type':uploadedFinalImageBlob.type || 'application/octet-stream'},body:uploadedFinalImageBlob});
@@ -1663,7 +1677,7 @@ function wireFinalImageUpload(){
   document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
   document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
   popupClearBtn?.addEventListener("click",()=>{
-    // This Clear belongs only to the local Upload image source.
+    // This Clear belongs only to the local Upload Image source.
     fileInput.value="";
     nameInput.value="";
     uploadedFinalImageBlob=null;
