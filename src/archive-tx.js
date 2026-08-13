@@ -259,6 +259,49 @@ export function buildArchiveTransaction({
   return tx;
 }
 
+export async function estimateArchiveGas({
+  client,
+  objectId,
+  typeArgument,
+  sender,
+  message = '',
+  sealerSignature = '',
+  sourceType = SOURCE_ORIGINAL,
+  storageType = STORAGE_NONE,
+  heroUri = '',
+  heroHash = [],
+  amount,
+}) {
+  if (!client?.core?.simulateTransaction || !sender) {
+    throw new Error('Gas simulation is unavailable');
+  }
+  const tx = buildArchiveTransaction({
+    objectId,
+    typeArgument,
+    message,
+    sealerSignature,
+    sourceType,
+    storageType,
+    heroUri,
+    heroHash,
+    amount,
+  });
+  tx.setSender(sender);
+  tx.setGasBudget(50_000_000);
+  const bytes = await tx.build({ client });
+  const result = await client.core.simulateTransaction({
+    transaction: bytes,
+    include: { effects: true },
+  });
+  const gasUsed = result?.effects?.gasUsed;
+  if (!gasUsed) throw new Error('Gas simulation returned no gas usage');
+  const total = BigInt(gasUsed.computationCost || 0)
+    + BigInt(gasUsed.storageCost || 0)
+    + BigInt(gasUsed.nonRefundableStorageFee || 0)
+    - BigInt(gasUsed.storageRebate || 0);
+  if (total <= 0n) throw new Error('Gas simulation returned an invalid estimate');
+  return total;
+}
 // Sign and execute via the connected dAppKit wallet on Testnet.
 export async function archiveObject({
   client,
@@ -294,6 +337,7 @@ window.theArchiveTx = {
   buildArchiveTransaction,
   archiveObject,
   fetchArchivePolicy,
+  estimateArchiveGas,
   fetchSuiBalance,
   isTestnetAccount,
   POLICY_OBJECT_ID,

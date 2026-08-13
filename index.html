@@ -1224,6 +1224,14 @@ async function refreshArchiveCost(){
   try{
     const client=window.theArchiveWallet.dAppKit.getClient("testnet");
     archivePolicy=await api.fetchArchivePolicy(client);
+    archiveGasEstimateMist=await api.estimateArchiveGas({
+      client,
+      objectId:selectedObjectId,
+      typeArgument:selectedObjectType,
+      sender:connection.address,
+      message:document.querySelector('[data-step="3"] textarea')?.value||"",
+      sealerSignature:document.querySelector('[data-step="3"] input')?.value||"",
+    });
     const fee = document.getElementById('confirmArchiveFee');
     const gas = document.getElementById('confirmGasEstimate');
     const total = document.getElementById('confirmTotalCost');
