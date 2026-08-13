@@ -160,7 +160,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .step.active{display:block}
 .step h2{font-size:clamp(30px,3vw,38px);margin:0 0 8px}
 .step p{color:var(--dim);line-height:1.7}
-.object-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-top:16px}
+.object-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;margin-top:16px}
 .object-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:18px}
 .object-controls input[type=text]{flex:1;min-width:180px}
 .filter-tabs{display:flex;gap:8px}
@@ -311,6 +311,13 @@ body.wallet-open{overflow:hidden}
   padding:12px 0;border-bottom:1px solid var(--line);font-family:Georgia,serif;font-size:18px
 }
 .visitor-entry small{display:block;margin-top:6px;color:var(--dim);font:10px "Courier New",monospace}
+@media (min-width:600px) and (max-width:900px){
+  .object-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
+@media (max-width:599px){
+  .object-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+}
+
 @media(max-width:900px){
   .visitor-form{grid-template-columns:1fr}
   .detail-panel.message-first{min-height:auto}
