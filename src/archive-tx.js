@@ -150,11 +150,20 @@ export async function fetchOwnedObjects(client, address) {
 }
 
 export async function fetchArchivePolicy(client) {
-  const result = await client.getObject({ id: POLICY_OBJECT_ID, include: { content: true } });
-  const content = result?.content || result?.data?.content || {};
-  const fields = content.fields || content;
+  if (!client?.getObject) throw new Error('Sui client is unavailable');
+  const result = await client.getObject({
+    objectId: POLICY_OBJECT_ID,
+    include: { json: true },
+  });
+  const object = result?.object || result?.data || result;
+  const json = object?.json || object?.content?.json || object?.content?.fields;
+  const content = json || object?.content || result?.content || result?.data?.content;
+  const fields = content?.fields || content;
+  if (!fields || fields.archive_fee_mist === undefined) {
+    throw new Error('Archive policy content is unavailable');
+  }
   return {
-    archiveFeeMist: BigInt(fields.archive_fee_mist ?? 0),
+    archiveFeeMist: BigInt(fields.archive_fee_mist),
     treasury: fields.treasury || '',
     version: Number(fields.version ?? 0),
   };

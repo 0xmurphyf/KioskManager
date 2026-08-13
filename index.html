@@ -1231,10 +1231,15 @@ async function refreshArchiveCost(){
     if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
     if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
   }catch(error){
+    console.warn('[archive-fee] unable to read policy', error);
     archivePolicy=null;
     const fee=document.getElementById('confirmArchiveFee');
+    const gas=document.getElementById('confirmGasEstimate');
+    const total=document.getElementById('confirmTotalCost');
     if(fee)fee.textContent='Unable to read policy';
-    showToast('Could not read current archive fee');
+    if(gas)gas.textContent='—';
+    if(total)total.textContent='—';
+    showToast(`Could not read current archive fee: ${error?.message||'unknown error'}`);
   }
 }
 function setObjectFilter(kind,el){
