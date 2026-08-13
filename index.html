@@ -201,8 +201,8 @@ textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--l
 textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
-.fee-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
-.fee-row>span:last-child{width:140px;flex:0 0 140px;text-align:right;white-space:nowrap}
+.fee-row{display:grid;grid-template-columns:minmax(0,1fr) 150px;align-items:center;column-gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+.fee-row>span:last-child{width:auto;min-width:0;text-align:right;white-space:nowrap;font:12px "Courier New",monospace}
 .confirm-obj-name{display:block;font-size:13px;color:var(--paper);margin-bottom:4px}
 .confirm-coin-amt{display:block;margin-top:4px;font:11px "Courier New",monospace;color:var(--dim)}
 .fee-summary{margin-top:22px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0}
@@ -1351,6 +1351,8 @@ function renderStep(){
 
   if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
+    if(confirmText)confirmText.value="";
+    if(typeof validateConfirm==='function')validateConfirm();
     setConfirmObject();
     populateConfirmSummary();
     void refreshArchiveCost();
