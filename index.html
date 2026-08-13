@@ -571,7 +571,7 @@ body.wallet-open{overflow:hidden}
     <div class="final-image-upload popup-upload">
       <button class="btn primary" type="button" id="popupUploadFinalBtn">Upload</button>
       <button class="btn" type="button" id="popupClearFinalBtn" hidden>Clear</button>
-      <input type="file" id="finalImageFile" accept="image/*" hidden>
+      <input type="file" id="finalImageFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif,image/tiff,image/svg+xml,image/x-icon,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.tif,.tiff,.svg,.ico" hidden>
       <input type="text" id="finalImageName" placeholder="No file selected" readonly>
     </div>
   </section>
@@ -1335,10 +1335,7 @@ function renderStepImagePreview(){
     return;
   }
   if(label==="Use Original Image"){
-    if(uploadedFinalImageSource==="local" && uploadedFinalImage){
-      preview.hidden=false;
-      preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
-    }else if(objectImage){
+    if(objectImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
     }else{
@@ -1570,6 +1567,13 @@ function wireFinalImageUpload(){
   fileInput.addEventListener("change",()=>{
     const file=fileInput.files&&fileInput.files[0];
     if(!file)return;
+    const allowedTypes=new Set(["image/jpeg","image/png","image/webp","image/gif","image/bmp","image/avif","image/tiff","image/svg+xml","image/x-icon"]);
+    const allowedExtensions=/\.(jpe?g|png|webp|gif|bmp|avif|tif?f|svg|ico)$/i;
+    if(!allowedTypes.has((file.type||"").toLowerCase()) && !allowedExtensions.test(file.name||"")){
+      fileInput.value="";
+      showToast("Unsupported image format");
+      return;
+    }
     const reader=new FileReader();
     reader.onload=()=>{
       uploadedFinalImage=reader.result;
