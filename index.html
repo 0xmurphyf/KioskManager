@@ -1251,9 +1251,9 @@ async function refreshArchiveCost(){
   }catch(error){
     console.warn('[archive-gas] unable to simulate gas', error);
     archiveGasEstimateMist=6000000n;
-    if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)} (fallback)`;
-    if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)} (fallback gas)`;
-    showToast('Policy loaded; gas simulation unavailable, using a conservative fallback estimate');
+    if(gas)gas.textContent='—';
+    if(total)total.textContent='—';
+    showToast('Policy loaded; gas estimate is temporarily unavailable');
   }
 }
 function setObjectFilter(kind,el){
