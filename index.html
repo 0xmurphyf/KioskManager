@@ -1501,7 +1501,7 @@ function wireFinalImageUpload(){
   const imageUrlInput=document.getElementById("finalImageUrl");
   const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
   if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn||!imageUrlInput||!useUrlBtn)return;
-  popupUploadBtn.addEventListener("click",()=>fileInput.click());
+  popupUploadBtn.addEventListener("click",()=>{fileInput.value="";fileInput.click();});
   document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
   document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
   popupClearBtn?.addEventListener("click",()=>{
@@ -1519,13 +1519,19 @@ function wireFinalImageUpload(){
     let url;
     try{ url=new URL(raw); }catch(_){ showToast("Enter a valid image link"); return; }
     if(!["http:","https:"].includes(url.protocol)){ showToast("Enter an http(s) image link"); return; }
-    uploadedFinalImage=url.href;
-    nameInput.value=url.href;
-    pageUploadBtn.disabled=true;
-    popupUploadBtn.disabled=true;
-    popupClearBtn.hidden=false;
-    renderStepImagePreview();
-    closeFinalImagePopup();
+    const candidate=url.href;
+    const testImage=new Image();
+    testImage.onload=()=>{
+      uploadedFinalImage=candidate;
+      nameInput.value=candidate;
+      pageUploadBtn.disabled=false;
+      popupUploadBtn.disabled=false;
+      popupClearBtn.hidden=false;
+      renderStepImagePreview();
+      closeFinalImagePopup();
+    };
+    testImage.onerror=()=>showToast("Image link could not be loaded");
+    testImage.src=candidate;
   });
   fileInput.addEventListener("change",()=>{
     const file=fileInput.files&&fileInput.files[0];
@@ -1534,8 +1540,8 @@ function wireFinalImageUpload(){
     reader.onload=()=>{
       uploadedFinalImage=reader.result;
       nameInput.value=file.name;
-      pageUploadBtn.disabled=true;
-      popupUploadBtn.disabled=true;
+      pageUploadBtn.disabled=false;
+      popupUploadBtn.disabled=false;
       popupClearBtn.hidden=false;
       renderStepImagePreview();
       closeFinalImagePopup();
