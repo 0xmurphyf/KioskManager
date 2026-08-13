@@ -1215,7 +1215,7 @@ let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardFilter='all';
 let archivePolicy=null;
-let archiveGasEstimateMist=6000000n;
+let archiveGasEstimateMist=20000000n;
 function suiAmount(mist){return `${(Number(mist)/1e9).toFixed(6)} SUI`;}
 async function refreshArchiveCost(){
   const api=window.theArchiveTx;
@@ -1237,24 +1237,9 @@ async function refreshArchiveCost(){
     showToast(`Could not read current archive fee: ${error?.message||'unknown error'}`);
     return;
   }
-  try{
-    archiveGasEstimateMist=await api.estimateArchiveGas({
-      client,
-      objectId:selectedObjectId,
-      typeArgument:selectedObjectType,
-      sender:connection.address,
-      message:document.querySelector('[data-step="3"] textarea')?.value||"",
-      sealerSignature:document.querySelector('[data-step="3"] input')?.value||"",
-    });
-    if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
-    if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
-  }catch(error){
-    console.warn('[archive-gas] unable to simulate gas', error);
-    archiveGasEstimateMist=6000000n;
-    if(gas)gas.textContent='—';
-    if(total)total.textContent='—';
-    showToast('Policy loaded; gas estimate is temporarily unavailable');
-  }
+  archiveGasEstimateMist=20000000n;
+  if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
+  if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
 }
 function setObjectFilter(kind,el){
   wizardFilter=kind;
