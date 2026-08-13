@@ -1253,13 +1253,24 @@ function renderStep(){
   progress.innerHTML="";
   for(let i=0;i<steps.length;i++){const x=document.createElement("i");if(pos>=0 && i<=pos)x.className="on";progress.appendChild(x)}
   if(currentStep===1 && !wizardObjectsLoaded) loadWizardObjects();
+  const objectNextBtn=document.getElementById("objectNext");
+  if(objectNextBtn)objectNextBtn.disabled=!selectedObjectId;
+
   if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
     setConfirmObject();
     populateConfirmSummary();
   }
 }
-function nextStep(){currentStep++; if(currentStep===4)currentStep++; renderStep()}
+function nextStep(){
+  if(currentStep===1 && !selectedObjectId){
+    showToast("Choose an object first");
+    return;
+  }
+  currentStep++;
+  if(currentStep===4)currentStep++;
+  renderStep();
+}
 function prevStep(){currentStep--; if(currentStep===4)currentStep--; renderStep()}
 function selectObject(el){
   document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
@@ -1440,7 +1451,7 @@ async function completeArchive(){
   if(!selectedObjectId){showToast("Choose an object first");return;}
   if(!selectedObjectType){showToast("Selected object has no type info");return;}
   if(confirmText.value.trim().toUpperCase()!=="ARCHIVE"){showToast("Type ARCHIVE to confirm");return;}
-  archiveBtn.disabled=true;archiveBtn.textContent="ARCHIVING…";
+  archiveBtn.disabled=true;
   showToast("Confirm the transaction in your wallet…");
   try{
     const client=window.theArchiveWallet.dAppKit.getClient("testnet");
@@ -1502,7 +1513,7 @@ async function completeArchive(){
     }
     currentStep=7;renderStep();
   }catch(error){
-    archiveBtn.disabled=false;archiveBtn.textContent="ARCHIVE FOREVER";
+    archiveBtn.disabled=false;
     const message=String(error?.message||error).toLowerCase();
     const cancelled=error?.code===4001||message.includes("reject")||message.includes("cancel");
     showToast(cancelled?"Transaction cancelled":"Archive failed: "+(error?.message||error));
