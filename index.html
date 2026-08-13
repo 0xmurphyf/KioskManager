@@ -1301,7 +1301,7 @@ function renderFilteredObjects(){
       const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
       extra=`<div class="coin-amount" onclick="event.stopPropagation()">
         <label>Amount</label>
-        <input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}">
+        <input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled>
         <span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span>
       </div>`;
     }
@@ -1337,6 +1337,17 @@ function nextStep(){
     showToast("Choose an object first");
     return;
   }
+  if(currentStep===2){
+    const label=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
+    if(label==="Online Image" && !onlineImageContractUrl){
+      showToast("Enter and load an Online Image link first");
+      return;
+    }
+    if(label==="Upload image" && !uploadedFinalImageBlob){
+      showToast("Upload an image first");
+      return;
+    }
+  }
   currentStep++;
   if(currentStep===4)currentStep++;
   renderStep();
@@ -1345,6 +1356,9 @@ function prevStep(){currentStep--; if(currentStep===4)currentStep--; renderStep(
 function selectObject(el){
   document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
+  document.querySelectorAll('[data-step="1"] .coin-amount input').forEach(input=>{
+    input.disabled=input.closest('.option')!==el;
+  });
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
   setConfirmObject();
