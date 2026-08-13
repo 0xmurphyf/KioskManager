@@ -46,7 +46,7 @@ nav{display:flex;gap:20px;align-items:center}
 nav button{background:none;border:0;color:var(--dim)}
 .wallet{border:1px solid var(--line)!important;padding:9px 13px!important;color:var(--paper)!important}
 .archive-direct{color:var(--paper)!important;padding:7px 0!important}
-.wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:11px}
+.wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:18px;line-height:1}
 .wallet-top-disconnect:hover{color:var(--paper)!important;border-color:rgba(231,225,210,.42)!important}
 .addr-link{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);word-break:break-all}
 .addr-link:hover{opacity:.8}
@@ -360,7 +360,7 @@ body.wallet-open{overflow:hidden}
     <button onclick="showView('home');document.getElementById('whispers').scrollIntoView()">Whispers</button>
     <button class="archive-direct" type="button" onclick="startWizard()">Archive</button>
     <button class="wallet" id="walletBtn" type="button" aria-haspopup="dialog" aria-controls="walletDialog">Connect Wallet</button>
-    <button class="wallet-top-disconnect" id="walletDisconnectTopBtn" type="button" hidden>Disconnect</button>
+    <button class="wallet-top-disconnect" id="walletDisconnectTopBtn" type="button" hidden aria-label="Disconnect wallet" title="Disconnect wallet">×</button>
   </nav>
 </header>
 
@@ -1258,7 +1258,10 @@ let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardFilter='all';
 let archivePolicy=null;
-let archiveGasEstimateMist=20000000n;
+const FIXED_ARCHIVE_FEE_MIST=9190000n;
+const FIXED_ARCHIVE_GAS_MIST=20000000n;
+const FIXED_ARCHIVE_TOTAL_MIST=FIXED_ARCHIVE_FEE_MIST+FIXED_ARCHIVE_GAS_MIST;
+let archiveGasEstimateMist=FIXED_ARCHIVE_GAS_MIST;
 function suiAmount(mist){return `${(Number(mist)/1e9).toFixed(6)} SUI`;}
 function feeDisplay(mist){return `${(Number(mist)/1e9).toFixed(5)} SUI`;}
 function gasDisplay(mist){return `≈ ${(Number(mist)/1e9).toFixed(5)} SUI`;}
@@ -1272,19 +1275,19 @@ async function refreshArchiveCost(){
   const total=document.getElementById('confirmTotalCost');
   try{
     archivePolicy=await api.fetchArchivePolicy(client);
-    if(fee)fee.textContent=feeDisplay(archivePolicy.archiveFeeMist);
+    if(fee)fee.textContent=feeDisplay(FIXED_ARCHIVE_FEE_MIST);
   }catch(error){
     console.warn('[archive-fee] unable to read policy', error);
     archivePolicy=null;
-    if(fee)fee.textContent='Unable to read policy';
-    if(gas)gas.textContent='—';
-    if(total)total.textContent='—';
-    showToast(`Could not read current archive fee: ${error?.message||'unknown error'}`);
+    if(fee)fee.textContent=feeDisplay(FIXED_ARCHIVE_FEE_MIST);
+    if(gas)gas.textContent=gasDisplay(FIXED_ARCHIVE_GAS_MIST);
+    if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
+    showToast(`Could not read current archive policy: ${error?.message||'unknown error'}`);
     return;
   }
-  archiveGasEstimateMist=20000000n;
-  if(gas)gas.textContent=gasDisplay(archiveGasEstimateMist);
-  if(total)total.textContent=`≈ ${(Number(archivePolicy.archiveFeeMist+archiveGasEstimateMist)/1e9).toFixed(5)} SUI`;
+  archiveGasEstimateMist=FIXED_ARCHIVE_GAS_MIST;
+  if(gas)gas.textContent=gasDisplay(FIXED_ARCHIVE_GAS_MIST);
+  if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
   wizardFilter=kind;
@@ -1596,7 +1599,7 @@ async function completeArchive(){
     const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
     archivePolicy=await txApi.fetchArchivePolicy(client);
     const suiBalance=await txApi.fetchSuiBalance(client,connection.address);
-    const requiredBalance=archivePolicy.archiveFeeMist+archiveGasEstimateMist;
+    const requiredBalance=FIXED_ARCHIVE_TOTAL_MIST;
     if(suiBalance<requiredBalance){
       throw new Error(`Insufficient SUI. Need at least ${suiAmount(requiredBalance)} including estimated gas; wallet has ${suiAmount(suiBalance)}`);
     }
