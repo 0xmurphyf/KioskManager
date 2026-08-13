@@ -484,6 +484,7 @@ body.wallet-open{overflow:hidden}
       <div class="cover-link" id="coverLinkSection" hidden>
         <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
         <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
+        <button class="btn" type="button" id="clearFinalImageUrlBtn" hidden>Clear</button>
       </div>
       <div class="hero-preview" id="stepImagePreview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
@@ -1527,18 +1528,25 @@ function wireFinalImageUpload(){
   if(!fileInput||!nameInput||!popupUploadBtn)return;
   const imageUrlInput=document.getElementById("finalImageUrl");
   const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
+  const clearUrlBtn=document.getElementById("clearFinalImageUrlBtn");
   popupUploadBtn.addEventListener("click",()=>{fileInput.value="";fileInput.click();});
   document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
   document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
   popupClearBtn?.addEventListener("click",()=>{
+    // This Clear belongs only to the local Upload image source.
     fileInput.value="";
     nameInput.value="";
-    if(imageUrlInput)imageUrlInput.value="";
     uploadedFinalImage=null;
-    uploadedFinalImageSource=null;
-    onlineImageUrl=null;
+    if(uploadedFinalImageSource==="local")uploadedFinalImageSource=null;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
+    renderStepImagePreview();
+  });
+  clearUrlBtn?.addEventListener("click",()=>{
+    if(imageUrlInput)imageUrlInput.value="";
+    onlineImageUrl=null;
+    if(uploadedFinalImageSource==="online")uploadedFinalImageSource=null;
+    clearUrlBtn.hidden=true;
     renderStepImagePreview();
   });
   useUrlBtn?.addEventListener("click",()=>{
@@ -1552,9 +1560,7 @@ function wireFinalImageUpload(){
       onlineImageUrl=candidate;
       uploadedFinalImage=null;
       uploadedFinalImageSource="online";
-      nameInput.value=candidate;
-        popupUploadBtn.disabled=false;
-      popupClearBtn.hidden=false;
+      if(clearUrlBtn)clearUrlBtn.hidden=false;
       renderStepImagePreview();
       closeFinalImagePopup();
     };
@@ -1568,7 +1574,6 @@ function wireFinalImageUpload(){
     reader.onload=()=>{
       uploadedFinalImage=reader.result;
       uploadedFinalImageSource="local";
-      onlineImageUrl=null;
       nameInput.value=file.name;
         popupUploadBtn.disabled=false;
       popupClearBtn.hidden=false;
