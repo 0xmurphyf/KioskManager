@@ -787,7 +787,7 @@ function renderMostCheckedArtifact(archives){
   const target=document.getElementById('mostCheckedList');
   if(!target)return;
   const ranked=[...archives].sort((a,b)=>archiveCheckCount(b)-archiveCheckCount(a) || Number(b.archivedAtMs||0)-Number(a.archivedAtMs||0));
-  target.innerHTML=ranked.length ? renderLiveChainArchiveRows(ranked.slice(0,1)) : '<div class="chain-empty">No checked artifacts yet.</div>';
+  target.innerHTML=ranked.length ? renderLiveChainArchiveRows(ranked.slice(0,3)) : '<div class="chain-empty">No checked artifacts yet.</div>';
 }
 let chainArchives=[];
 window.renderChainArchives=function(archives){
