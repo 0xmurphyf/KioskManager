@@ -9,10 +9,15 @@ import { Transaction } from '@mysten/sui/transactions';
 import { PACKAGE_ID } from './chain-archives.js';
 
 const POLICY_OBJECT_ID =
-  '0x5dec69b7680dca87fa4832f2ad3f91b29d05e85762c326a4a3e9c27da4c92d91';
+  '0x91a69ae73077eef3c59bece51e9860ccbff888cfb01d7747d2bd29fc397b7d48';
 const CLOCK_OBJECT_ID = '0x6';
 const STORAGE_NONE = 0;
-const STORAGE_ARWEAVE = 2;
+const STORAGE_EXTERNAL = 1;
+const STORAGE_IPFS = 2;
+const STORAGE_ARWEAVE = 3;
+const SOURCE_ORIGINAL = 0;
+const SOURCE_ONLINE = 1;
+const SOURCE_UPLOADED = 2;
 
 // Helper: extract a readable object type + label from a Sui owned-object struct.
 // Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/
@@ -163,6 +168,7 @@ export function buildArchiveTransaction({
   typeArgument,
   message,
   sealerSignature,
+  sourceType = SOURCE_ORIGINAL,
   storageType = STORAGE_NONE,
   heroUri = '',
   heroHash = [],
@@ -174,7 +180,7 @@ export function buildArchiveTransaction({
   const signatureArg = tx.pure.string(
     String(sealerSignature ?? '').slice(0, 256),
   );
-  // hero_image_uri / hero_image_hash are only meaningful when a real storage
+  // image_url / image_hash are only meaningful when a real storage
   // backend is used. For STORAGE_NONE both must be empty (contract asserts this).
   const emptyUri = tx.pure.string(String(heroUri ?? ''));
   // The hash must be a 32-byte vector when storage != NONE; empty otherwise.
@@ -215,6 +221,7 @@ export function buildArchiveTransaction({
       signatureArg,
       emptyUri,
       emptyHash,
+      tx.pure.u8(sourceType),
       storageArg,
       tx.object(CLOCK_OBJECT_ID), // Clock
     ],
@@ -234,6 +241,7 @@ export async function archiveObject({
   typeArgument,
   message,
   sealerSignature,
+  sourceType = SOURCE_ORIGINAL,
   storageType = STORAGE_NONE,
   heroUri = '',
   heroHash = [],
@@ -244,6 +252,7 @@ export async function archiveObject({
     typeArgument,
     message,
     sealerSignature,
+    sourceType,
     storageType,
     heroUri,
     heroHash,
@@ -261,5 +270,10 @@ window.theArchiveTx = {
   isTestnetAccount,
   POLICY_OBJECT_ID,
   STORAGE_NONE,
+  STORAGE_EXTERNAL,
+  STORAGE_IPFS,
   STORAGE_ARWEAVE,
+  SOURCE_ORIGINAL,
+  SOURCE_ONLINE,
+  SOURCE_UPLOADED,
 };

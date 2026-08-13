@@ -727,7 +727,7 @@ function safeImageUrl(value){
   }catch{return ""}
 }
 function archiveImageUrl(archive){
-  const onChain=safeImageUrl(archive.content?.hero_image_uri||archive.content?.artifact?.image_url||"");
+  const onChain=safeImageUrl(archive.content?.image_url||archive.content?.artifact?.image_url||"");
   // STORAGE_NONE archives carry no on-chain hero; fall back to the canonical
   // memory-vial asset so Just-archive / no-image entries still show an image.
   return onChain || CONTRACT_HERO_URL;
@@ -832,7 +832,7 @@ function viewJustArchived() {
 }
 // Query the most recent MemoryArchived event for a given sender (Testnet GraphQL).
 async function fetchLatestArchiveId(sender) {
-  const PACKAGE_ID = '0x7c2d81512cd71d4a396cbec4a035b75f670d1a56151db6bf5a10a48f3efa5a0b';
+  const PACKAGE_ID = '0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b';
   const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
   const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
   const body = {
@@ -1409,9 +1409,13 @@ async function getContractHeroHash(){
   return _contractHeroHash;
 }
 async function getImageHash(url){
-  // The contract currently validates the 32-byte shape; hash the URI itself so
-  // arbitrary remote hosts do not need to expose their image bytes via CORS.
-  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(url))));
+  // Hash the actual image bytes, not the URL string. The image must permit a
+  // browser fetch (CORS); otherwise the archive is stopped instead of writing
+  // a misleading hash that cannot be verified against the image.
+  const res=await fetch(url,{mode:'cors'});
+  if(!res.ok) throw new Error(`Could not fetch image bytes (HTTP ${res.status})`);
+  const buf=new Uint8Array(await res.arrayBuffer());
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf)));
 }
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
@@ -1460,7 +1464,7 @@ async function completeArchive(){
     // Resolve the hero asset + storage type from the wizard choices.
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
-    let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
+    let storageType=txApi.STORAGE_NONE, sourceType=txApi.SOURCE_ORIGINAL, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
       throw new Error("Choose and load an Online Image link first");
@@ -1470,8 +1474,8 @@ async function completeArchive(){
         if(objectImage){
           // Original Image: persist the selected object's own image URI directly.
           heroUri=objectImage;
-          storageType=txApi.STORAGE_ARWEAVE;
-          heroHash=await getImageHash(heroUri);
+          storageType=txApi.STORAGE_EXTERNAL;
+          sourceType=txApi.SOURCE_ORIGINAL;
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.
@@ -1482,13 +1486,15 @@ async function completeArchive(){
       }else if(heroChoice==="Online Image" && onlineImageContractUrl){
         // Online Image: persist the exact URL entered by the user.
         heroUri=onlineImageContractUrl;
-        storageType=txApi.STORAGE_ARWEAVE;
+        storageType=txApi.STORAGE_EXTERNAL;
+        sourceType=txApi.SOURCE_ONLINE;
         heroHash=await getImageHash(heroUri);
       }else if(heroChoice==="Upload image"){
         // Uploaded Image currently uses the agreed temporary GitHub fallback;
         // replace this URL with real uploaded storage when that backend exists.
         heroUri=CONTRACT_HERO_URL;
-        storageType=txApi.STORAGE_ARWEAVE;
+        storageType=txApi.STORAGE_EXTERNAL;
+        sourceType=txApi.SOURCE_UPLOADED;
         heroHash=await getContractHeroHash();
       }
     }
@@ -1509,7 +1515,7 @@ async function completeArchive(){
         else amount=mist; // partial split
       }
     }
-    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,storageType,heroUri,heroHash,amount});
+    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     // Capture the newly created archive object id so the success view routes to
     // the entry we just froze (not the hardcoded demo detail).

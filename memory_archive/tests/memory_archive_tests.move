@@ -27,8 +27,12 @@ fun initializes_policy_and_admin_cap() {
 #[test]
 fun storage_constants_are_stable() {
     assert!(memory_archive::storage_none() == 0, 0);
-    assert!(memory_archive::storage_ipfs() == 1, 1);
-    assert!(memory_archive::storage_arweave() == 2, 2);
+    assert!(memory_archive::storage_external() == 1, 1);
+    assert!(memory_archive::storage_ipfs() == 2, 2);
+    assert!(memory_archive::storage_arweave() == 3, 3);
+    assert!(memory_archive::source_original() == 0, 4);
+    assert!(memory_archive::source_online() == 1, 5);
+    assert!(memory_archive::source_uploaded() == 2, 6);
     let empty = string::utf8(b"");
-    assert!(empty.as_bytes().is_empty(), 3);
+    assert!(empty.as_bytes().is_empty(), 7);
 }

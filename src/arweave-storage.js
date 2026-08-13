@@ -6,7 +6,7 @@
 // key is required — we talk directly to the public gateway at https://arweave.net.
 //
 // The returned transaction id is 32 bytes (base64url). The contract expects exactly
-// 32 bytes for hero_image_hash, so the txid maps perfectly. The uri is
+// 32 bytes for image_hash, so the txid maps perfectly. The uri is
 // https://arweave.net/<txid>.
 //
 // NOTE: real Arweave mainnet uploads cost a tiny amount of AR. This module is
@@ -41,7 +41,7 @@ export async function getArweaveWallet() {
 }
 
 // Convert an Arweave base64url transaction id into a 32-byte array, as required
-// by the contract's hero_image_hash field.
+// by the contract's image_hash field.
 export function arweaveTxIdToBytes(id) {
   const b64 = id.replace(/-/g, '+').replace(/_/g, '/');
   const bin = atob(b64);

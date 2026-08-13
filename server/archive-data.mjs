@@ -72,7 +72,8 @@ export function normalizeArchiveEvent(rawEvent, expectedEventType = '') {
         rawEvent?.timestamp,
     ),
     storageType: Number(valueOf(payload, 'storage_type', 'storageType') || 0),
-    policyVersion: String(valueOf(payload, 'policy_version', 'policyVersion')),
+    sourceType: Number(valueOf(payload, 'source_type', 'sourceType') || 0),
+    artifactId: String(valueOf(payload, 'artifact_id', 'artifactId')),
     transactionDigest: String(
       event?.transactionDigest ||
         rawEvent?.transactionDigest ||

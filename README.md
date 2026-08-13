@@ -2,7 +2,7 @@
 
 The Archive preserves Sui objects as immutable memories. The current deployment
 indexes the Testnet package at
-`0x7c2d81512cd71d4a396cbec4a035b75f670d1a56151db6bf5a10a48f3efa5a0b`.
+`0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b`.
 
 ## How the live archive works
 

@@ -1,4 +1,4 @@
-export const PACKAGE_ID = '0x7c2d81512cd71d4a396cbec4a035b75f670d1a56151db6bf5a10a48f3efa5a0b';
+export const PACKAGE_ID = '0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b';
 export const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
 export const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
 const configuredArchiveApiUrl = import.meta.env?.VITE_ARCHIVE_API_URL?.trim();
@@ -108,9 +108,11 @@ function parseEvent(event) {
   return {
     archiveId: valueOf(raw, 'archive_id', 'archiveId'),
     originalObjectId: valueOf(raw, 'original_object_id', 'originalObjectId'),
+    artifactId: valueOf(raw, 'artifact_id', 'artifactId'),
     archivedBy: valueOf(raw, 'archived_by', 'archivedBy'),
     archivedAtMs: Number(valueOf(raw, 'archived_at_ms', 'archivedAtMs') || event.timestamp || 0),
-    policyVersion: valueOf(raw, 'policy_version', 'policyVersion'),
+    sourceType: Number(valueOf(raw, 'source_type', 'sourceType') || 0),
+    storageType: Number(valueOf(raw, 'storage_type', 'storageType') || 0),
     transactionDigest: event.transaction?.digest || '',
   };
 }

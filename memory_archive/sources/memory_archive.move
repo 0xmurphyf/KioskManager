@@ -12,8 +12,13 @@ const MAX_HERO_URI_BYTES: u64 = 2_048;
 const CONTENT_HASH_BYTES: u64 = 32;
 
 const STORAGE_NONE: u8 = 0;
-const STORAGE_IPFS: u8 = 1;
-const STORAGE_ARWEAVE: u8 = 2;
+const STORAGE_EXTERNAL: u8 = 1;
+const STORAGE_IPFS: u8 = 2;
+const STORAGE_ARWEAVE: u8 = 3;
+
+const SOURCE_ORIGINAL: u8 = 0;
+const SOURCE_ONLINE: u8 = 1;
+const SOURCE_UPLOADED: u8 = 2;
 
 const E_NOT_ADMIN: u64 = 0;
 const E_FEE_TOO_LOW: u64 = 1;
@@ -48,8 +53,9 @@ public struct Memory<T: key + store> has key {
     archived_at_ms: u64,
     message: String,
     sealer_signature: String,
-    hero_image_uri: String,
-    hero_image_hash: vector<u8>,
+    image_url: String,
+    image_hash: vector<u8>,
+    source_type: u8,
     storage_type: u8,
     artifact_id: ID,
 }
@@ -60,6 +66,7 @@ public struct MemoryArchived has copy, drop {
     archived_by: address,
     archived_at_ms: u64,
     storage_type: u8,
+    source_type: u8,
     artifact_id: ID,
 }
 
@@ -93,8 +100,9 @@ public fun archive_forever<T: key + store>(
     payment: &mut Coin<SUI>,
     message: String,
     sealer_signature: String,
-    hero_image_uri: String,
-    hero_image_hash: vector<u8>,
+    image_url: String,
+    image_hash: vector<u8>,
+    source_type: u8,
     storage_type: u8,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -102,8 +110,9 @@ public fun archive_forever<T: key + store>(
     validate_metadata(
         &message,
         &sealer_signature,
-        &hero_image_uri,
-        &hero_image_hash,
+        &image_url,
+        &image_hash,
+        source_type,
         storage_type,
     );
     assert!(payment.value() >= policy.archive_fee_mist, E_FEE_TOO_LOW);
@@ -118,8 +127,9 @@ public fun archive_forever<T: key + store>(
         archived_at_ms,
         message,
         sealer_signature,
-        hero_image_uri,
-        hero_image_hash,
+        image_url,
+        image_hash,
+        source_type,
         storage_type,
         artifact_id: original_object_id,
     };
@@ -136,6 +146,7 @@ public fun archive_forever<T: key + store>(
         archived_by,
         archived_at_ms,
         storage_type,
+        source_type,
         artifact_id: original_object_id,
     });
     transfer::freeze_object(memory);
@@ -166,8 +177,9 @@ public fun update_policy(
 fun validate_metadata(
     message: &String,
     sealer_signature: &String,
-    hero_image_uri: &String,
-    hero_image_hash: &vector<u8>,
+    image_url: &String,
+    image_hash: &vector<u8>,
+    source_type: u8,
     storage_type: u8,
 ) {
     assert!(message.as_bytes().length() <= MAX_MESSAGE_BYTES, E_MESSAGE_TOO_LONG);
@@ -176,17 +188,18 @@ fun validate_metadata(
         E_SIGNATURE_TOO_LONG,
     );
     assert!(
-        hero_image_uri.as_bytes().length() <= MAX_HERO_URI_BYTES,
+        image_url.as_bytes().length() <= MAX_HERO_URI_BYTES,
         E_HERO_URI_TOO_LONG,
     );
     assert!(storage_type <= STORAGE_ARWEAVE, E_INVALID_STORAGE_TYPE);
+    assert!(source_type <= SOURCE_UPLOADED, E_INVALID_STORAGE_TYPE);
 
     if (storage_type == STORAGE_NONE) {
-        assert!(hero_image_uri.as_bytes().is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
-        assert!(hero_image_hash.is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
+        assert!(image_url.as_bytes().is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
+        assert!(image_hash.is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
     } else {
-        assert!(!hero_image_uri.as_bytes().is_empty(), E_MISSING_IMAGE_URI);
-        assert!(hero_image_hash.length() == CONTENT_HASH_BYTES, E_INVALID_HASH_LENGTH);
+        assert!(!image_url.as_bytes().is_empty(), E_MISSING_IMAGE_URI);
+        assert!(image_hash.length() == CONTENT_HASH_BYTES, E_INVALID_HASH_LENGTH);
     };
 }
 
@@ -194,8 +207,12 @@ public fun archive_fee_mist(policy: &ArchivePolicy): u64 { policy.archive_fee_mi
 public fun treasury(policy: &ArchivePolicy): address { policy.treasury }
 public fun policy_version(policy: &ArchivePolicy): u64 { policy.version }
 public fun storage_none(): u8 { STORAGE_NONE }
+public fun storage_external(): u8 { STORAGE_EXTERNAL }
 public fun storage_ipfs(): u8 { STORAGE_IPFS }
 public fun storage_arweave(): u8 { STORAGE_ARWEAVE }
+public fun source_original(): u8 { SOURCE_ORIGINAL }
+public fun source_online(): u8 { SOURCE_ONLINE }
+public fun source_uploaded(): u8 { SOURCE_UPLOADED }
 
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) { init(ctx) }
