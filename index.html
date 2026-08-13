@@ -168,6 +168,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
+.storage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
 .option{
   border:1px solid var(--line);background:#11110e;color:var(--paper);
   min-height:170px;padding:18px;text-align:left
@@ -477,7 +478,7 @@ body.wallet-open{overflow:hidden}
       <h2>Choose the cover</h2>
       <p>The image reference cannot be edited after archiving.</p>
       <div class="storage-grid">
-        <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
+        <button class="option selected" data-label="Original Image" onclick="selectOption(this,2)">Original Image</button>
         <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
         <button class="option" data-label="Upload image" onclick="selectOption(this,2)">Upload image</button>
       </div>
@@ -1334,7 +1335,7 @@ function renderStepImagePreview(){
     }
     return;
   }
-  if(label==="Use Original Image"){
+  if(label==="Original Image"){
     if(objectImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
@@ -1355,7 +1356,8 @@ function populateConfirmSummary(){
   const hero=document.querySelector('[data-step="2"] .option.selected');
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
-  set('confirmHeroCell', (uploadedFinalImageSource==='local' || uploadedFinalImageSource==='online') ? 'Final Image' : (hero?hero.dataset.label:""));
+  const heroSource=hero?.dataset.label==='Online Image' ? 'Online' : hero?.dataset.label==='Upload image' ? 'Uploaded' : 'Original';
+  set('confirmHeroCell',heroSource);
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
   const heroLabel=hero?hero.dataset.label:'';
@@ -1366,10 +1368,10 @@ function populateConfirmSummary(){
   }else if(heroLabel==='Upload image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
-  }else if(heroLabel==='Use Original Image' && objectImage){
+  }else if(heroLabel==='Original Image' && objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
-  }else if(heroLabel==='Use Original Image'){
+  }else if(heroLabel==='Original Image'){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default cover preview">`;
   }else{
@@ -1380,7 +1382,7 @@ function populateConfirmSummary(){
 // Default hero used when "Online Image" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
 // Canonical hero URL written to the contract when the user picks "Online Image"
-// or "Use Original Image" with no display image. Uses the raw GitHub asset so it
+// or "Original Image" with no display image. Uses the raw GitHub asset so it
 // resolves reliably from any viewer (including the on-chain archive detail).
 const CONTRACT_HERO_URL='https://raw.githubusercontent.com/0xmurphyf/TheArchive/main/public/archive-assets/memory-vial.png';
 // The contract requires a 32-byte content hash alongside a non-empty hero URI
@@ -1443,9 +1445,9 @@ async function completeArchive(){
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
-    const useArweave = heroChoice==="Use Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
+    const useArweave = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
     if(useArweave){
-      const hasOriginal = heroChoice==="Use Original Image" && !!objectImage;
+      const hasOriginal = heroChoice==="Original Image" && !!objectImage;
       if(hasOriginal && window.theArchiveArweave){
         // Real original image present and Arweave available: upload it so the
         // on-chain hero points at the actual artifact.
@@ -1455,7 +1457,7 @@ async function completeArchive(){
         heroUri=uploaded.uri;
         heroHash=uploaded.hashBytes;
       }else{
-        // "Online Image", or "Use Original Image" with no display image: hardcode
+        // "Online Image", or "Original Image" with no display image: hardcode
         // the canonical GitHub PNG on-chain under STORAGE_ARWEAVE with its SHA-256
         // (32 bytes) as the content hash. validate_metadata requires a non-empty
         // URI + 32-byte hash when storage != NONE; this satisfies it without a
