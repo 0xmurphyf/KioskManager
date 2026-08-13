@@ -178,6 +178,9 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .hero-preview{margin-top:18px;overflow:hidden;background:transparent}
 .hero-preview img{width:100%;aspect-ratio:1/1;max-height:none;object-fit:contain;display:block;background:transparent}
 .hero-preview .hero-none{padding:22px;text-align:center;color:var(--dim);font-style:italic}
+.final-image-upload{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.final-image-upload #finalImageName{flex:1;min-width:160px;background:#0f0f0d;border:1px solid var(--line);color:var(--dim);padding:11px}
+.final-image-upload #uploadFinalBtn:disabled{opacity:.45;cursor:not-allowed}
 .field{margin:20px 0}
 .field label{display:block;margin-bottom:8px;color:var(--dim);font-size:12px}
 textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:14px}
@@ -463,6 +466,11 @@ body.wallet-open{overflow:hidden}
       <div class="storage-grid">
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
         <button class="option" data-label="Just archive" onclick="selectOption(this,2)">Just archive</button>
+      </div>
+      <div class="final-image-upload">
+        <button class="btn" type="button" id="uploadFinalBtn" onclick="document.getElementById('finalImageFile').click()">Upload final image</button>
+        <input type="file" id="finalImageFile" accept="image/*" hidden>
+        <input type="text" id="finalImageName" placeholder="No file selected" readonly>
       </div>
       <div class="hero-preview" id="stepImagePreview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
@@ -1266,6 +1274,12 @@ function selectOption(el,step){
 function renderStepImagePreview(){
   const preview=document.getElementById("stepImagePreview");
   if(!preview)return;
+  // A locally uploaded final image takes precedence over the option-based preview.
+  if(uploadedFinalImage){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Final image preview">`;
+    return;
+  }
   const hero=document.querySelector('[data-step="2"] .option.selected');
   const label=hero?hero.dataset.label:"";
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
@@ -1294,11 +1308,16 @@ function populateConfirmSummary(){
   const hero=document.querySelector('[data-step="2"] .option.selected');
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
-  set('confirmHeroCell', hero?hero.dataset.label:"");
+  set('confirmHeroCell', uploadedFinalImage ? 'Final Image' : (hero?hero.dataset.label:""));
   // Hero image preview: when "Use Original Image" is chosen and the selected
   // object has a display image, show it; otherwise show the choice label.
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
+  if(uploadedFinalImage){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Final image preview">`;
+    return;
+  }
   const heroLabel=hero?hero.dataset.label:'';
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||'';
   if(heroLabel==='Use Original Image' && objectImage){
@@ -1447,7 +1466,40 @@ async function completeArchive(){
   }
 }
 function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeout(window.tt);window.tt=setTimeout(()=>toast.style.display="none",2000)}
+// Locally uploaded "final image" (data URL). When set, it overrides the
+// option-based hero preview on step 2. On-chain storage still uses the default
+// GitHub PNG (the contract can't store a local file), but the preview reflects
+// the user's chosen image.
+let uploadedFinalImage=null;
+function wireFinalImageUpload(){
+  const fileInput=document.getElementById("finalImageFile");
+  const nameInput=document.getElementById("finalImageName");
+  const uploadBtn=document.getElementById("uploadFinalBtn");
+  if(!fileInput||!nameInput||!uploadBtn)return;
+  fileInput.addEventListener("change",()=>{
+    const file=fileInput.files&&fileInput.files[0];
+    if(!file){ return; }
+    const reader=new FileReader();
+    reader.onload=()=>{
+      uploadedFinalImage=reader.result;
+      nameInput.value=file.name;
+      uploadBtn.disabled=true;          // disable once a file is selected (re-enables when cleared)
+      renderStepImagePreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  // Allow re-upload by clearing the name field (sets upload button active again).
+  nameInput.addEventListener("input",()=>{
+    if(!nameInput.value.trim()){
+      uploadedFinalImage=null;
+      uploadBtn.disabled=false;
+      fileInput.value="";
+      renderStepImagePreview();
+    }
+  });
+}
 renderStep();
+wireFinalImageUpload();
 </script>
 <script type="module" src="/src/app.js"></script>
 <script type="module" src="/src/archive-tx.js"></script>
