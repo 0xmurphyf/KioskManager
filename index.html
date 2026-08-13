@@ -1308,21 +1308,15 @@ function selectOption(el,step){
 function renderStepImagePreview(){
   const preview=document.getElementById("stepImagePreview");
   if(!preview)return;
-  // A locally uploaded final image takes precedence over the option-based preview.
-  if(uploadedFinalImage){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Final image preview">`;
-    return;
-  }
   const hero=document.querySelector('[data-step="2"] .option.selected');
   const label=hero?hero.dataset.label:"";
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
   const linkSection=document.getElementById("coverLinkSection");
   if(linkSection)linkSection.hidden=label!=="Online Image";
   if(label==="Online Image"){
-    if(uploadedFinalImage){
+    if(onlineImageUrl){
       preview.hidden=false;
-      preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Online cover preview">`;
+      preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
     }else{
       preview.hidden=true;
       preview.innerHTML="";
@@ -1330,21 +1324,20 @@ function renderStepImagePreview(){
     return;
   }
   if(label==="Use Original Image"){
-    if(objectImage){
+    if(uploadedFinalImageSource==="local" && uploadedFinalImage){
+      preview.hidden=false;
+      preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
+    }else if(objectImage){
       preview.hidden=false;
       preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
     }else{
-      // No original display image: fall back to the default hero (same as "Online Image").
       preview.hidden=false;
-      preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
+      preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default cover preview">`;
     }
-  }else if(label==="Online Image"){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default hero preview">`;
-  }else{
-    preview.hidden=true;
-    preview.innerHTML="";
+    return;
   }
+  preview.hidden=true;
+  preview.innerHTML="";
 }
 function validateConfirm(){archiveBtn.disabled=confirmText.value.trim().toUpperCase()!=="ARCHIVE"}
 function populateConfirmSummary(){
@@ -1354,25 +1347,23 @@ function populateConfirmSummary(){
   const hero=document.querySelector('[data-step="2"] .option.selected');
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
-  set('confirmHeroCell', uploadedFinalImage ? 'Final Image' : (hero?hero.dataset.label:""));
-  // Hero image preview: when "Use Original Image" is chosen and the selected
-  // object has a display image, show it; otherwise show the choice label.
+  set('confirmHeroCell', (uploadedFinalImageSource==='local' || uploadedFinalImageSource==='online') ? 'Final Image' : (hero?hero.dataset.label:""));
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
-  if(uploadedFinalImage){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Final image preview">`;
-    return;
-  }
   const heroLabel=hero?hero.dataset.label:'';
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||'';
-  if(heroLabel==='Use Original Image' && objectImage){
+  if(heroLabel==='Online Image' && onlineImageUrl){
     preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Hero preview">`;
-  }else if(heroLabel==='Online Image' || (heroLabel==='Use Original Image' && !objectImage)){
-    // "Use Original Image" with no original image falls back to the default hero.
+    preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
+  }else if(heroLabel==='Use Original Image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
     preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Hero preview">`;
+    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
+  }else if(heroLabel==='Use Original Image' && objectImage){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
+  }else if(heroLabel==='Use Original Image'){
+    preview.hidden=false;
+    preview.innerHTML=`<img src="${escapeHtml(DEFAULT_HERO_URL)}" alt="Default cover preview">`;
   }else{
     preview.hidden=true;
     preview.innerHTML='';
@@ -1507,6 +1498,8 @@ function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeo
 // GitHub PNG (the contract can't store a local file), but the preview reflects
 // the user's chosen image.
 let uploadedFinalImage=null;
+let uploadedFinalImageSource=null;
+let onlineImageUrl=null;
 function openFinalImagePopup(){
   const dialog=document.getElementById("finalImageDialog");
   if(dialog){dialog.hidden=false;document.body.classList.add("wallet-open");}
@@ -1532,6 +1525,8 @@ function wireFinalImageUpload(){
     nameInput.value="";
     if(imageUrlInput)imageUrlInput.value="";
     uploadedFinalImage=null;
+    uploadedFinalImageSource=null;
+    onlineImageUrl=null;
     pageUploadBtn.disabled=false;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
@@ -1545,7 +1540,9 @@ function wireFinalImageUpload(){
     const candidate=url.href;
     const testImage=new Image();
     testImage.onload=()=>{
-      uploadedFinalImage=candidate;
+      onlineImageUrl=candidate;
+      uploadedFinalImage=null;
+      uploadedFinalImageSource="online";
       nameInput.value=candidate;
       pageUploadBtn.disabled=false;
       popupUploadBtn.disabled=false;
@@ -1562,6 +1559,8 @@ function wireFinalImageUpload(){
     const reader=new FileReader();
     reader.onload=()=>{
       uploadedFinalImage=reader.result;
+      uploadedFinalImageSource="local";
+      onlineImageUrl=null;
       nameInput.value=file.name;
       pageUploadBtn.disabled=false;
       popupUploadBtn.disabled=false;
