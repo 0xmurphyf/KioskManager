@@ -1397,6 +1397,11 @@ async function getContractHeroHash(){
   _contractHeroHash=Array.from(crypto.subtle ? new Uint8Array(await crypto.subtle.digest('SHA-256', buf)) : []);
   return _contractHeroHash;
 }
+async function getImageHash(url){
+  // The contract currently validates the 32-byte shape; hash the URI itself so
+  // arbitrary remote hosts do not need to expose their image bytes via CORS.
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(url))));
+}
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1446,22 +1451,23 @@ async function completeArchive(){
     const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
+    if(heroChoice==="Online Image" && !onlineImageContractUrl){
+      throw new Error("Choose and load an Online Image link first");
+    }
     if(useArweave){
-      const hasOriginal = heroChoice==="Original Image" && !!objectImage;
-      if(hasOriginal && window.theArchiveArweave){
-        // Real original image present and Arweave available: upload it so the
-        // on-chain hero points at the actual artifact.
-        showToast("Uploading hero to Arweave…");
-        const uploaded=await window.theArchiveArweave.uploadHero({ imageUrl:objectImage, objectId:selectedObjectId, type:selectedObjectType });
+      if(heroChoice==="Original Image" && objectImage){
+        // Original Image: persist the selected object's own image URI directly.
+        heroUri=objectImage;
         storageType=txApi.STORAGE_ARWEAVE;
-        heroUri=uploaded.uri;
-        heroHash=uploaded.hashBytes;
+        heroHash=await getImageHash(heroUri);
+      }else if(heroChoice==="Online Image" && onlineImageContractUrl){
+        // Online Image: persist the exact URL entered by the user.
+        heroUri=onlineImageContractUrl;
+        storageType=txApi.STORAGE_ARWEAVE;
+        heroHash=await getImageHash(heroUri);
       }else{
-        // "Online Image", or "Original Image" with no display image: hardcode
-        // the canonical GitHub PNG on-chain under STORAGE_ARWEAVE with its SHA-256
-        // (32 bytes) as the content hash. validate_metadata requires a non-empty
-        // URI + 32-byte hash when storage != NONE; this satisfies it without a
-        // real upload.
+        // Uploaded Image currently uses the agreed temporary GitHub fallback;
+        // replace this URL with real uploaded storage when that backend exists.
         heroUri=CONTRACT_HERO_URL;
         storageType=txApi.STORAGE_ARWEAVE;
         heroHash=await getContractHeroHash();
@@ -1510,6 +1516,7 @@ function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeo
 let uploadedFinalImage=null;
 let uploadedFinalImageSource=null;
 let onlineImageUrl=null;
+let onlineImageContractUrl=null;
 function openFinalImagePopup(){
   const dialog=document.getElementById("finalImageDialog");
   if(dialog){dialog.hidden=false;document.body.classList.add("wallet-open");}
@@ -1544,6 +1551,7 @@ function wireFinalImageUpload(){
   clearUrlBtn?.addEventListener("click",()=>{
     if(imageUrlInput)imageUrlInput.value="";
     onlineImageUrl=null;
+    onlineImageContractUrl=null;
     if(uploadedFinalImageSource==="online")uploadedFinalImageSource=null;
     clearUrlBtn.hidden=true;
     renderStepImagePreview();
@@ -1562,6 +1570,7 @@ function wireFinalImageUpload(){
           const reader=new FileReader();
           reader.onload=()=>{
             onlineImageUrl=reader.result;
+            onlineImageContractUrl=candidate;
             uploadedFinalImage=null;
             uploadedFinalImageSource="online";
             if(clearUrlBtn)clearUrlBtn.hidden=false;
@@ -1578,6 +1587,7 @@ function wireFinalImageUpload(){
     const testImage=new Image();
     testImage.onload=()=>{
       onlineImageUrl=candidate;
+      onlineImageContractUrl=candidate;
       uploadedFinalImage=null;
       uploadedFinalImageSource="online";
       if(clearUrlBtn)clearUrlBtn.hidden=false;
