@@ -482,10 +482,9 @@ body.wallet-open{overflow:hidden}
       <div style="margin-top:22px">
         <div class="fee-row"><span>Object Name</span><span id="confirmObjectName">—</span></div>
         <div class="fee-row"><span>Object ID</span><span id="confirmObjectId">—</span></div>
-        <div class="fee-row"><span>Hero Image</span><span id="confirmHeroCell">—</span></div>
+        <div class="fee-row"><span>Final Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
-        <div class="fee-row"><span>Backup storage</span><span id="confirmStorageCell">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
       <div class="fee-summary">
@@ -1296,10 +1295,6 @@ function populateConfirmSummary(){
   set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
   set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
   set('confirmHeroCell', hero?hero.dataset.label:"");
-  // Backup storage page was removed; the on-chain storage type is now derived
-  // from the hero choice in completeArchive (Arweave when a hero is stored,
-  // none otherwise). Reflect that here for the confirmation summary.
-  set('confirmStorageCell', (hero?.dataset.label==='Use Original Image' || hero?.dataset.label==='Just archive') ? 'Arweave' : 'No backup');
   // Hero image preview: when "Use Original Image" is chosen and the selected
   // object has a display image, show it; otherwise show the choice label.
   const preview=document.getElementById('confirmHeroPreview');
