@@ -501,7 +501,7 @@ body.wallet-open{overflow:hidden}
 
     <div class="step" data-step="5">
       <h2>Final confirmation</h2>
-      <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.</div>
+      <div class="warning">Once archived, this object is permanently sealed. It cannot be transferred, sold, edited, or recovered.<br>No administrator can return it.</div>
       <div style="margin-top:22px">
         <div class="fee-row"><span>Object Name</span><span id="confirmObjectName" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Object ID</span><span id="confirmObjectId" style="text-align:right;max-width:60%">—</span></div>
@@ -1333,9 +1333,16 @@ function renderStep(){
   }
 }
 function nextStep(){
-  if(currentStep===1 && !selectedObjectId){
-    showToast("Choose an object first");
-    return;
+  if(currentStep===1){
+    const selectedCard=document.querySelector('[data-step="1"] .option.selected');
+    if(!selectedObjectId || !selectedCard){
+      selectedObjectId=null;
+      selectedObjectType=null;
+      const objectNextBtn=document.getElementById("objectNext");
+      if(objectNextBtn)objectNextBtn.disabled=true;
+      showToast("Choose an object first");
+      return;
+    }
   }
   if(currentStep===2){
     const label=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
