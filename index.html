@@ -168,10 +168,10 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
-.storage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
+.storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
 .option{
   border:1px solid var(--line);background:#11110e;color:var(--paper);
-  min-height:170px;padding:18px;text-align:left
+  min-height:0;aspect-ratio:1/1;padding:18px;text-align:center;display:grid;place-items:center
 }
 .option.selected{border-color:var(--paper)}
 .object-thumb{aspect-ratio:1/1;display:grid;place-items:center;background:transparent;color:var(--accent);margin-bottom:14px;border-radius:8px;overflow:hidden}
@@ -348,7 +348,7 @@ body.wallet-open{overflow:hidden}
   .detail{grid-template-columns:1fr}
   .artifact{min-height:52vh;border-right:0}
   .storage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-  .storage-grid .option{padding:12px 6px;font-size:10px;line-height:1.2}
+  .storage-grid .option{padding:10px 6px;font-size:10px;line-height:1.2}
   .section{padding:64px 20px}
 }
 </style>
