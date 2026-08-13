@@ -150,11 +150,34 @@ export async function fetchOwnedObjects(client, address) {
 }
 
 export async function fetchArchivePolicy(client) {
-  if (!client?.getObject) throw new Error('Sui client is unavailable');
-  const result = await client.getObject({
-    objectId: POLICY_OBJECT_ID,
-    include: { json: true },
-  });
+  if (!client) throw new Error('Sui client is unavailable');
+  let result;
+  let lastError;
+  const readers = [
+    client.core?.getObject?.bind(client.core),
+    client.getObject?.bind(client),
+  ].filter(Boolean);
+  for (const read of readers) {
+    try {
+      result = await read({
+        objectId: POLICY_OBJECT_ID,
+        include: { json: true },
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+    try {
+      result = await read({
+        id: POLICY_OBJECT_ID,
+        options: { showContent: true },
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!result) throw lastError || new Error('Unable to read archive policy');
   const object = result?.object || result?.data || result;
   const json = object?.json || object?.content?.json || object?.content?.fields;
   const content = json || object?.content || result?.content || result?.data?.content;

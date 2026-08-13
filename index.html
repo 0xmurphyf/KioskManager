@@ -1221,9 +1221,23 @@ async function refreshArchiveCost(){
   const api=window.theArchiveTx;
   const connection=window.theArchiveWallet?.getConnection?.();
   if(!api||!connection?.address)return;
+  const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+  const fee=document.getElementById('confirmArchiveFee');
+  const gas=document.getElementById('confirmGasEstimate');
+  const total=document.getElementById('confirmTotalCost');
   try{
-    const client=window.theArchiveWallet.dAppKit.getClient("testnet");
     archivePolicy=await api.fetchArchivePolicy(client);
+    if(fee)fee.textContent=suiAmount(archivePolicy.archiveFeeMist);
+  }catch(error){
+    console.warn('[archive-fee] unable to read policy', error);
+    archivePolicy=null;
+    if(fee)fee.textContent='Unable to read policy';
+    if(gas)gas.textContent='—';
+    if(total)total.textContent='—';
+    showToast(`Could not read current archive fee: ${error?.message||'unknown error'}`);
+    return;
+  }
+  try{
     archiveGasEstimateMist=await api.estimateArchiveGas({
       client,
       objectId:selectedObjectId,
@@ -1232,22 +1246,14 @@ async function refreshArchiveCost(){
       message:document.querySelector('[data-step="3"] textarea')?.value||"",
       sealerSignature:document.querySelector('[data-step="3"] input')?.value||"",
     });
-    const fee = document.getElementById('confirmArchiveFee');
-    const gas = document.getElementById('confirmGasEstimate');
-    const total = document.getElementById('confirmTotalCost');
-    if(fee)fee.textContent=suiAmount(archivePolicy.archiveFeeMist);
     if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
     if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
   }catch(error){
-    console.warn('[archive-fee] unable to read policy', error);
-    archivePolicy=null;
-    const fee=document.getElementById('confirmArchiveFee');
-    const gas=document.getElementById('confirmGasEstimate');
-    const total=document.getElementById('confirmTotalCost');
-    if(fee)fee.textContent='Unable to read policy';
-    if(gas)gas.textContent='—';
-    if(total)total.textContent='—';
-    showToast(`Could not read current archive fee: ${error?.message||'unknown error'}`);
+    console.warn('[archive-gas] unable to simulate gas', error);
+    archiveGasEstimateMist=6000000n;
+    if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)} (fallback)`;
+    if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)} (fallback gas)`;
+    showToast('Policy loaded; gas simulation unavailable, using a conservative fallback estimate');
   }
 }
 function setObjectFilter(kind,el){
