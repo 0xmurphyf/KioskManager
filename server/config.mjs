@@ -20,6 +20,9 @@ export function loadConfig(env = process.env) {
     corsOrigin: env.CORS_ORIGIN || '*',
     databasePath: resolve(rootDir, env.ARCHIVE_DATABASE_PATH || 'server/data/archive.sqlite'),
     staticDir: resolve(rootDir, env.STATIC_DIR || 'dist'),
+    uploadsDir: resolve(rootDir, env.UPLOADS_DIR || 'server/data/uploads'),
+    publicBaseUrl: (env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''),
+    maxUploadBytes: positiveInteger(env.MAX_UPLOAD_BYTES, 10 * 1024 * 1024),
     packageId,
     eventType:
       env.SUI_ARCHIVE_EVENT_TYPE || `${packageId}::memory_archive::MemoryArchived`,

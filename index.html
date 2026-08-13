@@ -501,13 +501,16 @@ body.wallet-open{overflow:hidden}
 
     <div class="step" data-step="5">
       <h2>Final confirmation</h2>
-      <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0.00919 SUI.</div>
+      <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee is read from the current Testnet policy. Network gas is additional.</div>
       <div style="margin-top:22px">
         <div class="fee-row"><span>Object Name</span><span id="confirmObjectName" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Object ID</span><span id="confirmObjectId" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Final Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
+        <div class="fee-row"><span>Archive fee</span><span id="confirmArchiveFee">Loading…</span></div>
+        <div class="fee-row"><span>Estimated gas</span><span id="confirmGasEstimate">—</span></div>
+        <div class="fee-row fee-total"><span>Estimated total</span><span id="confirmTotalCost">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
@@ -568,7 +571,7 @@ body.wallet-open{overflow:hidden}
       </div>
       <button class="wallet-close" id="finalImageCloseBtn" type="button" aria-label="Close final image uploader">×</button>
     </div>
-    <p class="wallet-status">Choose an image file from your device.</p>
+    <p class="wallet-status">Choose an image file. It will be stored by TheArchive server and referenced by the immutable record.</p>
     <div class="final-image-upload popup-upload">
       <button class="btn primary" type="button" id="popupUploadFinalBtn">Upload</button>
       <button class="btn" type="button" id="popupClearFinalBtn" hidden>Clear</button>
@@ -830,6 +833,24 @@ function ensureChainArchive(archiveId, { message, sealerSignature, artifactId, i
       artifact: { id: artifactId || '', name, balance: balance !== undefined ? balance * 1e9 : undefined },
     },
   });
+}
+async function readBackArchive(archiveId, fallbackArchive) {
+  const query=`query($id:SuiAddress!){object(address:$id){version digest asMoveObject{contents{json}}}}`;
+  for(let attempt=0;attempt<8;attempt++){
+    try{
+      const response=await fetch('https://graphql.testnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{id:archiveId}})});
+      const body=await response.json();
+      const object=body?.data?.object;
+      const content=object?.asMoveObject?.contents?.json;
+      if(content){
+        const current=chainArchives.find(item=>item.archiveId===archiveId);
+        if(current){ current.content=content; current.objectVersion=object.version; current.objectDigest=object.digest; }
+        return current||{...fallbackArchive,content,objectVersion:object.version,objectDigest:object.digest};
+      }
+    }catch(_){ }
+    await new Promise(resolve=>setTimeout(resolve,750*(attempt+1)));
+  }
+  return fallbackArchive;
 }
 // Open the entry we just archived from the success screen.
 function viewJustArchived() {
@@ -1193,6 +1214,29 @@ let selectedObjectType=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardFilter='all';
+let archivePolicy=null;
+let archiveGasEstimateMist=6000000n;
+function suiAmount(mist){return `${(Number(mist)/1e9).toFixed(6)} SUI`;}
+async function refreshArchiveCost(){
+  const api=window.theArchiveTx;
+  const connection=window.theArchiveWallet?.getConnection?.();
+  if(!api||!connection?.address)return;
+  try{
+    const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+    archivePolicy=await api.fetchArchivePolicy(client);
+    const fee = document.getElementById('confirmArchiveFee');
+    const gas = document.getElementById('confirmGasEstimate');
+    const total = document.getElementById('confirmTotalCost');
+    if(fee)fee.textContent=suiAmount(archivePolicy.archiveFeeMist);
+    if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
+    if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
+  }catch(error){
+    archivePolicy=null;
+    const fee=document.getElementById('confirmArchiveFee');
+    if(fee)fee.textContent='Unable to read policy';
+    showToast('Could not read current archive fee');
+  }
+}
 function setObjectFilter(kind,el){
   wizardFilter=kind;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
@@ -1266,6 +1310,7 @@ function renderStep(){
   if(currentStep===5){
     setConfirmObject();
     populateConfirmSummary();
+    void refreshArchiveCost();
   }
 }
 function nextStep(){
@@ -1465,17 +1510,24 @@ async function completeArchive(){
   showToast("Confirm the transaction in your wallet…");
   try{
     const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+    archivePolicy=await txApi.fetchArchivePolicy(client);
+    const suiBalance=await txApi.fetchSuiBalance(client,connection.address);
+    const requiredBalance=archivePolicy.archiveFeeMist+archiveGasEstimateMist;
+    if(suiBalance<requiredBalance){
+      throw new Error(`Insufficient SUI. Need at least ${suiAmount(requiredBalance)} including estimated gas; wallet has ${suiAmount(suiBalance)}`);
+    }
     const message=document.querySelector('[data-step="3"] textarea')?.value||"";
     const signature=document.querySelector('[data-step="3"] input')?.value||"";
-    // Resolve the hero asset + storage type from the wizard choices.
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
+    // The selected image is stored externally: original object URI, verified online URL,
+    // or the TheArchive server upload URL. No decentralized-storage upload is used.
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
     let storageType=txApi.STORAGE_NONE, sourceType=txApi.SOURCE_ORIGINAL, heroUri="", heroHash=[];
-    const useArweave = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
+    const useImage = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
       throw new Error("Choose and load an Online Image link first");
     }
-    if(useArweave){
+    if(useImage){
       if(heroChoice==="Original Image"){
         if(objectImage){
           // Original Image: persist the selected object's own image URI directly.
@@ -1496,12 +1548,15 @@ async function completeArchive(){
         sourceType=txApi.SOURCE_ONLINE;
         heroHash=await getImageHash(heroUri);
       }else if(heroChoice==="Upload image"){
-        // Uploaded Image currently uses the agreed temporary GitHub fallback;
-        // replace this URL with real uploaded storage when that backend exists.
-        heroUri=CONTRACT_HERO_URL;
+        if(!uploadedFinalImageBlob) throw new Error("Choose an image file first");
+        showToast("Uploading image to archive server…");
+        const uploadResponse=await fetch('/api/uploads',{method:'POST',headers:{'content-type':uploadedFinalImageBlob.type || 'application/octet-stream'},body:uploadedFinalImageBlob});
+        const uploadBody=await uploadResponse.json().catch(()=>({}));
+        if(!uploadResponse.ok || !uploadBody.url) throw new Error(uploadBody.error || 'Image upload failed');
+        heroUri=uploadBody.url;
         storageType=txApi.STORAGE_EXTERNAL;
         sourceType=txApi.SOURCE_UPLOADED;
-        heroHash=await getContractHeroHash();
+        heroHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await uploadedFinalImageBlob.arrayBuffer())));
       }
     }
     // Resolve a partial Coin amount, if the selected object is a coin and the
@@ -1529,7 +1584,9 @@ async function completeArchive(){
     const archivedId = await resolveArchivedId(result, sender, selectedObjectId);
     if (archivedId) {
       lastArchivedId = archivedId;
-      ensureChainArchive(archivedId, {
+      const fallbackArchive={
+        archiveId: archivedId,
+        archivedAtMs: Date.now(),
         message,
         sealerSignature: signature,
         artifactId: selectedObjectId,
@@ -1537,7 +1594,9 @@ async function completeArchive(){
         imageHash: heroHash,
         sourceType,
         storageType,
-      });
+      };
+      ensureChainArchive(archivedId, fallbackArchive);
+      await readBackArchive(archivedId, fallbackArchive);
     }
     currentStep=7;renderStep();
   }catch(error){
@@ -1554,6 +1613,7 @@ function showToast(t){toast.textContent=t;toast.style.display="block";clearTimeo
 // the user's chosen image.
 let uploadedFinalImage=null;
 let uploadedFinalImageSource=null;
+let uploadedFinalImageBlob=null;
 let onlineImageUrl=null;
 let onlineImageContractUrl=null;
 function openFinalImagePopup(){
@@ -1581,8 +1641,8 @@ function wireFinalImageUpload(){
     // This Clear belongs only to the local Upload image source.
     fileInput.value="";
     nameInput.value="";
-    uploadedFinalImage=null;
-    if(uploadedFinalImageSource==="local")uploadedFinalImageSource=null;
+    uploadedFinalImageBlob=null;
+    uploadedFinalImageSource=null;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
     renderStepImagePreview();
@@ -1603,28 +1663,13 @@ function wireFinalImageUpload(){
     const candidate=url.href;
     const isRemoteHeic=window.theArchiveHeicSupport?.isHeicFile(candidate);
     if(isRemoteHeic){
-      (async()=>{
-        try{
-          const converted=await window.theArchiveHeicSupport.loadUrl(candidate);
-          const reader=new FileReader();
-          reader.onload=()=>{
-            onlineImageUrl=reader.result;
-            onlineImageContractUrl=candidate;
-            uploadedFinalImage=null;
-            uploadedFinalImageSource="online";
-            if(clearUrlBtn)clearUrlBtn.hidden=false;
-            renderStepImagePreview();
-          };
-          reader.readAsDataURL(converted);
-        }catch(error){
-          console.error("Remote HEIC conversion failed",error);
-          showToast("This online HEIC/HEIF image could not be loaded (the server must allow CORS)");
-        }
-      })();
+      showToast("Remote HEIC/HEIF cannot be hash-verified; use PNG/JPEG/WebP");
       return;
     }
     const testImage=new Image();
-    testImage.onload=()=>{
+    testImage.onload=async()=>{
+      try{ await getImageHash(candidate); }
+      catch(error){ showToast(`Image preview works, but hash verification failed: ${error.message}`); return; }
       onlineImageUrl=candidate;
       onlineImageContractUrl=candidate;
       uploadedFinalImage=null;
@@ -1646,8 +1691,9 @@ function wireFinalImageUpload(){
       showToast("Unsupported image format");
       return;
     }
-    const finishLocalImage=(dataUrl)=>{
+    const finishLocalImage=(dataUrl,blob)=>{
       uploadedFinalImage=dataUrl;
+      uploadedFinalImageBlob=blob;
       uploadedFinalImageSource="local";
       nameInput.value=file.name;
       popupUploadBtn.disabled=false;
@@ -1666,7 +1712,7 @@ function wireFinalImageUpload(){
         const converted=window.theArchiveHeicSupport?.isHeicFile(file)
           ? await window.theArchiveHeicSupport.convertFile(file)
           : file;
-        finishLocalImage(await readBlob(converted));
+        finishLocalImage(await readBlob(converted),converted);
       }catch(error){
         console.error("HEIC conversion failed",error);
         showToast("This HEIC/HEIF image could not be decoded");
@@ -1680,6 +1726,5 @@ wireFinalImageUpload();
 <script type="module" src="/src/heic-support.js"></script>
 <script type="module" src="/src/app.js"></script>
 <script type="module" src="/src/archive-tx.js"></script>
-<script type="module" src="/src/arweave-storage.js"></script>
 </body>
 </html>

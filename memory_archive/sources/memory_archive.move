@@ -30,6 +30,7 @@ const E_IMAGE_DATA_WITHOUT_STORAGE: u64 = 6;
 const E_MISSING_IMAGE_URI: u64 = 7;
 const E_INVALID_HASH_LENGTH: u64 = 8;
 const E_INVALID_TREASURY: u64 = 9;
+const E_INVALID_SOURCE_STORAGE: u64 = 10;
 
 /// Shared protocol configuration. Only the holder of `AdminCap` may update it.
 public struct ArchivePolicy has key {
@@ -58,6 +59,17 @@ public struct Memory<T: key + store> has key {
     source_type: u8,
     storage_type: u8,
     artifact_id: ID,
+}
+
+/// A concrete, indexer-friendly metadata object created alongside every Memory.
+public struct ArchiveEntry has key {
+    id: UID,
+    archive_id: ID,
+    artifact_id: ID,
+    archived_by: address,
+    archived_at_ms: u64,
+    source_type: u8,
+    storage_type: u8,
 }
 
 public struct MemoryArchived has copy, drop {
@@ -135,6 +147,16 @@ public fun archive_forever<T: key + store>(
     };
     let archive_id = object::id(&memory);
 
+    let entry = ArchiveEntry {
+        id: object::new(ctx),
+        archive_id,
+        artifact_id: original_object_id,
+        archived_by,
+        archived_at_ms,
+        source_type,
+        storage_type,
+    };
+
     if (policy.archive_fee_mist > 0) {
         let fee_coin = payment.split(policy.archive_fee_mist, ctx);
         transfer::public_transfer(fee_coin, policy.treasury);
@@ -149,6 +171,7 @@ public fun archive_forever<T: key + store>(
         source_type,
         artifact_id: original_object_id,
     });
+    transfer::freeze_object(entry);
     transfer::freeze_object(memory);
 }
 
@@ -195,11 +218,15 @@ fun validate_metadata(
     assert!(source_type <= SOURCE_UPLOADED, E_INVALID_STORAGE_TYPE);
 
     if (storage_type == STORAGE_NONE) {
+        assert!(source_type == SOURCE_ORIGINAL, E_INVALID_SOURCE_STORAGE);
         assert!(image_url.as_bytes().is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
         assert!(image_hash.is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
     } else {
         assert!(!image_url.as_bytes().is_empty(), E_MISSING_IMAGE_URI);
         assert!(image_hash.length() == CONTENT_HASH_BYTES, E_INVALID_HASH_LENGTH);
+        if (source_type == SOURCE_ONLINE) {
+            assert!(storage_type == STORAGE_EXTERNAL, E_INVALID_SOURCE_STORAGE);
+        };
     };
 }
 
@@ -216,6 +243,18 @@ public fun source_uploaded(): u8 { SOURCE_UPLOADED }
 
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) { init(ctx) }
+
+#[test_only]
+public fun validate_metadata_for_testing(
+    message: String,
+    sealer_signature: String,
+    image_url: String,
+    image_hash: vector<u8>,
+    source_type: u8,
+    storage_type: u8,
+) {
+    validate_metadata(&message, &sealer_signature, &image_url, &image_hash, source_type, storage_type);
+}
 
 #[test_only]
 public fun destroy_policy_for_testing(policy: ArchivePolicy) {

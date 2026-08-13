@@ -77,6 +77,9 @@ const server = createArchiveHttpServer({
   packageId: config.packageId,
   eventType: config.eventType,
   staticDir: config.staticDir,
+  uploadsDir: config.uploadsDir,
+  publicBaseUrl: config.publicBaseUrl,
+  maxUploadBytes: config.maxUploadBytes,
   corsOrigin: config.corsOrigin,
   maxSseClients: config.maxSseClients,
   health: () => ({

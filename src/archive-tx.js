@@ -149,6 +149,23 @@ export async function fetchOwnedObjects(client, address) {
   return [...coinResults, ...nonCoins].filter((o) => o.objectId);
 }
 
+export async function fetchArchivePolicy(client) {
+  const result = await client.getObject({ id: POLICY_OBJECT_ID, include: { content: true } });
+  const content = result?.content || result?.data?.content || {};
+  const fields = content.fields || content;
+  return {
+    archiveFeeMist: BigInt(fields.archive_fee_mist ?? 0),
+    treasury: fields.treasury || '',
+    version: Number(fields.version ?? 0),
+  };
+}
+
+export async function fetchSuiBalance(client, address) {
+  const result = await client.getBalance({ owner: address, coinType: '0x2::sui::SUI' });
+  const total = result?.balance?.balance ?? result?.totalBalance ?? result?.balance ?? 0;
+  return BigInt(total);
+}
+
 // Build a `Transaction` that archives the given owned object. The object is
 // passed by reference (its ID), and a fresh gas coin is split to cover the
 // archive fee. With STORAGE_NONE the hero image URI/hash are left empty, which
@@ -267,6 +284,8 @@ window.theArchiveTx = {
   fetchOwnedObjects,
   buildArchiveTransaction,
   archiveObject,
+  fetchArchivePolicy,
+  fetchSuiBalance,
   isTestnetAccount,
   POLICY_OBJECT_ID,
   STORAGE_NONE,

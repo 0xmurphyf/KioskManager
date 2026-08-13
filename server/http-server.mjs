@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 
@@ -38,7 +39,7 @@ function applyCors(req, res, corsOrigin) {
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
   if (origin !== '*') res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Last-Event-ID');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Last-Event-ID, X-Image-Name');
 }
 
 function json(res, status, body) {
@@ -105,6 +106,9 @@ export function createArchiveHttpServer({
   corsOrigin = '*',
   maxSseClients = 250,
   health = () => ({}),
+  uploadsDir = '',
+  publicBaseUrl = '',
+  maxUploadBytes = 10 * 1024 * 1024,
 }) {
   let activeStreams = 0;
 
@@ -117,6 +121,48 @@ export function createArchiveHttpServer({
     }
 
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/uploads' && req.method === 'POST') {
+      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const contentLength = Number(req.headers['content-length'] || 0);
+      if (!contentType.startsWith('image/')) {
+        json(res, 415, { error: 'Only image uploads are accepted' });
+        return;
+      }
+      if (!Number.isFinite(contentLength) || contentLength <= 0 || contentLength > maxUploadBytes) {
+        json(res, 413, { error: `Image must be between 1 byte and ${maxUploadBytes} bytes` });
+        return;
+      }
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > maxUploadBytes) {
+          json(res, 413, { error: `Image exceeds ${maxUploadBytes} bytes` });
+          return;
+        }
+        chunks.push(chunk);
+      }
+      if (!uploadsDir) {
+        json(res, 503, { error: 'Image upload storage is not configured' });
+        return;
+      }
+      const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif', 'image/svg+xml': 'svg' })[contentType] || 'bin';
+      const filename = `${randomUUID()}.${extension}`;
+      await mkdir(uploadsDir, { recursive: true });
+      await writeFile(join(uploadsDir, filename), Buffer.concat(chunks), { flag: 'wx' });
+      const base = publicBaseUrl || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
+      json(res, 201, { url: `${base}/media/${filename}`, bytes: size, contentType });
+      return;
+    }
+    if (url.pathname.startsWith('/media/')) {
+      const filename = url.pathname.slice('/media/'.length);
+      if (!/^[0-9a-f-]+\.(jpg|png|webp|gif|avif|svg|bin)$/.test(filename) || !uploadsDir) {
+        json(res, 404, { error: 'Image not found' });
+        return;
+      }
+      await serveStatic(req, res, uploadsDir, `/${filename}`);
+      return;
+    }
     if (url.pathname.startsWith('/api/') && req.method !== 'GET') {
       json(res, 405, { error: 'Method not allowed' });
       return;
