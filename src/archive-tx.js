@@ -9,7 +9,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { PACKAGE_ID } from './chain-archives.js';
 
 const POLICY_OBJECT_ID =
-  '0xa3bc87bb4e816bc2ab1b46bf39333ea7e62f6113329cd21e4a0fee4155a3d9e6';
+  '0x5dec69b7680dca87fa4832f2ad3f91b29d05e85762c326a4a3e9c27da4c92d91';
 const CLOCK_OBJECT_ID = '0x6';
 const STORAGE_NONE = 0;
 const STORAGE_ARWEAVE = 2;

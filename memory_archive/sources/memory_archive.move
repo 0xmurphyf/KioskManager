@@ -51,7 +51,7 @@ public struct Memory<T: key + store> has key {
     hero_image_uri: String,
     hero_image_hash: vector<u8>,
     storage_type: u8,
-    policy_version: u64,
+    artifact_id: ID,
 }
 
 public struct MemoryArchived has copy, drop {
@@ -60,7 +60,7 @@ public struct MemoryArchived has copy, drop {
     archived_by: address,
     archived_at_ms: u64,
     storage_type: u8,
-    policy_version: u64,
+    artifact_id: ID,
 }
 
 public struct PolicyUpdated has copy, drop {
@@ -121,7 +121,7 @@ public fun archive_forever<T: key + store>(
         hero_image_uri,
         hero_image_hash,
         storage_type,
-        policy_version: policy.version,
+        artifact_id: original_object_id,
     };
     let archive_id = object::id(&memory);
 
@@ -136,7 +136,7 @@ public fun archive_forever<T: key + store>(
         archived_by,
         archived_at_ms,
         storage_type,
-        policy_version: policy.version,
+        artifact_id: original_object_id,
     });
     transfer::freeze_object(memory);
 }
