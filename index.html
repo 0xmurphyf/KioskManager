@@ -201,7 +201,8 @@ textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--l
 textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
-.fee-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.fee-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.fee-row>span:last-child{width:140px;flex:0 0 140px;text-align:right;white-space:nowrap}
 .confirm-obj-name{display:block;font-size:13px;color:var(--paper);margin-bottom:4px}
 .confirm-coin-amt{display:block;margin-top:4px;font:11px "Courier New",monospace;color:var(--dim)}
 .fee-summary{margin-top:22px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0}
@@ -488,8 +489,8 @@ body.wallet-open{overflow:hidden}
       <div class="storage-grid">
         <button class="option selected" data-label="Original Image" onclick="selectOption(this,2)">Original Image</button>
         <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
-        <button class="option" data-label="Memory vials" onclick="selectOption(this,2)">Memory vials</button>
         <button class="option" data-label="Upload Image" onclick="selectOption(this,2)">Upload Image</button>
+        <button class="option" data-label="Memory vials" onclick="selectOption(this,2)">Memory vials</button>
       </div>
       <div class="cover-link" id="coverLinkSection" hidden>
         <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
@@ -1333,7 +1334,10 @@ function startWizard(){
   // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
   // connected, the grid shows a connect prompt and the user connects there.
   currentStep = 1;
-  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;showView("wizard");renderStep();
+  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;
+  if(confirmText)confirmText.value="";
+  if(typeof validateConfirm==='function')validateConfirm();
+  showView("wizard");renderStep();
 }
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
