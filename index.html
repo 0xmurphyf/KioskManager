@@ -488,8 +488,8 @@ body.wallet-open{overflow:hidden}
       <h2>Final confirmation</h2>
       <div class="warning">This object cannot be transferred, sold, edited or recovered.<br>No administrator can return it.<br>The archive fee for this Testnet policy is currently 0.0919 SUI.</div>
       <div style="margin-top:22px">
-        <div class="fee-row"><span>Object Name</span><span id="confirmObjectName">—</span></div>
-        <div class="fee-row"><span>Object ID</span><span id="confirmObjectId">—</span></div>
+        <div class="fee-row"><span>Object Name</span><span id="confirmObjectName" style="text-align:right;max-width:60%">—</span></div>
+        <div class="fee-row"><span>Object ID</span><span id="confirmObjectId" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Final Image</span><span id="confirmHeroCell">—</span></div>
         <div class="fee-row"><span>Message</span><span id="confirmMessageCell" style="text-align:right;max-width:60%">—</span></div>
         <div class="fee-row"><span>Signature</span><span id="confirmSignatureCell" style="text-align:right;max-width:60%">—</span></div>
@@ -497,8 +497,6 @@ body.wallet-open{overflow:hidden}
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
       <div class="fee-summary">
         <div class="fee-row"><span>Archive Fee</span><span id="confirmArchiveFee">0.0919 SUI</span></div>
-        <div class="fee-row"><span>Backup Fee</span><span id="confirmBackupFee">—</span></div>
-        <div class="fee-row fee-total"><span>Total</span><span id="confirmTotalFee">—</span></div>
       </div>
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
@@ -1331,16 +1329,9 @@ function populateConfirmSummary(){
     preview.hidden=true;
     preview.innerHTML='';
   }
-  // Fee summary: archive fee is fixed; backup fee depends on the chosen hero
-  // (Arweave when a hero image is stored, else none).
+  // Fee summary: only the archive fee is shown now (backup fee / total removed).
   const ARCHIVE_FEE=0.0919;
-  const heroSel=document.querySelector('[data-step="2"] .option.selected');
-  const heroLbl=heroSel?heroSel.dataset.label:'';
-  const usesBackup = (heroLbl==='Use Original Image' || heroLbl==='Just archive');
-  const backupFee = usesBackup ? 0 : 0; // Arweave path is free under current policy
   document.getElementById('confirmArchiveFee').textContent=`${ARCHIVE_FEE} SUI`;
-  document.getElementById('confirmBackupFee').textContent=usesBackup?'Arweave (free)':'Free';
-  document.getElementById('confirmTotalFee').textContent=`${ARCHIVE_FEE.toFixed(4)} SUI`;
 }
 // Default hero used when "Just archive" is chosen (no original image available).
 const DEFAULT_HERO_URL='/archive-assets/memory-vial.png';
