@@ -183,6 +183,8 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .final-image-backdrop{position:absolute;inset:0;background:rgba(4,4,3,.82);backdrop-filter:blur(12px)}
 .final-image-panel{position:relative;width:min(480px,100%);border:1px solid var(--line);background:#11110e;padding:26px;box-shadow:0 30px 100px rgba(0,0,0,.55)}
 .popup-upload{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.popup-link{display:flex;gap:10px;align-items:center;margin-top:12px}
+.popup-link input{flex:1;min-width:0}
 .final-image-upload #finalImageName{flex:1;min-width:160px;background:#0f0f0d;border:1px solid var(--line);color:var(--dim);padding:11px}
 .final-image-upload #uploadFinalBtn:disabled{opacity:.45;cursor:not-allowed}
 .field{margin:20px 0}
@@ -465,14 +467,14 @@ body.wallet-open{overflow:hidden}
     </div>
 
     <div class="step" data-step="2">
-      <h2>Choose Image</h2>
+      <h2>Choose the cover</h2>
       <p>The image reference cannot be edited after archiving.</p>
       <div class="storage-grid">
         <button class="option selected" data-label="Use Original Image" onclick="selectOption(this,2)">Use Original Image</button>
         <button class="option" data-label="Just archive" onclick="selectOption(this,2)">Just archive</button>
       </div>
       <div class="final-image-upload">
-        <button class="btn" type="button" id="uploadFinalBtn" onclick="openFinalImagePopup()">Upload final image</button>
+        <button class="btn" type="button" id="uploadFinalBtn" onclick="openFinalImagePopup()">Upload image</button>
       </div>
       <div class="hero-preview" id="stepImagePreview"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
@@ -551,16 +553,20 @@ body.wallet-open{overflow:hidden}
     <div class="wallet-panel-head">
       <div>
         <div class="wallet-network">FINAL IMAGE</div>
-        <h2 id="finalImageDialogTitle">Upload final image</h2>
+        <h2 id="finalImageDialogTitle">Upload image</h2>
       </div>
       <button class="wallet-close" id="finalImageCloseBtn" type="button" aria-label="Close final image uploader">×</button>
     </div>
-    <p class="wallet-status">Choose an image file from your device.</p>
+    <p class="wallet-status">Choose an image file or enter an online image link.</p>
     <div class="final-image-upload popup-upload">
       <button class="btn primary" type="button" id="popupUploadFinalBtn">Upload</button>
       <button class="btn" type="button" id="popupClearFinalBtn" hidden>Clear</button>
       <input type="file" id="finalImageFile" accept="image/*" hidden>
       <input type="text" id="finalImageName" placeholder="No file selected" readonly>
+    </div>
+    <div class="final-image-link popup-link">
+      <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
+      <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
     </div>
   </section>
 </div>
@@ -1492,18 +1498,34 @@ function wireFinalImageUpload(){
   const pageUploadBtn=document.getElementById("uploadFinalBtn");
   const popupUploadBtn=document.getElementById("popupUploadFinalBtn");
   const popupClearBtn=document.getElementById("popupClearFinalBtn");
-  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn)return;
+  const imageUrlInput=document.getElementById("finalImageUrl");
+  const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
+  if(!fileInput||!nameInput||!pageUploadBtn||!popupUploadBtn||!imageUrlInput||!useUrlBtn)return;
   popupUploadBtn.addEventListener("click",()=>fileInput.click());
   document.getElementById("finalImageCloseBtn")?.addEventListener("click",closeFinalImagePopup);
   document.querySelector('[data-final-image-close]')?.addEventListener("click",closeFinalImagePopup);
   popupClearBtn?.addEventListener("click",()=>{
     fileInput.value="";
     nameInput.value="";
+    imageUrlInput.value="";
     uploadedFinalImage=null;
     pageUploadBtn.disabled=false;
     popupUploadBtn.disabled=false;
     popupClearBtn.hidden=true;
     renderStepImagePreview();
+  });
+  useUrlBtn.addEventListener("click",()=>{
+    const raw=imageUrlInput.value.trim();
+    let url;
+    try{ url=new URL(raw); }catch(_){ showToast("Enter a valid image link"); return; }
+    if(!["http:","https:"].includes(url.protocol)){ showToast("Enter an http(s) image link"); return; }
+    uploadedFinalImage=url.href;
+    nameInput.value=url.href;
+    pageUploadBtn.disabled=true;
+    popupUploadBtn.disabled=true;
+    popupClearBtn.hidden=false;
+    renderStepImagePreview();
+    closeFinalImagePopup();
   });
   fileInput.addEventListener("change",()=>{
     const file=fileInput.files&&fileInput.files[0];
