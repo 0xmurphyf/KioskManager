@@ -1,4 +1,4 @@
-// Real Sui Testnet archival flow.
+// Real Sui Mainnet archival flow.
 //
 // This module replaces the previous simulated archiving with an actual on-chain
 // call to `memory_archive::archive_forever`. Once an object is archived it is
@@ -70,14 +70,14 @@ function describeObject(obj) {
   };
 }
 
-// Returns true when the account is explicitly on Sui Testnet. When chain
-// metadata is unavailable (e.g. some injected wallets), we allow the call to
-// proceed and let the real Testnet client round-trip validate the network.
-export function isTestnetAccount(account) {
+// Returns true when the account is explicitly on Sui Mainnet. When chain
+// metadata is unavailable (e.g. some injected wallets), allow the call to
+// proceed and let the real Mainnet client validate the network.
+function isMainnetAccount(account) {
   if (!account) return false;
   const chains = account.chains || [];
   if (chains.length === 0) return true;
-  return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
+  return chains.some((chain) => String(chain).toLowerCase().includes('mainnet'));
 }
 
 // Pull the objects the connected account actually owns. We fetch everything via
@@ -325,7 +325,7 @@ export async function estimateArchiveGas({
   if (total <= 0n) throw new Error('Gas simulation returned an invalid estimate');
   return total;
 }
-// Sign and execute via the connected dAppKit wallet on Testnet.
+// Sign and execute via the connected dAppKit wallet on Mainnet.
 export async function archiveObject({
   client,
   dAppKit,
@@ -362,7 +362,7 @@ window.theArchiveTx = {
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
-  isTestnetAccount,
+  isMainnetAccount,
   POLICY_OBJECT_ID,
   STORAGE_NONE,
   STORAGE_EXTERNAL,

@@ -2,7 +2,6 @@ import { createDAppKit } from '@mysten/dapp-kit-core';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 
 const MAINNET_GRPC_URL = 'https://fullnode.mainnet.sui.io:443';
-const TESTNET_GRPC_URL = 'https://fullnode.testnet.sui.io:443';
 const LAST_WALLET_KEY = 'the-archive:last-wallet';
 
 const walletDefinitions = [
@@ -36,14 +35,13 @@ const walletDefinitions = [
   },
 ];
 
-// The Archive contract is published on Sui Testnet (see PACKAGE_ID in
-// chain-archives.js). We connect wallets on Testnet so that the real
-// archive_forever transaction targets the same network the contract lives on.
+// Mainnet test mode. The configured package/policy IDs are still the existing
+// deployment identifiers; transactions require a corresponding Mainnet deploy.
 export const dAppKit = createDAppKit({
-  networks: ['testnet'],
-  defaultNetwork: 'testnet',
+  networks: ['mainnet'],
+  defaultNetwork: 'mainnet',
   createClient: (network) =>
-    new SuiGrpcClient({ network, baseUrl: TESTNET_GRPC_URL }),
+    new SuiGrpcClient({ network, baseUrl: MAINNET_GRPC_URL }),
   autoConnect: true,
   storageKey: 'the-archive:selected-wallet-and-address',
   slushWalletConfig: {
@@ -92,13 +90,10 @@ function getWalletAdapter(definition) {
   return wallet ? { type: 'standard', wallet } : null;
 }
 
-// The Archive contract lives on Sui Testnet, so we only allow accounts whose
-// wallet exposes the testnet chain. Mainnet/other accounts would sign a
-// transaction that can never reach the contract.
-function accountIsTestnet(account) {
+function accountIsMainnet(account) {
   if (!account) return false;
   const chains = account.chains || [];
-  return chains.some((chain) => String(chain).toLowerCase().includes('testnet'));
+  return chains.some((chain) => String(chain).toLowerCase().includes('mainnet'));
 }
 
 function definitionForWallet(wallet) {
@@ -201,7 +196,7 @@ function renderConnectionState() {
     walletButton.setAttribute('aria-label', `Wallet connected: ${current.walletName}`);
     walletDisconnectButton.hidden = false;
     walletDisconnectTopButton.hidden = false;
-    walletStatus.textContent = `${current.walletName} connected on Sui Testnet · ${shortAddress(current.address)}`;
+    walletStatus.textContent = `${current.walletName} connected on Sui Mainnet · ${shortAddress(current.address)}`;
   } else {
     walletButton.textContent = reconnecting ? 'Reconnecting…' : 'Connect Wallet';
     walletButton.title = '';
@@ -299,12 +294,12 @@ async function connectWallet(definition) {
       };
     } else {
       await dAppKit.connectWallet({ wallet: adapter.wallet });
-      // Mandatory Testnet check: disconnect and abort if the connected account
-      // is not on Sui Testnet (where the contract lives).
+      // Mandatory Mainnet check: disconnect and abort if the connected account
+      // is not on Sui Mainnet.
       const connected = standardConnection();
-      if (connected.account && !accountIsTestnet(connected.account)) {
+      if (connected.account && !accountIsMainnet(connected.account)) {
         await dAppKit.disconnectWallet();
-        throw new Error('This wallet is not on Sui Testnet. Switch your wallet network to Testnet and reconnect.');
+        throw new Error('This wallet is not on Sui Mainnet. Switch your wallet network to Mainnet and reconnect.');
       }
     }
 
@@ -316,7 +311,7 @@ async function connectWallet(definition) {
       error?.code === 4001 || message.includes('reject') || message.includes('cancel');
     walletStatus.textContent = cancelled
       ? `${definition.label} connection was cancelled.`
-      : `${definition.label} could not connect. Make sure Sui Testnet is enabled in the wallet.`;
+      : `${definition.label} could not connect. Make sure Sui Mainnet is enabled in the wallet.`;
     showToast(cancelled ? 'Wallet connection cancelled' : 'Wallet connection failed');
   } finally {
     connectingWalletKey = null;

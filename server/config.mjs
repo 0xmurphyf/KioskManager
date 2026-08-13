@@ -26,8 +26,8 @@ export function loadConfig(env = process.env) {
     packageId,
     eventType:
       env.SUI_ARCHIVE_EVENT_TYPE || `${packageId}::memory_archive::MemoryArchived`,
-    graphqlUrl: env.SUI_GRAPHQL_URL || 'https://graphql.testnet.sui.io/graphql',
-    grpcUrl: env.SUI_GRPC_URL || 'https://fullnode.testnet.sui.io:443',
+    graphqlUrl: env.SUI_GRAPHQL_URL || 'https://graphql.mainnet.sui.io/graphql',
+    grpcUrl: env.SUI_GRPC_URL || 'https://fullnode.mainnet.sui.io:443',
     reconcileIntervalMs: positiveInteger(env.RECONCILE_INTERVAL_MS, 60 * 60 * 1000),
     graphqlTimeoutMs: positiveInteger(env.GRAPHQL_TIMEOUT_MS, 15_000),
     objectRetryCount: positiveInteger(env.OBJECT_RETRY_COUNT, 8),

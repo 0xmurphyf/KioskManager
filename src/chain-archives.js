@@ -1,6 +1,6 @@
 export const PACKAGE_ID = '0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b';
 export const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
-export const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
+export const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
 const configuredArchiveApiUrl = import.meta.env?.VITE_ARCHIVE_API_URL?.trim();
 export const ARCHIVE_API_URL = configuredArchiveApiUrl || '/api/archives';
 export const ARCHIVE_STREAM_URL = `${ARCHIVE_API_URL.replace(/\/+$/, '')}/stream`;
@@ -40,9 +40,9 @@ async function graphql(query, variables) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ query, variables }),
   });
-  if (!response.ok) throw new Error(`Testnet index returned HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Mainnet index returned HTTP ${response.status}`);
   const body = await response.json();
-  if (body.errors?.length) throw new Error(body.errors[0].message || 'Testnet index query failed');
+  if (body.errors?.length) throw new Error(body.errors[0].message || 'Mainnet index query failed');
   return body.data;
 }
 

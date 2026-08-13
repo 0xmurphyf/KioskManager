@@ -96,7 +96,7 @@ function startArchiveStream() {
 async function refreshChainArchives({ background = false } = {}) {
   if (!background) {
     refreshButton.disabled = true;
-    refreshButton.textContent = 'Scanning Testnet…';
+    refreshButton.textContent = 'Scanning Mainnet…';
     status.textContent = 'Reading MemoryArchived events and their immutable objects…';
     status.className = 'scan-status loading';
   }
@@ -104,16 +104,16 @@ async function refreshChainArchives({ background = false } = {}) {
   try {
     const archives = await scanArchives();
     renderArchives(archives);
-    status.textContent = `${currentArchives.length} immutable archive${currentArchives.length === 1 ? '' : 's'} indexed from Sui Testnet.`;
+    status.textContent = `${currentArchives.length} immutable archive${currentArchives.length === 1 ? '' : 's'} indexed from Sui Mainnet.`;
     status.className = 'scan-status ready';
   } catch (error) {
     console.error('Could not scan archive events', error);
     if (hasRenderedArchives) {
-      status.textContent = `${currentArchives.length} cached archive${currentArchives.length === 1 ? '' : 's'} shown. Live Testnet refresh is temporarily unavailable.`;
+      status.textContent = `${currentArchives.length} cached archive${currentArchives.length === 1 ? '' : 's'} shown. Live Mainnet refresh is temporarily unavailable.`;
       status.className = 'scan-status ready';
     } else {
       window.renderChainArchiveError(error);
-      status.textContent = `Unable to read Testnet: ${error.message}`;
+      status.textContent = `Unable to read Mainnet: ${error.message}`;
       status.className = 'scan-status error';
     }
   } finally {
@@ -141,7 +141,7 @@ async function initializeArchives() {
     startArchiveStream();
     if (cached.source !== 'api') void refreshChainArchives({ background: true });
   } catch (error) {
-    console.warn('Archive cache unavailable; falling back to Sui Testnet', error);
+    console.warn('Archive cache unavailable; falling back to Sui Mainnet', error);
     startArchiveStream();
     await refreshChainArchives();
   }

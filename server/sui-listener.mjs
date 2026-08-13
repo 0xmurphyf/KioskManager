@@ -55,7 +55,7 @@ function isUnimplemented(error) {
 
 export async function createSuiGrpcClient(baseUrl) {
   const { SuiGrpcClient } = await import('@mysten/sui/grpc');
-  return new SuiGrpcClient({ network: 'testnet', baseUrl });
+  return new SuiGrpcClient({ network: 'mainnet', baseUrl });
 }
 
 export class SuiArchiveListener {

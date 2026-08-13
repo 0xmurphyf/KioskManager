@@ -404,10 +404,10 @@ body.wallet-open{overflow:hidden}
   <section class="section">
     <div class="section-head">
       <div><div class="eyebrow">THE ARCHIVE</div><h2>All Entries</h2></div>
-      <p>Live immutable objects emitted by this archive contract on Sui Testnet.</p>
+      <p>Live immutable objects emitted by this archive contract on Sui Mainnet.</p>
     </div>
     <div class="chain-toolbar">
-      <div class="chain-source"><strong>LIVE INDEX · SUI TESTNET</strong><br>MemoryArchived events → immutable archive objects</div>
+      <div class="chain-source"><strong>LIVE INDEX · SUI MAINNET</strong><br>MemoryArchived events → immutable archive objects</div>
       <button class="btn" id="scanArchivesBtn" type="button">Refresh on-chain data</button>
     </div>
     <div class="scan-status loading" id="archiveScanStatus">Preparing on-chain scanner…</div>
@@ -470,7 +470,7 @@ body.wallet-open{overflow:hidden}
 
     <div class="step active" data-step="1">
       <h2>Choose an object</h2>
-      <p>Select one object to remove from ownership forever. This is a real Sui Testnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
+      <p>Select one object to remove from ownership forever. This is a real Sui Mainnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button><button class="btn" type="button" onclick="refreshWizardObjects()">Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name…" oninput="renderFilteredObjects()">
@@ -481,7 +481,7 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="object" onclick="setObjectFilter('object',this)">Object</button>
         </div>
       </div>
-      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Testnet objects.</div></div>
+      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
     </div>
 
@@ -687,8 +687,8 @@ function shortHash(value, width=8){
   if(!value)return "—";
   return value.length>width+6?`${value.slice(0,width)}…${value.slice(-4)}`:value;
 }
-// Suiscan (Testnet) link for any Sui object/account address.
-function suiscanUrl(address){return `https://suiscan.xyz/testnet/object/${encodeURIComponent(address||"")}`;}
+// Suiscan (Mainnet test mode) link for any Sui object/account address.
+function suiscanUrl(address){return `https://suiscan.xyz/mainnet/object/${encodeURIComponent(address||"")}`;}
 function suiscanLink(address, label){
   const text=label||shortHash(address,10);
   return `<a class="addr-link" href="${suiscanUrl(address)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
@@ -799,7 +799,7 @@ window.renderChainArchives=function(archives){
   initWhisperPool();
 }
 window.renderChainArchiveError=function(){
-  archiveList.innerHTML='<div class="chain-empty">The archive list is waiting for a Testnet response. Use the refresh control to try again.</div>';
+  archiveList.innerHTML='<div class="chain-empty">The archive list is waiting for a Mainnet response. Use the refresh control to try again.</div>';
 }
 function openChainArchive(archiveId){
   const archive=chainArchives.find(item=>item.archiveId===archiveId);
@@ -816,7 +816,7 @@ function openChainArchive(archiveId){
   const date=new Date(archive.archivedAtMs);
   detailDate.textContent=Number.isNaN(date.getTime())?"Timestamp unavailable":date.toISOString().replace("T"," ").replace(/\.\d+Z$/," UTC");
   const sourceLabel={0:"Original",1:"Online",2:"Uploaded"}[Number(content.source_type ?? archive.sourceType ?? 0)]||"Image";
-  detailAge.textContent=`Sui Testnet · ${sourceLabel} image`;
+  detailAge.textContent=`Sui Mainnet · ${sourceLabel} image`;
   const imageUrl=archiveImageUrl(archive);
   detailImage.hidden=!imageUrl;
   if(imageUrl)detailImage.src=imageUrl;
@@ -874,7 +874,7 @@ async function readBackArchive(archiveId, fallbackArchive) {
   const query=`query($id:SuiAddress!){object(address:$id){version digest asMoveObject{contents{json}}}}`;
   for(let attempt=0;attempt<8;attempt++){
     try{
-      const response=await fetch('https://graphql.testnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{id:archiveId}})});
+      const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{id:archiveId}})});
       const body=await response.json();
       const object=body?.data?.object;
       const content=object?.asMoveObject?.contents?.json;
@@ -893,11 +893,11 @@ function viewJustArchived() {
   if (lastArchivedId) openChainArchive(lastArchivedId);
   else showView('detail');
 }
-// Query the most recent MemoryArchived event for a given sender (Testnet GraphQL).
+// Query the most recent MemoryArchived event for a given sender (Mainnet GraphQL).
 async function fetchLatestArchiveId(sender) {
   const PACKAGE_ID = '0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b';
   const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
-  const GRAPHQL_ENDPOINT = 'https://graphql.testnet.sui.io/graphql';
+  const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
   const body = {
     query: `query($s:String!,$t:String!){ events(last:1, filter:{sender:$s, type:$t}){ nodes{ contents{ json } } } }`,
     variables: { s: sender, t: EVENT_TYPE },
@@ -1242,7 +1242,7 @@ window.addEventListener("resize",()=>{
 
 initWhisperPool();
 recentList.innerHTML='<div class="chain-empty">Loading the public on-chain record…</div>';
-archiveList.innerHTML='<div class="chain-empty">Connecting to the Sui Testnet index…</div>';
+archiveList.innerHTML='<div class="chain-empty">Connecting to the Sui Mainnet index…</div>';
 
 let currentStep=1;
 let selectedObjectId=null;
@@ -1259,7 +1259,7 @@ async function refreshArchiveCost(){
   const api=window.theArchiveTx;
   const connection=window.theArchiveWallet?.getConnection?.();
   if(!api||!connection?.address)return;
-  const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+  const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
   const fee=document.getElementById('confirmArchiveFee');
   const gas=document.getElementById('confirmGasEstimate');
   const total=document.getElementById('confirmTotalCost');
@@ -1299,7 +1299,7 @@ function renderFilteredObjects(){
     return true;
   });
   if(!wizardObjects.length){
-    grid.innerHTML='<div class="chain-empty">Connect a wallet to load your Testnet objects.</div>';
+    grid.innerHTML='<div class="chain-empty">Connect a wallet to load your Mainnet objects.</div>';
     return;
   }
   if(!list.length){
@@ -1551,17 +1551,17 @@ function loadWizardObjects(){
     grid.innerHTML='<div class="chain-empty">Connect a wallet first (step 1), then return here.</div>';
     return;
   }
-  if(!window.theArchiveTx.isTestnetAccount(connection)){
-    grid.innerHTML='<div class="chain-empty">Connected wallet is not on Sui Testnet. Reconnect with Testnet enabled.</div>';
+  if(!window.theArchiveTx.isMainnetAccount(connection)){
+    grid.innerHTML='<div class="chain-empty">Connected wallet is not on Sui Mainnet. Reconnect with Mainnet enabled.</div>';
     return;
   }
   wizardObjectsLoaded=true;
-  grid.innerHTML='<div class="chain-empty">Loading your Testnet objects…</div>';
-  const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+  grid.innerHTML='<div class="chain-empty">Loading your Mainnet objects…</div>';
+  const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
   window.theArchiveTx.fetchOwnedObjects(client,connection.address).then(objects=>{
     wizardObjects=objects;
     if(!objects.length){
-      grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Testnet object first.</div>';
+      grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
       return;
     }
     renderFilteredObjects();
@@ -1585,7 +1585,7 @@ async function completeArchive(){
   archiveBtn.disabled=true;
   showToast("Confirm the transaction in your wallet…");
   try{
-    const client=window.theArchiveWallet.dAppKit.getClient("testnet");
+    const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
     archivePolicy=await txApi.fetchArchivePolicy(client);
     const suiBalance=await txApi.fetchSuiBalance(client,connection.address);
     const requiredBalance=archivePolicy.archiveFeeMist+archiveGasEstimateMist;
