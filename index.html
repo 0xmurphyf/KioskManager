@@ -473,7 +473,7 @@ body.wallet-open{overflow:hidden}
       <p>Select one object to remove from ownership forever. This is a real Sui Mainnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button><button class="btn" type="button" onclick="refreshWizardObjects()">Refresh</button></div>
       <div class="object-controls">
-        <input type="text" id="objectSearch" placeholder="Search by name…" oninput="renderFilteredObjects()">
+        <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
         <div class="filter-tabs" id="objectFilter">
           <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
           <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
@@ -1294,7 +1294,8 @@ function renderFilteredObjects(){
     if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     if(q){
       const label=(o.name||o.type.split('::').pop()).toLowerCase();
-      if(!label.includes(q) && !(o.type.toLowerCase().includes(q)))return false;
+      const objectId=(o.objectId||'').toLowerCase();
+      if(!label.includes(q) && !objectId.includes(q) && !(o.type.toLowerCase().includes(q)))return false;
     }
     return true;
   });
