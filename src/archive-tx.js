@@ -46,13 +46,20 @@ function describeObject(obj) {
     '';
   const balanceRaw =
     fields.balance !== undefined ? fields.balance : content.balance;
+  const display = data?.display?.data || data?.display || {};
+  const imageUrl =
+    fields.image_url ||
+    fields.imageUrl ||
+    display.image_url ||
+    display.imageUrl ||
+    '';
   return {
     objectId: data.objectId,
     type,
     version: data.version,
     name: typeof name === 'string' ? name : '',
     isCoin,
-    imageUrl: data?.display?.data?.image_url || '',
+    imageUrl,
     balance:
       balanceRaw !== undefined ? BigInt(balanceRaw) : undefined,
   };

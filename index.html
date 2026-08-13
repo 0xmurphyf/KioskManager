@@ -1459,24 +1459,32 @@ async function completeArchive(){
     const signature=document.querySelector('[data-step="3"] input')?.value||"";
     // Resolve the hero asset + storage type from the wizard choices.
     const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
-    const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"";
+    const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
     let storageType=txApi.STORAGE_NONE, heroUri="", heroHash=[];
     const useArweave = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Upload image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
       throw new Error("Choose and load an Online Image link first");
     }
     if(useArweave){
-      if(heroChoice==="Original Image" && objectImage){
-        // Original Image: persist the selected object's own image URI directly.
-        heroUri=objectImage;
-        storageType=txApi.STORAGE_ARWEAVE;
-        heroHash=await getImageHash(heroUri);
+      if(heroChoice==="Original Image"){
+        if(objectImage){
+          // Original Image: persist the selected object's own image URI directly.
+          heroUri=objectImage;
+          storageType=txApi.STORAGE_ARWEAVE;
+          heroHash=await getImageHash(heroUri);
+        }else{
+          // No original image exists: keep metadata storage empty. The UI fallback
+          // is display-only and must never become the contract URI.
+          heroUri="";
+          heroHash=[];
+          storageType=txApi.STORAGE_NONE;
+        }
       }else if(heroChoice==="Online Image" && onlineImageContractUrl){
         // Online Image: persist the exact URL entered by the user.
         heroUri=onlineImageContractUrl;
         storageType=txApi.STORAGE_ARWEAVE;
         heroHash=await getImageHash(heroUri);
-      }else{
+      }else if(heroChoice==="Upload image"){
         // Uploaded Image currently uses the agreed temporary GitHub fallback;
         // replace this URL with real uploaded storage when that backend exists.
         heroUri=CONTRACT_HERO_URL;
