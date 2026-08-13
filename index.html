@@ -1218,6 +1218,8 @@ let wizardFilter='all';
 let archivePolicy=null;
 let archiveGasEstimateMist=20000000n;
 function suiAmount(mist){return `${(Number(mist)/1e9).toFixed(6)} SUI`;}
+function feeDisplay(mist){return `${(Number(mist)/1e9).toFixed(5)} SUI`;}
+function gasDisplay(mist){return `≈ ${(Number(mist)/1e9).toFixed(5)} SUI`;}
 async function refreshArchiveCost(){
   const api=window.theArchiveTx;
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1228,7 +1230,7 @@ async function refreshArchiveCost(){
   const total=document.getElementById('confirmTotalCost');
   try{
     archivePolicy=await api.fetchArchivePolicy(client);
-    if(fee)fee.textContent=suiAmount(archivePolicy.archiveFeeMist);
+    if(fee)fee.textContent=feeDisplay(archivePolicy.archiveFeeMist);
   }catch(error){
     console.warn('[archive-fee] unable to read policy', error);
     archivePolicy=null;
@@ -1239,8 +1241,8 @@ async function refreshArchiveCost(){
     return;
   }
   archiveGasEstimateMist=20000000n;
-  if(gas)gas.textContent=`≈ ${suiAmount(archiveGasEstimateMist)}`;
-  if(total)total.textContent=`≈ ${suiAmount(archivePolicy.archiveFeeMist+archiveGasEstimateMist)}`;
+  if(gas)gas.textContent=gasDisplay(archiveGasEstimateMist);
+  if(total)total.textContent=`≈ ${(Number(archivePolicy.archiveFeeMist+archiveGasEstimateMist)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
   wizardFilter=kind;
