@@ -937,6 +937,20 @@ async function fetchLatestArchiveId(sender) {
   const node = j?.data?.events?.nodes?.[0];
   return node?.contents?.json?.archive_id || null;
 }
+async function fetchArchiveIdForArtifact(sender, artifactId) {
+  const PACKAGE_ID = '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d';
+  const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
+  const query=`query($t:String!){events(last:50,filter:{type:$t}){nodes{contents{json}}}}`;
+  const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:EVENT_TYPE}})});
+  const body=await response.json();
+  for(const node of body.data?.events?.nodes||[]){
+    const json=node.contents?.json||{};
+    const by=String(json.archived_by||'').toLowerCase();
+    const id=String(json.original_object_id||json.artifact_id||'').toLowerCase();
+    if(by===String(sender||'').toLowerCase() && id===String(artifactId||'').toLowerCase())return json.archive_id||null;
+  }
+  return null;
+}
 const whisperPoolState={
   active:[],
   hotZones:[],
@@ -1860,8 +1874,23 @@ async function completeArchive(){
     currentStep=7;renderStep();
   }catch(error){
     archiveBtn.disabled=false;
-    const message=String(error?.message||error).toLowerCase();
-    const cancelled=error?.code===4001||message.includes("reject")||message.includes("cancel");
+    const errorText=String(error?.message||error).toLowerCase();
+    const sender=window.theArchiveWallet?.getConnection?.()?.address;
+    const walletClosed=error?.code===4001||errorText.includes("reject")||errorText.includes("cancel")||errorText.includes("closed")||errorText.includes("window");
+    if(walletClosed && sender && selectedObjectId){
+      try{
+        const archivedId=await fetchArchiveIdForArtifact(sender,selectedObjectId);
+        if(archivedId){
+          lastArchivedId=archivedId;
+          ensureChainArchive(archivedId,{message,sealerSignature:signature,artifactId:selectedObjectId,imageUrl:heroUri,imageHash:heroHash,sourceType,storageType});
+          await readBackArchive(archivedId);
+          showToast("Archive confirmed on Mainnet");
+          currentStep=7;renderStep();
+          return;
+        }
+      }catch(_){ }
+    }
+    const cancelled=error?.code===4001||errorText.includes("reject")||errorText.includes("cancel");
     showToast(cancelled?"Transaction cancelled":"Archive failed: "+(error?.message||error));
   }
 }
