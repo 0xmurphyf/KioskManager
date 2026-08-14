@@ -745,7 +745,8 @@ function relativeTime(ms){
 function archiveTitle(archive){
   const artifact=archive.content?.artifact;
   const balance=artifact?.balance;
-  return balance!==undefined?`${Number(balance)/1e9} SUI · sealed forever`:"Immutable Sui object";
+  const name=artifact?.name||'';
+  return balance!==undefined?`${Number(balance)/1e9} ${name.trim()?name.trim():"Coin"} · sealed forever`:"Immutable Sui object";
 }
 // Label shown in place of a message when an entry was sealed with no message.
 // Coins show the frozen amount (e.g. "1E-7 SUI · SEALED FOREVER"); objects/NFTs
@@ -755,7 +756,8 @@ function sealedLabel(balance, name){
   if(balance!==undefined) {
     const sui=Number(balance)/1e9;
     const amt = sui>0 && sui<0.001 ? sui.toExponential(0).toUpperCase() : sui.toFixed(4).replace(/\.?0+$/,"");
-    return `${amt} SUI · SEALED FOREVER`;
+    const symbol=name&&name.trim()?name.trim():"Coin";
+    return `${amt} ${symbol} · SEALED FOREVER`;
   }
   if(name && name.trim()!=="") return `${name.trim()} · SEALED FOREVER`;
   return "SEALED FOREVER";
