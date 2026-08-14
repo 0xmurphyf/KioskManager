@@ -418,9 +418,9 @@ export function buildArchiveTransaction({
 }) {
   const tx = new Transaction();
 
-  const messageArg = tx.pure.string(String(message ?? '').slice(0, 2048));
+  const messageArg = tx.pure.string(String(message ?? '').slice(0, 16_382));
   const signatureArg = tx.pure.string(
-    String(sealerSignature ?? '').slice(0, 256),
+    String(sealerSignature ?? '').slice(0, 16_382),
   );
   // image_url / image_hash are only meaningful when a real storage
   // backend is used. For STORAGE_NONE both must be empty (contract asserts this).

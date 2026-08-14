@@ -6,9 +6,9 @@ use sui::coin::Coin;
 use sui::event;
 use sui::sui::SUI;
 
-const MAX_MESSAGE_BYTES: u64 = 2_048;
-const MAX_SIGNATURE_BYTES: u64 = 256;
-const MAX_HERO_URI_BYTES: u64 = 2_048;
+const MAX_MESSAGE_BYTES: u64 = 16_384;
+const MAX_SIGNATURE_BYTES: u64 = 16_384;
+const MAX_HERO_URI_BYTES: u64 = 16_384;
 const CONTENT_HASH_BYTES: u64 = 32;
 
 const STORAGE_NONE: u8 = 0;

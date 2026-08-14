@@ -1813,9 +1813,9 @@ function refreshWizardObjects(){
 function utf8ByteLength(value){return new TextEncoder().encode(String(value??'')).length;}
 function validateArchivePureArguments({message,signature,heroUri,heroHash}){
   const limits=[
-    ['message',message,2048],
-    ['sealer signature',signature,256],
-    ['image URL',heroUri,2048],
+    ['message',message,16_382],
+    ['sealer signature',signature,16_382],
+    ['image URL',heroUri,16_382],
   ];
   for(const [label,value,max] of limits){
     const bytes=utf8ByteLength(value);
