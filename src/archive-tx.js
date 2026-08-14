@@ -151,6 +151,7 @@ export async function fetchOwnedObjects(client, address) {
     cursor = result.hasNextPage ? result.cursor : null;
   } while (cursor);
 
+  const kioskItemContext = new Map();
   // Kiosk items are NOT returned by listOwnedObjects because the Kiosk owns them.
   // The connected account owns a KioskOwnerCap per kiosk; from each cap we read the
   // kiosk id, then enumerate the Kiosk object's dynamic object fields (GraphQL
@@ -161,6 +162,7 @@ export async function fetchOwnedObjects(client, address) {
       const caps = collected
         .map((c) => (c?.data ?? c))
         .filter((d) => /::kiosk::KioskOwnerCap(?:<|$)/.test(d?.type || d?.objectType || ''));
+      const kioskCapByKiosk = new Map();
       const ownedKiosks = collected
         .map((c) => (c?.data ?? c))
         .filter((d) => /::kiosk::Kiosk(?:<|$)/.test(d?.type || d?.objectType || ''));
@@ -169,7 +171,10 @@ export async function fetchOwnedObjects(client, address) {
         const content = cap?.json || cap?.content?.json || cap?.content?.fields || cap?.content || {};
         const fields = content?.fields || content;
         const kioskId = fields?.kiosk || fields?.kiosk_id || fields?.id?.id;
-        if (kioskId) kioskIds.add(kioskId);
+        if (kioskId) {
+          kioskIds.add(kioskId);
+          kioskCapByKiosk.set(kioskId, cap?.objectId || '');
+        }
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
       for (const kioskId of kioskIds) {
@@ -185,6 +190,10 @@ export async function fetchOwnedObjects(client, address) {
               // address and are skipped.
               const itemId = node?.value?.address;
               if (!itemId || seen.has(itemId)) continue;
+              kioskItemContext.set(itemId, {
+                kioskId,
+                kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
+              });
               try {
                 const obj = await getObject({ objectId: itemId, include });
                 // gRPC getObject returns { object: <flat> }, JSON-RPC returns
@@ -212,7 +221,10 @@ export async function fetchOwnedObjects(client, address) {
     }
   }
 
-  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type));
+  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type)).map((object) => {
+    const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
+    return kiosk ? { ...object, kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId } : object;
+  });
   const coins = described.filter((o) => o.isCoin);
   const nonCoins = described.filter((o) => !o.isCoin && o.objectId);
 
@@ -344,6 +356,8 @@ export function buildArchiveTransaction({
   heroUri = '',
   heroHash = [],
   amount,
+  kioskId,
+  kioskOwnerCapId,
 }) {
   const tx = new Transaction();
 
@@ -372,7 +386,21 @@ export function buildArchiveTransaction({
   // selected coin stays with the user.
   let artifactArg;
   let typeArg = typeArgument;
-  if (amount !== undefined && amount !== null && typeArgument && typeArgument.includes('::coin::Coin<')) {
+  if (kioskId && kioskOwnerCapId && typeArgument) {
+    // Kiosk items are owned by the Kiosk, not the wallet address. Take the
+    // item into the transaction using the wallet's KioskOwnerCap, then pass
+    // the returned object into archive_forever. The contract still remains
+    // the final authority for the archive call.
+    artifactArg = tx.moveCall({
+      target: '0x2::kiosk::take',
+      typeArguments: [typeArgument],
+      arguments: [
+        tx.object(kioskId),
+        tx.object(kioskOwnerCapId),
+        tx.pure.id(objectId),
+      ],
+    });
+  } else if (amount !== undefined && amount !== null && typeArgument && typeArgument.includes('::coin::Coin<')) {
     const [coinType] = typeArgument.split('::Coin<');
     const fullCoinType = `${coinType}::Coin<${typeArgument.split('::Coin<')[1]}`;
     const split = tx.splitCoins(tx.object(objectId), [tx.pure.u64(String(amount))]);
@@ -460,6 +488,8 @@ export async function archiveObject({
   heroUri = '',
   heroHash = [],
   amount,
+  kioskId,
+  kioskOwnerCapId,
 }) {
   const tx = buildArchiveTransaction({
     objectId,
@@ -471,6 +501,8 @@ export async function archiveObject({
     heroUri,
     heroHash,
     amount,
+    kioskId,
+    kioskOwnerCapId,
   });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;
