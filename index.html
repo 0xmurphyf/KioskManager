@@ -781,8 +781,13 @@ function archiveDisplayTitle(archive){
 }
 function safeImageUrl(value){
   try{
-    const url=new URL(value);
-    return url.protocol==="https:"?url.href:"";
+    const url=new URL(String(value||''));
+    if(url.protocol==="https:")return url.href;
+    if(url.protocol==="ipfs:"){
+      const path=`${url.hostname}${url.pathname}`.replace(/^\/+/,"");
+      return `https://ipfs.io/ipfs/${path}${url.search}`;
+    }
+    return "";
   }catch{return ""}
 }
 function archiveImageUrl(archive){
