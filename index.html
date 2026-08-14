@@ -1940,6 +1940,7 @@ async function completeArchive(){
           storageType=txApi.STORAGE_EXTERNAL;
           sourceType=txApi.SOURCE_ORIGINAL;
           heroHash=external.hash || (objectImageHash.length===32?objectImageHash:[]);
+          if(heroUri && heroHash.length!==32)heroHash=await getImageHash(heroUri);
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.
@@ -1971,6 +1972,9 @@ async function completeArchive(){
       }
     }
     validateArchivePureArguments({message,signature,heroUri,heroHash});
+    if(storageType!==txApi.STORAGE_NONE && heroHash.length!==32){
+      throw new Error('A valid 32-byte SHA-256 image hash is required before archiving');
+    }
     // Resolve a partial Coin amount, if the selected object is a coin and the
     // user entered one. Blank / zero => archive the whole coin object. If the
     // entered amount meets-or-exceeds the full balance, archive the whole coin
