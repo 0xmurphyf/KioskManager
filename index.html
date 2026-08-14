@@ -163,6 +163,9 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;margin-top:16px}
 .object-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:18px}
 .object-controls input[type=text]{flex:1;min-width:180px}
+.manual-object-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;padding:12px;border:1px dashed var(--line);background:#0e0e0b}
+.manual-object-controls input{flex:1;min-width:220px}
+.manual-object-controls .muted{font-size:10px;flex-basis:100%}
 .filter-tabs{display:flex;gap:8px}
 .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
@@ -502,6 +505,11 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
           <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
         </div>
+      </div>
+      <div class="manual-object-controls">
+        <input type="text" id="manualObjectId" placeholder="Enter any Object ID (0x…)" autocomplete="off" spellcheck="false">
+        <button class="btn" type="button" id="loadObjectByIdBtn" onclick="loadObjectById()">Add Object ID</button>
+        <span class="muted">Ownership is not checked here; the archive contract will decide.</span>
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
@@ -1404,6 +1412,8 @@ function startWizard(){
   // connected, the grid shows a connect prompt and the user connects there.
   currentStep = 1;
   selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;wizardCollection=null;
+  const manualObjectId=document.getElementById('manualObjectId');
+  if(manualObjectId){manualObjectId.value='';manualObjectId.disabled=false;}
   if(confirmText)confirmText.value="";
   if(typeof validateConfirm==='function')validateConfirm();
   showView("wizard");renderStep();
@@ -1642,16 +1652,62 @@ function loadWizardObjects(){
         type:existing.type||object.type,
       }:object);
     }
-    const objects=[...byId.values()];
+    const objects=[...byId.values(),...wizardObjects.filter(object=>object.manual && !byId.has(object.objectId))];
     wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
       return;
     }
     renderFilteredObjects();
+    if(selectedObjectId){
+      const selectedCard=document.querySelector(`[data-step="1"] [data-object-id="${CSS.escape(selectedObjectId)}"]`);
+      if(selectedCard)selectObject(selectedCard);
+    }
   }).catch(error=>{
     grid.innerHTML=`<div class="chain-empty">Could not load objects: ${escapeHtml(String(error.message||error))}</div>`;
   });
+}
+async function loadObjectById(){
+  const input=document.getElementById('manualObjectId');
+  const button=document.getElementById('loadObjectByIdBtn');
+  const objectId=(input?.value||'').trim();
+  if(!/^0x[0-9a-fA-F]{1,64}$/.test(objectId)){
+    showToast('Enter a valid Sui Object ID starting with 0x');
+    input?.focus();
+    return;
+  }
+  const connection=window.theArchiveWallet?.getConnection?.();
+  if(!connection){showToast('Connect a Mainnet wallet to read this object');return;}
+  if(!window.theArchiveTx.isMainnetAccount(connection)){
+    showToast('Connected wallet is not on Sui Mainnet');
+    return;
+  }
+  const client=window.theArchiveWallet.dAppKit.getClient('mainnet');
+  if(button)button.disabled=true;
+  if(input)input.disabled=true;
+  try{
+    // Deliberately do not call an ownership API here. This is a public object
+    // lookup; the archive transaction/contract remains the final authority.
+    const object=await window.theArchiveTx.fetchObjectById(client,objectId);
+    object.manual=true;
+    const existing=wizardObjects.find(o=>o.objectId===object.objectId);
+    if(!existing)wizardObjects.push(object);
+    wizardObjectsLoaded=true;
+    wizardCollection=null;
+    wizardFilter='all';
+    document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.toggle('selected',x.dataset.kind==='all'));
+    if(document.getElementById('objectSearch'))document.getElementById('objectSearch').value='';
+    renderFilteredObjects();
+    const card=document.querySelector(`[data-step="1"] [data-object-id="${CSS.escape(object.objectId)}"]`);
+    if(card)selectObject(card);
+    if(input)input.value='';
+    showToast(existing?'Object already loaded and selected':'Object loaded and selected');
+  }catch(error){
+    showToast(`Could not read Object ID: ${error?.message||'unknown error'}`);
+  }finally{
+    if(button)button.disabled=false;
+    if(input){input.disabled=false;input.focus();}
+  }
 }
 // Re-fetch the wallet's objects on demand (Refresh button), bypassing the
 // "already loaded" short-circuit used by the normal step navigation.

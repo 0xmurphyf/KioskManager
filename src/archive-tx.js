@@ -119,6 +119,20 @@ function isMainnetAccount(account) {
 // to obtain the real balance. listCoins is the only reliable source of `balance`
 // with the gRPC read mask; `listOwnedObjects` does not populate `content`/`balance`
 // for coins. This lets partial-amount archiving work for ANY coin type, not just SUI.
+export async function fetchObjectById(client, objectId) {
+  if (!client || !objectId) throw new Error('Object ID is required');
+  const getObject = client.core?.getObject?.bind(client.core) || client.getObject?.bind(client);
+  if (!getObject) throw new Error('Sui client cannot read objects');
+  const include = client.core ? { json: true, display: true } : { content: true, display: true };
+  const result = await getObject({ objectId, include });
+  const object = result?.object ?? result?.data ?? result;
+  const described = describeObject(object);
+  if (!described.objectId || described.type === 'Unknown object') {
+    throw new Error('Object metadata is unavailable');
+  }
+  return described;
+}
+
 export async function fetchOwnedObjects(client, address) {
   if (!client || !address) return [];
 
@@ -465,6 +479,7 @@ export async function archiveObject({
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
   fetchOwnedObjects,
+  fetchObjectById,
   buildArchiveTransaction,
   archiveObject,
   fetchArchivePolicy,
