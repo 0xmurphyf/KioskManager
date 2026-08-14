@@ -1733,7 +1733,7 @@ function loadWizardObjects(){
       .then(response=>response.ok?response.json():null)
       .catch(()=>null),
     fetchArchivedArtifactIds(),
-  ]).then(([rpcObjects,indexed,archivedIds])=>{
+  ]).then(async ([rpcObjects,indexed,archivedIds])=>{
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
@@ -1752,8 +1752,17 @@ function loadWizardObjects(){
       ...manualObjects.map(object=>byId.get(object.objectId)||object),
       ...[...byId.values()].filter(object=>!manualIds.has(object.objectId)),
     ].filter(object=>manualIds.has(object.objectId)||!archivedIds.has(String(object.objectId||'').toLowerCase()));
-    wizardObjects=objects;
-    if(!objects.length){
+    const archivable=await Promise.all(objects.map(async object=>{
+      try{
+        const abilities=await fetchMoveAbilities(object.type);
+        return !abilities.length||abilities.includes('STORE');
+      }catch(error){
+        console.debug('[owned-objects] ability lookup unavailable',object.objectId,error);
+        return true;
+      }
+    }));
+    wizardObjects=objects.filter((_,index)=>archivable[index]);
+    if(!wizardObjects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
       return;
     }
@@ -1788,6 +1797,10 @@ async function loadObjectById(){
     // Deliberately do not call an ownership API here. This is a public object
     // lookup; the archive transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
+    const abilities=await fetchMoveAbilities(object.type||object.objectType||'');
+    if(abilities.length&&!abilities.includes('STORE')){
+      throw new Error('This object cannot be archived because its Move type does not have the store ability');
+    }
     let resolvedObject=object;
     try{
       // A manually entered ID may be a Kiosk child. Reuse the same Mainnet
