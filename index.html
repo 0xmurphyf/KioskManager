@@ -183,6 +183,9 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-grid .option{box-sizing:border-box;height:280px;min-height:280px;overflow:hidden;display:flex;flex-direction:column;gap:0}
 .object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
 .object-grid .option>p{margin:6px 0 0;min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
+.object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
+.object-status .muted{overflow:hidden;text-overflow:ellipsis}
+.status-pill{border:1px solid var(--line);border-radius:999px;padding:2px 5px;letter-spacing:.08em;font-size:7px;overflow:hidden;text-overflow:ellipsis}
 .object-thumb{flex:0 0 112px;width:100%;height:112px;aspect-ratio:1/1;display:grid;place-items:center;background:transparent;color:var(--accent);margin-bottom:14px;border-radius:8px;overflow:hidden}
 .object-thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .object-grid .coin-amount{margin-top:auto;min-height:76px;overflow:hidden;font-size:9px}
@@ -218,6 +221,8 @@ textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--l
 textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
+.preflight-status{min-height:18px;margin:10px 0;font-size:10px;color:var(--muted)}
+.preflight-status.ok{color:#8fd694}.preflight-status.warn{color:#e7b86b}.preflight-status.error{color:#e58b8b}
 .fee-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,65%);align-items:start;column-gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
 .fee-row>span:last-child{width:auto;min-width:0;max-width:100%;justify-self:end;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word;font:12px "Courier New",monospace}
 .fee-row>span:last-child[id="confirmObjectId"]{word-break:break-all}
@@ -555,6 +560,7 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row fee-total"><span>Estimated total</span><span id="confirmTotalCost">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
+      <div class="preflight-status" id="archivePreflightStatus" aria-live="polite"></div>
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
     </div>
@@ -1360,11 +1366,13 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
   card.dataset.kioskId=obj.kioskId||obj.indexer?.kioskId||'';
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
+  card.dataset.objectStatus=obj.objectStatus||'Unknown';
+  card.dataset.ownershipStatus=obj.ownershipStatus||'Unknown';
   card.onclick=()=>selectObject(card);
-  let extra='';
+  let extra=`<div class="object-status"><span class="status-pill">${escapeHtml(obj.manual?'LOOKED UP BY ID':obj.kiosk?'KIOSK ITEM':(obj.ownershipStatus||obj.objectStatus||'UNKNOWN').toUpperCase())}</span><span class="muted">${escapeHtml(obj.objectStatus||'Unknown')}</span></div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
-    extra=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
+    extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
   }
   card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
@@ -1731,11 +1739,11 @@ async function loadObjectById(){
     // lookup; the archive transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
     object.manual=true;
+    object.ownershipStatus=object.kiosk ? 'Locked in Kiosk' : object.ownerAddress && object.ownerAddress.toLowerCase()===connection.address.toLowerCase() ? 'Owned by connected wallet' : object.ownerAddress ? 'Owned by another address' : object.ownershipStatus;
     const existingIndex=wizardObjects.findIndex(o=>o.objectId===object.objectId);
     let selectedObject=object;
     if(existingIndex>=0){
-      selectedObject=wizardObjects.splice(existingIndex,1)[0];
-      selectedObject.manual=true;
+      selectedObject={...wizardObjects.splice(existingIndex,1)[0],...object,manual:true};
     }
     wizardObjects.unshift(selectedObject);
     wizardFocusedObjectId=selectedObject.objectId;
@@ -1751,7 +1759,9 @@ async function loadObjectById(){
     if(input)input.value='';
     showToast(existingIndex>=0?'Object found and highlighted':'Object added first and selected');
   }catch(error){
-    showToast(`Could not read Object ID: ${error?.message||'unknown error'}`);
+    const text=String(error?.message||error||'').toLowerCase();
+    const kind=text.includes('not found')||text.includes('does not exist')||text.includes('unknown object') ? 'Object not found' : text.includes('invalid')||text.includes('malformed') ? 'Invalid Object ID' : text.includes('network')||text.includes('fetch')||text.includes('timeout') ? 'Network unavailable' : text.includes('deleted') ? 'Object deleted' : 'Object metadata unavailable';
+    showToast(`${kind}: ${error?.message||'unable to read object'}`);
   }finally{
     if(button)button.disabled=false;
     if(input){input.disabled=false;input.focus();}
@@ -1849,6 +1859,16 @@ async function completeArchive(){
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
     const kioskId=selectedCardForArchive?.dataset.kioskId||undefined;
     const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||undefined;
+    const preflightEl=document.getElementById('archivePreflightStatus');
+    if(preflightEl){preflightEl.className='preflight-status';preflightEl.textContent='Checking Mainnet transaction…';}
+    try{
+      const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
+      if(preflightEl){preflightEl.className=`preflight-status ${preflight.success?'ok':'warn'}`;preflightEl.textContent=preflight.success?'Mainnet preflight passed.':'Mainnet preflight warning: '+(preflight.message||'the archive contract may reject this object.');}
+      if(!preflight.success) console.warn('[archive-preflight]',preflight.message,preflight.result);
+    }catch(preflightError){
+      if(preflightEl){preflightEl.className='preflight-status warn';preflightEl.textContent='Mainnet preflight unavailable: '+(preflightError?.message||'the wallet will perform final validation.');}
+      console.warn('[archive-preflight] unavailable',preflightError);
+    }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     // Capture the newly created archive object id so the success view routes to

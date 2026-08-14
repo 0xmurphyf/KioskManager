@@ -63,8 +63,24 @@ function coinSymbol(type) {
   return last || '';
 }
 
+function ownerAddressOf(owner) {
+  if (!owner) return '';
+  if (typeof owner === 'string') return owner;
+  return owner.AddressOwner || owner.address || owner.Address?.address || '';
+}
+
+function objectStateOf(data) {
+  const owner = data?.owner;
+  if (owner?.Immutable || owner?.immutable) return { objectStatus: 'Immutable', ownershipStatus: 'Immutable', ownerAddress: '' };
+  if (owner?.Shared || owner?.shared) return { objectStatus: 'Shared', ownershipStatus: 'Shared', ownerAddress: '' };
+  const ownerAddress = ownerAddressOf(owner);
+  if (ownerAddress) return { objectStatus: 'Owned', ownershipStatus: 'Owned', ownerAddress };
+  return { objectStatus: 'Unknown', ownershipStatus: 'Unknown', ownerAddress: '' };
+}
+
 function describeObject(obj) {
   const data = obj?.data ?? obj;
+  const state = objectStateOf(data);
   const rawContent = data?.json || data?.content || data?.contentJson || {};
   const contentJson = rawContent?.json || rawContent?.fields || rawContent;
   const fields = contentJson?.fields || contentJson;
@@ -98,6 +114,8 @@ function describeObject(obj) {
     name: typeof name === 'string' ? name : '',
     isCoin,
     imageUrl,
+    exists: true,
+    ...state,
     balance:
       balanceRaw !== undefined ? BigInt(balanceRaw) : undefined,
   };
@@ -131,6 +149,20 @@ export async function fetchObjectById(client, objectId) {
     throw new Error('Object metadata is unavailable');
   }
   return described;
+}
+
+export async function preflightArchiveTransaction({ client, sender, ...params }) {
+  if (!client || !sender) throw new Error('Mainnet client or sender is unavailable');
+  const tx = buildArchiveTransaction(params);
+  tx.setSender(sender);
+  tx.setGasBudget(100_000_000);
+  const bytes = await tx.build({ client });
+  const simulate = client.core?.simulateTransaction?.bind(client.core) || client.simulateTransaction?.bind(client);
+  if (!simulate) return { success: true, unavailable: true, message: 'Simulation API unavailable; transaction build passed.' };
+  const result = await simulate({ transaction: bytes, include: { effects: true } });
+  const status = result?.effects?.status || result?.Transaction?.status || result?.transaction?.effects?.status;
+  const success = status?.success === true || status?.status === 'success' || result?.effects?.status === 'success';
+  return { success, unavailable: false, message: status?.error || (success ? 'Preflight passed.' : 'Mainnet simulation did not pass.'), result };
 }
 
 export async function fetchOwnedObjects(client, address) {
@@ -202,7 +234,7 @@ export async function fetchOwnedObjects(client, address) {
                 const o = obj?.object ?? obj?.data ?? obj;
                 const objType = o?.type || o?.objectType || '';
                 if (!/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(objType)) {
-                  collected.push(obj);
+                  collected.push(o);
                   seen.add(itemId);
                 }
               } catch (objErr) {
@@ -223,7 +255,9 @@ export async function fetchOwnedObjects(client, address) {
 
   const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
-    return kiosk ? { ...object, kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId } : object;
+    return kiosk
+      ? { ...object, kiosk: true, kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: 'Locked in Kiosk', ownershipStatus: 'Locked in Kiosk' }
+      : { ...object, ownershipStatus: object.ownerAddress && object.ownerAddress.toLowerCase() === address.toLowerCase() ? 'Owned by connected wallet' : object.ownershipStatus };
   });
   const coins = described.filter((o) => o.isCoin);
   const nonCoins = described.filter((o) => !o.isCoin && o.objectId);
@@ -513,6 +547,7 @@ window.theArchiveTx = {
   PACKAGE_ID,
   fetchOwnedObjects,
   fetchObjectById,
+  preflightArchiveTransaction,
   buildArchiveTransaction,
   archiveObject,
   fetchArchivePolicy,
