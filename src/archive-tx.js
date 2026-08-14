@@ -147,11 +147,14 @@ export async function fetchOwnedObjects(client, address) {
       const caps = collected
         .map((c) => (c?.data ?? c))
         .filter((d) => /::kiosk::KioskOwnerCap(?:<|$)/.test(d?.type || d?.objectType || ''));
-      const kioskIds = new Set();
+      const ownedKiosks = collected
+        .map((c) => (c?.data ?? c))
+        .filter((d) => /::kiosk::Kiosk(?:<|$)/.test(d?.type || d?.objectType || ''));
+      const kioskIds = new Set(ownedKiosks.map((kiosk) => kiosk?.objectId).filter(Boolean));
       for (const cap of caps) {
         const content = cap?.json || cap?.content?.json || cap?.content?.fields || cap?.content || {};
         const fields = content?.fields || content;
-        const kioskId = fields?.kiosk || fields?.id?.id || cap?.objectId;
+        const kioskId = fields?.kiosk || fields?.kiosk_id || fields?.id?.id;
         if (kioskId) kioskIds.add(kioskId);
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
@@ -163,11 +166,17 @@ export async function fetchOwnedObjects(client, address) {
             const conn = result?.object?.dynamicFields;
             const nodes = conn?.nodes || [];
             for (const node of nodes) {
-              const itemId = node?.value?.address || node?.name?.json || node?.name;
+              // Each kiosk item is a dynamic field whose value is the referenced
+              // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
+              // address and are skipped.
+              const itemId = node?.value?.address;
               if (!itemId || seen.has(itemId)) continue;
               try {
                 const obj = await getObject({ objectId: itemId, include });
-                const o = obj?.data ?? obj;
+                // gRPC getObject returns { object: <flat> }, JSON-RPC returns
+                // { data: <flat> }; normalize to the flat object shape used by
+                // the rest of this function and by describeObject.
+                const o = obj?.object ?? obj?.data ?? obj;
                 const objType = o?.type || o?.objectType || '';
                 if (!/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(objType)) {
                   collected.push(obj);
