@@ -1504,7 +1504,9 @@ function selectObject(el){
   setConfirmObject();
   objectNext.disabled=!selectedObjectId;
 }
-// Render the object being archived into the confirmation Object Name and Object ID cells.
+// Render the object being archived into the two confirmation cells: Object Name
+// and Object ID (with the Coin partial-amount sub-line). This is the "potential
+// coin flow" the user reviews before signing.
 function setConfirmObject(){
   const nameEl=document.getElementById("confirmObjectName");
   const idEl=document.getElementById("confirmObjectId");
@@ -1513,7 +1515,20 @@ function setConfirmObject(){
   const name=card?.dataset.name||"";
   const isCoin=card?.dataset.isCoin==="1";
   if(nameEl) nameEl.textContent=name||"—";
-  const idHtml=suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…");
+  let idHtml=suiscanLink(selectedObjectId, selectedObjectId.slice(0,10)+"…");
+  if(isCoin){
+    const balRaw=card?.dataset.balance?BigInt(card.dataset.balance):0n;
+    const amtInput=card?.querySelector('.coin-amount input');
+    const raw=amtInput && amtInput.value.trim()!=='' ? Number(amtInput.value) : 0;
+    const fullSUI=balRaw? Number(balRaw)/1e9 : 0;
+    if(raw>0){
+      const mist=BigInt(Math.floor(raw*1e9+1e-6));
+      const partial = balRaw===0n || mist>=balRaw ? fullSUI : raw;
+      idHtml+=`<span class="confirm-coin-amt">Archive ${partial.toFixed(4)} of ${fullSUI.toFixed(4)}</span>`;
+    }else{
+      idHtml+=`<span class="confirm-coin-amt">Whole coin · ${fullSUI.toFixed(4)}</span>`;
+    }
+  }
   if(idEl) idEl.innerHTML=idHtml;
 }
 function selectOption(el,step){
