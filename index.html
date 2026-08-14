@@ -2066,7 +2066,8 @@ function wireFinalImageUpload(){
     const raw=imageUrlInput?.value.trim()||"";
     let url;
     try{ url=new URL(raw); }catch(_){ showToast("Enter a valid image link"); return; }
-    if(!["http:","https:"].includes(url.protocol)){ showToast("Enter an http(s) image link"); return; }
+    const previewUrl=safeImageUrl(url.href);
+    if(!previewUrl){ showToast("Enter a supported image link (http, https, ipfs, or walrus)"); return; }
     const candidate=url.href;
     const isRemoteHeic=window.theArchiveHeicSupport?.isHeicFile(candidate);
     if(isRemoteHeic){
@@ -2075,9 +2076,9 @@ function wireFinalImageUpload(){
     }
     const testImage=new Image();
     testImage.onload=async()=>{
-      try{ await getImageHash(candidate); }
+      try{ await getImageHash(previewUrl); }
       catch(error){ showToast(`Image preview works, but hash verification failed: ${error.message}`); return; }
-      onlineImageUrl=candidate;
+      onlineImageUrl=previewUrl;
       onlineImageContractUrl=candidate;
       uploadedFinalImage=null;
       uploadedFinalImageSource="online";
@@ -2086,7 +2087,7 @@ function wireFinalImageUpload(){
       closeFinalImagePopup();
     };
     testImage.onerror=()=>showToast("Image link could not be loaded");
-    testImage.src=candidate;
+    testImage.src=previewUrl;
   });
   fileInput.addEventListener("change",()=>{
     const file=fileInput.files&&fileInput.files[0];
