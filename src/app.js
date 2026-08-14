@@ -96,6 +96,7 @@ function startArchiveStream() {
 async function refreshChainArchives({ background = false } = {}) {
   if (!background) {
     refreshButton.disabled = true;
+    refreshButton.classList.add('is-loading');
     refreshButton.textContent = 'Scanning Mainnet…';
     status.textContent = 'Reading MemoryArchived events and their immutable objects…';
     status.className = 'scan-status loading';
@@ -119,6 +120,7 @@ async function refreshChainArchives({ background = false } = {}) {
   } finally {
     if (!background) {
       refreshButton.disabled = false;
+      refreshButton.classList.remove('is-loading');
       refreshButton.textContent = 'Refresh on-chain data';
     }
   }
@@ -126,6 +128,7 @@ async function refreshChainArchives({ background = false } = {}) {
 
 async function initializeArchives() {
   refreshButton.disabled = true;
+  refreshButton.classList.add('is-loading');
   refreshButton.textContent = 'Loading archive…';
   status.textContent = 'Loading the latest archived objects from cache…';
   status.className = 'scan-status loading';
@@ -137,6 +140,7 @@ async function initializeArchives() {
     status.textContent = `${currentArchives.length} immutable archive${currentArchives.length === 1 ? '' : 's'} loaded from the ${source}.`;
     status.className = 'scan-status ready';
     refreshButton.disabled = false;
+    refreshButton.classList.remove('is-loading');
     refreshButton.textContent = 'Refresh on-chain data';
     startArchiveStream();
     if (cached.source !== 'api') void refreshChainArchives({ background: true });

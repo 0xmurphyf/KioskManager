@@ -112,6 +112,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .scan-status.loading:before{animation:scannerPulse 1s ease-in-out infinite}
 .scan-status.ready:before{background:#79a786;box-shadow:0 0 10px rgba(121,167,134,.55)}
 .scan-status.error{color:#d8b8b1}.scan-status.error:before{background:var(--danger)}
+.loading-icon{display:inline-block;width:11px;height:11px;margin-right:8px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;vertical-align:-1px;animation:loadingSpin .75s linear infinite}
+.chain-empty.loading::before{content:"";display:inline-block;width:12px;height:12px;margin-right:9px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;vertical-align:-1px;animation:loadingSpin .75s linear infinite}
+.btn.is-loading{pointer-events:none;opacity:.65}
+.btn.is-loading::before{content:"";display:inline-block;width:11px;height:11px;margin-right:8px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;vertical-align:-1px;animation:loadingSpin .75s linear infinite}
+@keyframes loadingSpin{to{transform:rotate(360deg)}}
 .chain-empty{padding:30px 0;color:var(--dim);line-height:1.7}
 @keyframes scannerPulse{50%{opacity:.22;transform:scale(.65)}}
 .archive-row{
@@ -1313,8 +1318,8 @@ window.addEventListener("resize",()=>{
 });
 
 initWhisperPool();
-recentList.innerHTML='<div class="chain-empty">Loading the public on-chain record…</div>';
-archiveList.innerHTML='<div class="chain-empty">Connecting to the Sui Mainnet index…</div>';
+recentList.innerHTML='<div class="chain-empty loading">Loading the public on-chain record…</div>';
+archiveList.innerHTML='<div class="chain-empty loading">Connecting to the Sui Mainnet index…</div>';
 
 let currentStep=1;
 let selectedObjectId=null;
@@ -1754,7 +1759,7 @@ function loadWizardObjects(){
     return;
   }
   wizardObjectsLoaded=true;
-  grid.innerHTML='<div class="chain-empty">Loading your Mainnet objects…</div>';
+  grid.innerHTML='<div class="chain-empty loading">Loading your Mainnet objects…</div>';
   const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
   Promise.all([
     window.theArchiveTx.fetchOwnedObjects(client,connection.address),
@@ -1812,7 +1817,7 @@ async function loadObjectById(){
     return;
   }
   const client=window.theArchiveWallet.dAppKit.getClient('mainnet');
-  if(button)button.disabled=true;
+  if(button){button.disabled=true;button.classList.add('is-loading');button.textContent='Loading…';}
   if(input)input.disabled=true;
   try{
     // Deliberately do not call an ownership API here. This is a public object
@@ -1854,7 +1859,7 @@ async function loadObjectById(){
     const kind=text.includes('not found')||text.includes('does not exist')||text.includes('unknown object') ? 'Object not found' : text.includes('invalid')||text.includes('malformed') ? 'Invalid Object ID' : text.includes('network')||text.includes('fetch')||text.includes('timeout') ? 'Network unavailable' : text.includes('deleted') ? 'Object deleted' : 'Object metadata unavailable';
     showToast(`${kind}: ${error?.message||'unable to read object'}`);
   }finally{
-    if(button)button.disabled=false;
+    if(button){button.disabled=false;button.classList.remove('is-loading');button.textContent='Add Object ID';}
     if(input){input.disabled=false;input.focus();}
   }
 }
@@ -1907,6 +1912,8 @@ async function completeArchive(){
   if(!selectedObjectType){showToast("Selected object has no type info");return;}
   if(confirmText.value.trim().toUpperCase()!=="ARCHIVE"){showToast("Type ARCHIVE to confirm");return;}
   archiveBtn.disabled=true;
+  archiveBtn.classList.add('is-loading');
+  archiveBtn.textContent='ARCHIVING…';
   showToast("Confirm the transaction in your wallet…");
   try{
     const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
@@ -2040,6 +2047,8 @@ async function completeArchive(){
     currentStep=7;renderStep();
   }catch(error){
     archiveBtn.disabled=false;
+    archiveBtn.classList.remove('is-loading');
+    archiveBtn.textContent='ARCHIVE FOREVER';
     const errorText=String(error?.message||error).toLowerCase();
     const sender=window.theArchiveWallet?.getConnection?.()?.address;
     const walletClosed=error?.code===4001||errorText.includes("reject")||errorText.includes("cancel")||errorText.includes("closed")||errorText.includes("window");

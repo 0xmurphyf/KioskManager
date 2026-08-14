@@ -166,6 +166,7 @@ function renderWalletOptions() {
 
     if (adapter) detectedCount += 1;
     button.classList.toggle('detected', Boolean(adapter));
+    button.classList.toggle('is-loading', connectingWalletKey === definition.key);
     button.disabled = Boolean(connectingWalletKey);
     button.setAttribute('aria-busy', String(connectingWalletKey === definition.key));
     state.textContent = isCurrent
