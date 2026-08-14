@@ -44,6 +44,19 @@ async function graphqlFetch(query, variables) {
   return body.data;
 }
 
+async function retryScanRequest(fn, attempts = 3) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)));
+    }
+  }
+  throw lastError;
+}
+
 const POLICY_OBJECT_ID =
   '0xfd3a6fd05d9f30f0cac49f133445e13dea730206d5d87bcf4e5890c5b89f681f';
 const CLOCK_OBJECT_ID = '0x6';
@@ -200,7 +213,7 @@ export async function fetchOwnedObjects(client, address) {
   const collected = [];
   let cursor = null;
   do {
-    const result = await listOwned({ owner: address, cursor, limit: 50, include });
+    const result = await retryScanRequest(() => listOwned({ owner: address, cursor, limit: 100, include }));
     const page = result.objects || result.data || [];
     collected.push(...page);
     cursor = result.hasNextPage ? result.cursor : null;
@@ -232,14 +245,13 @@ export async function fetchOwnedObjects(client, address) {
         }
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
-      for (const kioskId of kioskIds) {
+      const scanKiosk = async (kioskId) => {
         let fieldCursor = null;
         do {
-          try {
-            const result = await graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor });
-            const conn = result?.object?.dynamicFields;
-            const nodes = conn?.nodes || [];
-            for (const node of nodes) {
+          const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
+          const conn = result?.object?.dynamicFields;
+          const nodes = conn?.nodes || [];
+          for (const node of nodes) {
               // Each kiosk item is a dynamic field whose value is the referenced
               // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
               // address and are skipped.
@@ -250,7 +262,7 @@ export async function fetchOwnedObjects(client, address) {
                 kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
               });
               try {
-                const obj = await getObject({ objectId: itemId, include });
+                const obj = await retryScanRequest(() => getObject({ objectId: itemId, include }));
                 // gRPC getObject returns { object: <flat> }, JSON-RPC returns
                 // { data: <flat> }; normalize to the flat object shape used by
                 // the rest of this function and by describeObject.
@@ -261,18 +273,19 @@ export async function fetchOwnedObjects(client, address) {
                   seen.add(itemId);
                 }
               } catch (objErr) {
-                console.debug('[owned-objects] kiosk item fetch failed', itemId, objErr);
+                throw new Error(`Kiosk item ${itemId} could not be loaded: ${objErr.message || objErr}`);
               }
-            }
-            fieldCursor = conn?.pageInfo?.hasNextPage ? conn?.pageInfo?.endCursor : null;
-          } catch (error) {
-            console.debug('[owned-objects] kiosk item scan unavailable', kioskId, error);
-            fieldCursor = null;
           }
+          fieldCursor = conn?.pageInfo?.hasNextPage ? conn?.pageInfo?.endCursor : null;
         } while (fieldCursor);
-      }
+      };
+      // Kiosks are independent; scan them concurrently while preserving every
+      // page within each Kiosk. Any failed page rejects the full scan so the UI
+      // never presents a silently incomplete NFT list.
+      await Promise.all([...kioskIds].map(scanKiosk));
     } catch (error) {
-      console.debug('[owned-objects] kiosk scan unavailable', error);
+      console.debug('[owned-objects] kiosk scan failed; refusing incomplete results', error);
+      throw new Error(`Could not complete Kiosk scan: ${error.message || error}`);
     }
   }
 
@@ -304,7 +317,7 @@ export async function fetchOwnedObjects(client, address) {
     for (const it of distinctTypes) {
       let c = null;
       do {
-        const res = await listCoins({ owner: address, coinType: it, cursor: c, limit: 50 });
+        const res = await retryScanRequest(() => listCoins({ owner: address, coinType: it, cursor: c, limit: 100 }));
         for (const obj of res.objects || []) {
           balanceByObject.set(
             obj.objectId,
