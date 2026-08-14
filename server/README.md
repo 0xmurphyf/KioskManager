@@ -26,5 +26,13 @@ Testnet and the default reconciliation interval is one hour.
 - `GET /api/archives` — cached archives and cache metadata
 - `GET /api/health` — cache and listener health
 - `GET /api/archives/stream` — SSE; new records use event name `archive`
+- `GET /api/owned-objects?address=0x...` — merged NFT/Kiosk ownership from the configured indexer
+
+Owned-object indexer configuration:
+
+- `OWNED_OBJECTS_INDEXER_ENDPOINT` — defaults to TradePort's read-only GraphQL endpoint
+- `OWNED_OBJECTS_INDEXER_API_USER` / `OWNED_OBJECTS_INDEXER_API_KEY` — optional overrides for deployments
+- `OWNED_OBJECTS_INDEXER_TIMEOUT_MS` — request timeout, default 15000
+- `OWNED_OBJECTS_INDEXER_PAGE_SIZE` — NFT page size, default 100
 
 Run the isolated tests with `pnpm --dir server test`.

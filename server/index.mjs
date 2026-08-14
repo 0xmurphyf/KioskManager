@@ -2,6 +2,7 @@ import { ArchiveEvents, ArchiveService } from './archive-service.mjs';
 import { loadConfig } from './config.mjs';
 import { ArchiveStore } from './database.mjs';
 import { GraphqlArchiveSource } from './graphql-source.mjs';
+import { createOwnedObjectIndexer } from './indexer-owned-objects.mjs';
 import { createArchiveHttpServer } from './http-server.mjs';
 import { SuiArchiveListener } from './sui-listener.mjs';
 
@@ -20,6 +21,13 @@ const service = new ArchiveService({
   eventType: config.eventType,
   retryCount: config.objectRetryCount,
   retryBaseMs: config.objectRetryBaseMs,
+});
+const ownedObjectIndexer = createOwnedObjectIndexer({
+  endpoint: config.ownedObjectsIndexerEndpoint,
+  apiUser: config.ownedObjectsIndexerApiUser,
+  apiKey: config.ownedObjectsIndexerApiKey,
+  timeoutMs: config.ownedObjectsIndexerTimeoutMs,
+  pageSize: config.ownedObjectsIndexerPageSize,
 });
 const abortController = new AbortController();
 const runtime = {
@@ -82,6 +90,7 @@ const server = createArchiveHttpServer({
   maxUploadBytes: config.maxUploadBytes,
   corsOrigin: config.corsOrigin,
   maxSseClients: config.maxSseClients,
+  ownedObjectIndexer,
   health: () => ({
     startedAt: runtime.startedAt,
     reconciling: runtime.reconciling,

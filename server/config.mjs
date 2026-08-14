@@ -35,5 +35,10 @@ export function loadConfig(env = process.env) {
     reconnectBaseMs: positiveInteger(env.GRPC_RECONNECT_BASE_MS, 1_000),
     reconnectMaxMs: positiveInteger(env.GRPC_RECONNECT_MAX_MS, 30_000),
     maxSseClients: positiveInteger(env.MAX_SSE_CLIENTS, 250),
+    ownedObjectsIndexerEndpoint: env.OWNED_OBJECTS_INDEXER_ENDPOINT || 'https://graphql.tradeport.gg/',
+    ownedObjectsIndexerApiUser: env.OWNED_OBJECTS_INDEXER_API_USER || 'tradeport.xyz',
+    ownedObjectsIndexerApiKey: env.OWNED_OBJECTS_INDEXER_API_KEY || '7cJ09MM.9c8d37fc6e5fad1cf0823c68657cabdd',
+    ownedObjectsIndexerTimeoutMs: positiveInteger(env.OWNED_OBJECTS_INDEXER_TIMEOUT_MS, 15_000),
+    ownedObjectsIndexerPageSize: positiveInteger(env.OWNED_OBJECTS_INDEXER_PAGE_SIZE, 100),
   };
 }

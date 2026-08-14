@@ -1579,7 +1579,18 @@ function loadWizardObjects(){
   wizardObjectsLoaded=true;
   grid.innerHTML='<div class="chain-empty">Loading your Mainnet objects…</div>';
   const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
-  window.theArchiveTx.fetchOwnedObjects(client,connection.address).then(objects=>{
+  Promise.all([
+    window.theArchiveTx.fetchOwnedObjects(client,connection.address),
+    fetch(`/api/owned-objects?address=${encodeURIComponent(connection.address)}`)
+      .then(response=>response.ok?response.json():null)
+      .catch(()=>null),
+  ]).then(([rpcObjects,indexed])=>{
+    const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
+    for(const object of indexed?.objects||[]) {
+      const existing=byId.get(object.objectId);
+      byId.set(object.objectId,existing?{...object,...existing}:object);
+    }
+    const objects=[...byId.values()];
     wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';

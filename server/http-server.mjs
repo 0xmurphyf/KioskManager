@@ -109,6 +109,7 @@ export function createArchiveHttpServer({
   uploadsDir = '',
   publicBaseUrl = '',
   maxUploadBytes = 10 * 1024 * 1024,
+  ownedObjectIndexer = null,
 }) {
   let activeStreams = 0;
 
@@ -165,6 +166,21 @@ export function createArchiveHttpServer({
     }
     if (url.pathname.startsWith('/api/') && req.method !== 'GET') {
       json(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+
+    if (url.pathname === '/api/owned-objects') {
+      if (!ownedObjectIndexer) {
+        json(res, 503, { error: 'Owned-object indexer is not configured' });
+        return;
+      }
+      const address = url.searchParams.get('address') || '';
+      try {
+        const result = await ownedObjectIndexer(address, { signal: req.signal });
+        json(res, 200, result);
+      } catch (error) {
+        json(res, 502, { error: String(error?.message || error) });
+      }
       return;
     }
 
