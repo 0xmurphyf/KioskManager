@@ -223,7 +223,15 @@ fun validate_metadata(
         assert!(image_hash.is_empty(), E_IMAGE_DATA_WITHOUT_STORAGE);
     } else {
         assert!(!image_url.as_bytes().is_empty(), E_MISSING_IMAGE_URI);
-        assert!(image_hash.length() == CONTENT_HASH_BYTES, E_INVALID_HASH_LENGTH);
+        // Original object metadata is copied verbatim. Some objects expose an
+        // image URI but no trustworthy content hash, so an empty hash is valid
+        // only for SOURCE_ORIGINAL. Online and Uploaded images must still
+        // carry a real 32-byte hash.
+        assert!(
+            (source_type == SOURCE_ORIGINAL && image_hash.is_empty()) ||
+            image_hash.length() == CONTENT_HASH_BYTES,
+            E_INVALID_HASH_LENGTH,
+        );
         if (source_type == SOURCE_ONLINE) {
             assert!(storage_type == STORAGE_EXTERNAL, E_INVALID_SOURCE_STORAGE);
         };
