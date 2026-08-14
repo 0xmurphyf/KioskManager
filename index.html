@@ -782,10 +782,14 @@ function archiveDisplayTitle(archive){
 function safeImageUrl(value){
   try{
     const url=new URL(String(value||''));
-    if(url.protocol==="https:")return url.href;
+    if(url.protocol==="http:"||url.protocol==="https:")return url.href;
     if(url.protocol==="ipfs:"){
       const path=`${url.hostname}${url.pathname}`.replace(/^\/+/,"");
       return `https://ipfs.io/ipfs/${path}${url.search}`;
+    }
+    if(url.protocol==="walrus:"){
+      const blobId=`${url.hostname}${url.pathname}`.replace(/^\/+/,"");
+      return `https://aggregator.walrus.space/v1/blobs/${blobId}${url.search}`;
     }
     return "";
   }catch{return ""}
