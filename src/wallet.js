@@ -332,13 +332,15 @@ async function disconnectCurrentWallet() {
 }
 
 walletButton.addEventListener('click', () => openWalletDialog());
-wizardWalletButton.addEventListener('click', () => {
-  if (activeConnection()) {
-    window.renderStep();
-  } else {
-    openWalletDialog({ fromWizard: true });
-  }
-});
+if (wizardWalletButton) {
+  wizardWalletButton.addEventListener('click', () => {
+    if (activeConnection()) {
+      window.renderStep();
+    } else {
+      openWalletDialog({ fromWizard: true });
+    }
+  });
+}
 walletCloseButton.addEventListener('click', () => closeWalletDialog());
 walletDialog.querySelector('[data-wallet-close]').addEventListener('click', () =>
   closeWalletDialog(),
