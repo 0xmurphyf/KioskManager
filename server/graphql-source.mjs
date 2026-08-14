@@ -17,7 +17,7 @@ const OBJECT_QUERY = `
       address
       version
       digest
-      asMoveObject { contents { json } }
+      asMoveObject { contents { json type { repr } } }
     }
   }
 `;
