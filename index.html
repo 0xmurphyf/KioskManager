@@ -189,6 +189,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-grid .coin-amount .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .collection-card{cursor:pointer;transition:border-color .2s,background .2s}
 .collection-card:hover{border-color:var(--accent);background:#171711}
+.manual-focused{border-color:var(--accent)!important;background:#171711;box-shadow:0 0 0 1px var(--accent) inset}
 .collection-card>span{display:block;margin-top:8px;font-size:9px;color:var(--dim)}
 .collection-back{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:var(--dim);padding:0 0 4px;font:inherit;font-size:12px;cursor:pointer}
 .collection-back:hover{color:var(--paper)}
@@ -1280,6 +1281,7 @@ let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardFilter='all';
 let wizardCollection=null;
+let wizardFocusedObjectId=null;
 let archivePolicy=null;
 const FIXED_ARCHIVE_FEE_MIST=9190000n;
 const FIXED_ARCHIVE_GAS_MIST=20000000n;
@@ -1331,6 +1333,27 @@ function objectCollection(o){
 }
 function openObjectCollection(key){wizardCollection=key;renderFilteredObjects()}
 function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
+function appendObjectCard(grid,obj,focused=false){
+  const label=obj.name||obj.type.split('::').pop();
+  const kind=obj.isCoin?'COIN':'OBJ';
+  const card=document.createElement('div');
+  card.className=`option${focused?' manual-focused':''}`;
+  card.dataset.objectId=obj.objectId;
+  card.dataset.type=obj.type;
+  card.dataset.image=obj.imageUrl||'';
+  card.dataset.isCoin=obj.isCoin?'1':'';
+  card.dataset.name=obj.name||'';
+  card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
+  card.onclick=()=>selectObject(card);
+  let extra='';
+  if(obj.isCoin){
+    const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
+    extra=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
+  }
+  card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
+  grid.appendChild(card);
+  return card;
+}
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
@@ -1365,7 +1388,9 @@ function renderFilteredObjects(){
     back.onclick=closeObjectCollection;
     grid.appendChild(back);
   }
-  const nfts=list.filter(o=>objectKind(o)==='nft');
+  const focusedObject=wizardFocusedObjectId?list.find(o=>o.objectId===wizardFocusedObjectId):null;
+  if(focusedObject)appendObjectCard(grid,focusedObject,true);
+  const nfts=list.filter(o=>objectKind(o)==='nft' && o.objectId!==wizardFocusedObjectId);
   if(!wizardCollection && nfts.length){
     const groups=new Map();
     for(const obj of nfts){
@@ -1382,35 +1407,16 @@ function renderFilteredObjects(){
       grid.appendChild(card);
     }
   }
-  const otherObjects=wizardCollection?list:list.filter(o=>objectKind(o)!=='nft');
-  for(const obj of otherObjects){
-    const label=obj.name||obj.type.split('::').pop();
-    const kind=obj.isCoin?'COIN':'OBJ';
-    const card=document.createElement('div');
-    card.className='option';
-    card.dataset.objectId=obj.objectId;
-    card.dataset.type=obj.type;
-    card.dataset.image=obj.imageUrl||'';
-    card.dataset.isCoin=obj.isCoin?'1':'';
-    card.dataset.name=obj.name||'';
-    card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
-    card.onclick=()=>selectObject(card);
-    let extra='';
-    if(obj.isCoin){
-      const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
-      extra=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
-    }
-    card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
-    grid.appendChild(card);
-  }
-  if(wizardCollection && !otherObjects.length)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
+  const otherObjects=(wizardCollection?list:list.filter(o=>objectKind(o)!=='nft')).filter(o=>o.objectId!==wizardFocusedObjectId);
+  for(const obj of otherObjects)appendObjectCard(grid,obj);
+  if(wizardCollection && !otherObjects.length && !focusedObject)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
 }
 
 function startWizard(){
   // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
   // connected, the grid shows a connect prompt and the user connects there.
   currentStep = 1;
-  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;wizardCollection=null;
+  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;wizardCollection=null;wizardFocusedObjectId=null;
   const manualObjectId=document.getElementById('manualObjectId');
   if(manualObjectId){manualObjectId.value='';manualObjectId.disabled=false;}
   if(confirmText)confirmText.value="";
@@ -1701,6 +1707,7 @@ async function loadObjectById(){
       selectedObject.manual=true;
     }
     wizardObjects.unshift(selectedObject);
+    wizardFocusedObjectId=selectedObject.objectId;
     wizardObjectsLoaded=true;
     wizardFilter='all';
     const selectedKind=objectKind(selectedObject);
