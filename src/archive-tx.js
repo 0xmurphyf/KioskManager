@@ -234,6 +234,7 @@ export async function fetchOwnedObjects(client, address) {
   } while (cursor);
 
   const kioskItemContext = new Map();
+  let scanIncomplete = false;
   // Kiosk items are NOT returned by listOwnedObjects because the Kiosk owns them.
   // The connected account owns a KioskOwnerCap per kiosk; from each cap we read the
   // kiosk id, then enumerate the Kiosk object's dynamic object fields (GraphQL
@@ -298,8 +299,8 @@ export async function fetchOwnedObjects(client, address) {
       // never presents a silently incomplete NFT list.
       await Promise.all([...kioskIds].map(scanKiosk));
     } catch (error) {
-      console.debug('[owned-objects] kiosk scan failed; refusing incomplete results', error);
-      throw new Error(`Could not complete Kiosk scan: ${error.message || error}`);
+      scanIncomplete = true;
+      console.debug('[owned-objects] kiosk scan incomplete; keeping partial results', error);
     }
   }
 
@@ -364,7 +365,9 @@ export async function fetchOwnedObjects(client, address) {
     };
   }));
 
-  return [...new Map([...coinResults, ...nonCoins].filter((o) => o.objectId).map((o) => [o.objectId, o])).values()];
+  const finalObjects=[...new Map([...coinResults, ...nonCoins].filter((o) => o.objectId).map((o) => [o.objectId, o])).values()];
+  Object.defineProperty(finalObjects, 'scanIncomplete', { value: scanIncomplete, enumerable: false });
+  return finalObjects;
 }
 
 export async function fetchArchivePolicy(client) {

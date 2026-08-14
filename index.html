@@ -1321,6 +1321,7 @@ let selectedObjectId=null;
 let selectedObjectType=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
+let wizardScanIncomplete=false;
 let wizardFilter='all';
 let wizardCollection=null;
 let wizardFocusedObjectId=null;
@@ -1331,6 +1332,7 @@ function handleWalletChanged(connection){
   lastWizardWalletAddress=address;
   wizardObjectsLoaded=false;
   wizardObjects=[];
+  wizardScanIncomplete=false;
   selectedObjectId=null;
   selectedObjectType=null;
   wizardFocusedObjectId=null;
@@ -1443,6 +1445,12 @@ function renderFilteredObjects(){
     return;
   }
   grid.innerHTML='';
+  if(wizardScanIncomplete){
+    const notice=document.createElement('div');
+    notice.className='chain-empty scan-incomplete-notice';
+    notice.textContent='Scan incomplete. Showing objects found so far; enter an Object ID above to add an object that is missing.';
+    grid.appendChild(notice);
+  }
   if(wizardCollection){
     const back=document.createElement('button');
     back.type='button';
@@ -1755,6 +1763,7 @@ function loadWizardObjects(){
       .catch(()=>null),
     fetchArchivedArtifactIds(),
   ]).then(([rpcObjects,indexed,archivedIds])=>{
+    wizardScanIncomplete=Boolean(rpcObjects?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
@@ -1775,7 +1784,7 @@ function loadWizardObjects(){
     ].filter(object=>manualIds.has(object.objectId)||!archivedIds.has(String(object.objectId||'').toLowerCase()));
     wizardObjects=objects;
     if(!objects.length){
-      grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
+      grid.innerHTML=`${wizardScanIncomplete?'<div class="chain-empty scan-incomplete-notice">Scan incomplete. Enter an Object ID above to add a missing object.</div>':''}<div class="chain-empty">No objects found in this wallet. Mint or receive a Mainnet object first.</div>`;
       return;
     }
     renderFilteredObjects();
