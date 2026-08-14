@@ -26,6 +26,12 @@ const KIOSK_FIELDS_QUERY = `
   }
 `;
 
+function objectIdValue(value){
+  if(typeof value==='string')return value;
+  if(!value||typeof value!=='object')return '';
+  return objectIdValue(value.id||value.ID||value.address||value.objectId||value.object_id);
+}
+
 async function graphqlFetch(query, variables) {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
@@ -202,7 +208,7 @@ export async function fetchOwnedObjects(client, address) {
       for (const cap of caps) {
         const content = cap?.json || cap?.content?.json || cap?.content?.fields || cap?.content || {};
         const fields = content?.fields || content;
-        const kioskId = fields?.kiosk || fields?.kiosk_id || fields?.id?.id;
+        const kioskId=objectIdValue(fields?.kiosk||fields?.kiosk_id||fields?.id);
         if (kioskId) {
           kioskIds.add(kioskId);
           kioskCapByKiosk.set(kioskId, cap?.objectId || '');
@@ -220,7 +226,7 @@ export async function fetchOwnedObjects(client, address) {
               // Each kiosk item is a dynamic field whose value is the referenced
               // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
               // address and are skipped.
-              const itemId = node?.value?.address;
+              const itemId=objectIdValue(node?.value?.address||node?.value);
               if (!itemId || seen.has(itemId)) continue;
               kioskItemContext.set(itemId, {
                 kioskId,
