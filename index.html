@@ -1885,8 +1885,9 @@ async function completeArchive(){
       }
     }
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
-    const kioskId=selectedCardForArchive?.dataset.kioskId||undefined;
-    const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||undefined;
+    const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    const kioskId=selectedCardForArchive?.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||undefined;
+    const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
     try{
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
       if(!preflight.success && !preflight.unavailable) throw new Error(preflight.message||'Transaction preflight failed');
