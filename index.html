@@ -1588,7 +1588,13 @@ function loadWizardObjects(){
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
-      byId.set(object.objectId,existing?{...object,...existing}:object);
+      byId.set(object.objectId,existing?{
+        ...object,
+        ...existing,
+        name:existing.name||object.name,
+        imageUrl:existing.imageUrl||object.imageUrl,
+        type:existing.type||object.type,
+      }:object);
     }
     const objects=[...byId.values()];
     wizardObjects=objects;

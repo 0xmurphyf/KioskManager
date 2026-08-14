@@ -50,7 +50,11 @@ function kioskObjectToOwnedObject(nft) {
   return {
     objectId,
     type,
+    objectType: type,
     version: state?.bcs?.version,
+    name: nft.name || objectId,
+    imageUrl: nft.media_url || '',
+    isCoin: false,
     json: { id: objectId, name: nft.name || '' },
     display: {
       output: {
