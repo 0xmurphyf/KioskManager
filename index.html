@@ -1505,7 +1505,7 @@ function renderStep(){
     void refreshArchiveCost();
   }
 }
-function nextStep(){
+async function nextStep(){
   if(currentStep===1){
     const selectedCard=document.querySelector('[data-step="1"] .option.selected');
     if(!selectedObjectId || !selectedCard){
@@ -1515,6 +1515,28 @@ function nextStep(){
       if(objectNextBtn)objectNextBtn.disabled=true;
       showToast("Choose an object first");
       return;
+    }
+    const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    const isKioskItem=Boolean(
+      selectedCard.dataset.kioskId||
+      selectedCard.dataset.kioskOwnerCapId||
+      selectedModel?.kioskId||
+      selectedModel?.kioskOwnerCapId||
+      selectedModel?.kiosk||
+      selectedModel?.ownershipStatus==='Locked in Kiosk'||
+      selectedModel?.ownerObjectId
+    );
+    if(!isKioskItem){
+      try{
+        const abilities=await fetchMoveAbilities(selectedObjectType);
+        if(!abilities.includes('STORE')){
+          showToast("This object cannot be archived: its Move type does not have the store ability");
+          return;
+        }
+      }catch(error){
+        showToast(`Could not verify object type: ${error.message||error}`);
+        return;
+      }
     }
   }
   if(currentStep===2){
@@ -1875,13 +1897,6 @@ async function completeArchive(){
   if(!connection){showToast("Connect a wallet first");return;}
   if(!selectedObjectId){showToast("Choose an object first");return;}
   if(!selectedObjectType){showToast("Selected object has no type info");return;}
-  let abilities;
-  try{ abilities=await fetchMoveAbilities(selectedObjectType); }
-  catch(error){ showToast(`Could not verify object type: ${error.message||error}`); return; }
-  if(abilities.length && !abilities.includes('STORE')){
-    showToast("This object cannot be archived: its Move type does not have the store ability");
-    return;
-  }
   if(confirmText.value.trim().toUpperCase()!=="ARCHIVE"){showToast("Type ARCHIVE to confirm");return;}
   archiveBtn.disabled=true;
   showToast("Confirm the transaction in your wallet…");
@@ -1967,6 +1982,11 @@ async function completeArchive(){
     }
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    const isKioskItem=Boolean(selectedCardForArchive?.dataset.kioskId||selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskId||selectedModel?.kioskOwnerCapId||selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId);
+    if(!isKioskItem){
+      const abilities=await fetchMoveAbilities(selectedObjectType);
+      if(!abilities.includes('STORE'))throw new Error('This object cannot be archived: its Move type does not have the store ability');
+    }
     let kioskId=selectedCardForArchive?.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||undefined;
     let kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
     if(selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId){
