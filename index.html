@@ -1757,8 +1757,8 @@ function loadWizardObjects(){
         const abilities=await fetchMoveAbilities(object.type);
         return !abilities.length||abilities.includes('STORE');
       }catch(error){
-        console.debug('[owned-objects] ability lookup unavailable; hiding object',object.objectId,error);
-        return false;
+        console.debug('[owned-objects] ability lookup unavailable',object.objectId,error);
+        return true;
       }
     }));
     wizardObjects=objects.filter((_,index)=>archivable[index]);
