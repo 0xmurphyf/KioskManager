@@ -184,6 +184,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .object-grid .coin-amount{margin-top:auto;min-height:76px;overflow:hidden;font-size:9px}
 .object-grid .coin-amount .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.collection-card{cursor:pointer;transition:border-color .2s,background .2s}
+.collection-card:hover{border-color:var(--accent);background:#171711}
+.collection-card>span{display:block;margin-top:8px;font-size:9px;color:var(--dim)}
+.collection-back{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:var(--dim);padding:0 0 4px;font:inherit;font-size:12px;cursor:pointer}
+.collection-back:hover{color:var(--paper)}
 .hero-preview{margin-top:18px;overflow:hidden;background:transparent}
 .hero-preview img{width:100%;aspect-ratio:1/1;max-height:none;object-fit:contain;display:block;background:transparent}
 .hero-preview .hero-none{padding:22px;text-align:center;color:var(--dim);font-style:italic}
@@ -1267,6 +1272,7 @@ let selectedObjectType=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardFilter='all';
+let wizardCollection=null;
 let archivePolicy=null;
 const FIXED_ARCHIVE_FEE_MIST=9190000n;
 const FIXED_ARCHIVE_GAS_MIST=20000000n;
@@ -1301,21 +1307,37 @@ async function refreshArchiveCost(){
 }
 function setObjectFilter(kind,el){
   wizardFilter=kind;
+  wizardCollection=null;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
   el.classList.add('selected');
   renderFilteredObjects();
 }
+function objectKind(o){return o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')||o.indexer?.collection?'nft':'object')}
+function objectCollection(o){
+  const collection=o.indexer?.collection;
+  const fallbackType=o.type.split('::').slice(0,3).join('::');
+  return {
+    key:collection?.id||collection?.slug||fallbackType,
+    title:collection?.title||collection?.slug||o.type.split('::').pop()||'Uncategorized NFTs',
+    cover:collection?.cover_url||o.imageUrl||'',
+  };
+}
+function openObjectCollection(key){wizardCollection=key;renderFilteredObjects()}
+function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
   const list=wizardObjects.filter(o=>{
-    const kind=o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')?'nft':'object');
+    const kind=objectKind(o);
     if(wizardFilter!=='all' && kind!==wizardFilter)return false;
+    const collection=kind==='nft'?objectCollection(o):null;
+    if(wizardCollection && (!collection || collection.key!==wizardCollection))return false;
     if(q){
       const label=(o.name||o.type.split('::').pop()).toLowerCase();
       const objectId=(o.objectId||'').toLowerCase();
-      if(!label.includes(q) && !objectId.includes(q) && !(o.type.toLowerCase().includes(q)))return false;
+      const collectionLabel=(collection?.title||'').toLowerCase();
+      if(!label.includes(q) && !objectId.includes(q) && !o.type.toLowerCase().includes(q) && !collectionLabel.includes(q))return false;
     }
     return true;
   });
@@ -1328,9 +1350,35 @@ function renderFilteredObjects(){
     return;
   }
   grid.innerHTML='';
-  for(const obj of list){
+  if(wizardCollection){
+    const back=document.createElement('button');
+    back.type='button';
+    back.className='collection-back';
+    back.textContent='← All collections';
+    back.onclick=closeObjectCollection;
+    grid.appendChild(back);
+  }
+  const nfts=list.filter(o=>objectKind(o)==='nft');
+  if(!wizardCollection && nfts.length){
+    const groups=new Map();
+    for(const obj of nfts){
+      const collection=objectCollection(obj);
+      const group=groups.get(collection.key)||{...collection,objects:[]};
+      group.objects.push(obj);groups.set(collection.key,group);
+    }
+    for(const group of groups.values()){
+      const card=document.createElement('div');
+      card.className='option collection-card';
+      card.dataset.collectionKey=group.key;
+      card.onclick=()=>openObjectCollection(group.key);
+      card.innerHTML=`<div class="object-thumb">${group.cover?`<img src="${escapeHtml(group.cover)}" alt="">`:'NFT'}</div><strong>${escapeHtml(group.title)}</strong><p>${group.objects.length} NFT${group.objects.length===1?'':'s'}</p><span class="muted">View collection →</span>`;
+      grid.appendChild(card);
+    }
+  }
+  const otherObjects=wizardCollection?list:list.filter(o=>objectKind(o)!=='nft');
+  for(const obj of otherObjects){
     const label=obj.name||obj.type.split('::').pop();
-    const kind=obj.isCoin?'COIN':(obj.type.includes('NFT')||obj.type.toLowerCase().includes('voxx')?'NFT':'OBJ');
+    const kind=obj.isCoin?'COIN':'OBJ';
     const card=document.createElement('div');
     card.className='option';
     card.dataset.objectId=obj.objectId;
@@ -1343,21 +1391,19 @@ function renderFilteredObjects(){
     let extra='';
     if(obj.isCoin){
       const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
-      extra=`<div class="coin-amount" onclick="event.stopPropagation()">
-        <label>Amount</label>
-        <input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled>
-        <span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span>
-      </div>`;
+      extra=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
     }
     card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
     grid.appendChild(card);
   }
+  if(wizardCollection && !otherObjects.length)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
 }
+
 function startWizard(){
   // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
   // connected, the grid shows a connect prompt and the user connects there.
   currentStep = 1;
-  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;
+  selectedObjectId=null;selectedObjectType=null;wizardObjectsLoaded=false;wizardCollection=null;
   if(confirmText)confirmText.value="";
   if(typeof validateConfirm==='function')validateConfirm();
   showView("wizard");renderStep();

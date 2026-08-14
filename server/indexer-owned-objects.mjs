@@ -32,6 +32,13 @@ const NFT_QUERY = `
         burned
         staked
         claimable
+        collection {
+          id
+          title
+          slug
+          semantic_slug
+          cover_url
+        }
       }
     }
   }
@@ -67,6 +74,7 @@ function kioskObjectToOwnedObject(nft) {
       owner: nft.owner || '',
       delegatedOwner: nft.delegated_owner || '',
       kioskId: state.kiosk_id || '',
+      collection: nft.collection || null,
       mediaType: nft.media_type || '',
       burned: Boolean(nft.burned),
       staked: Boolean(nft.staked),
