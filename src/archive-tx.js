@@ -510,6 +510,7 @@ export async function archiveObject({
 
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
+  PACKAGE_ID,
   fetchOwnedObjects,
   fetchObjectById,
   buildArchiveTransaction,

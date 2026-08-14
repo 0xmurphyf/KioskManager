@@ -1628,6 +1628,20 @@ async function getImageHash(url){
   const buf=new Uint8Array(await res.arrayBuffer());
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf)));
 }
+async function fetchArchivedArtifactIds(){
+  const query=`query($t:String!){events(last:100,filter:{type:$t}){nodes{contents{json}}}}`;
+  const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:`${window.theArchiveTx.PACKAGE_ID||''}::memory_archive::MemoryArchived`}})});
+  if(!response.ok)return new Set();
+  const body=await response.json();
+  if(body.errors?.length)return new Set();
+  const ids=new Set();
+  for(const node of body.data?.events?.nodes||[]){
+    const json=node.contents?.json||{};
+    if(json.original_object_id)ids.add(String(json.original_object_id).toLowerCase());
+    if(json.artifact_id)ids.add(String(json.artifact_id).toLowerCase());
+  }
+  return ids;
+}
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1647,7 +1661,8 @@ function loadWizardObjects(){
     fetch(`/api/owned-objects?address=${encodeURIComponent(connection.address)}`)
       .then(response=>response.ok?response.json():null)
       .catch(()=>null),
-  ]).then(([rpcObjects,indexed])=>{
+    fetchArchivedArtifactIds(),
+  ]).then(([rpcObjects,indexed,archivedIds])=>{
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
@@ -1664,7 +1679,7 @@ function loadWizardObjects(){
     const objects=[
       ...manualObjects.map(object=>byId.get(object.objectId)||object),
       ...[...byId.values()].filter(object=>!manualIds.has(object.objectId)),
-    ];
+    ].filter(object=>manualIds.has(object.objectId)||!archivedIds.has(String(object.objectId||'').toLowerCase()));
     wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
