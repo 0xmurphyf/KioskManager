@@ -389,20 +389,12 @@ export async function fetchSuiBalance(client, address) {
   return BigInt(total);
 }
 
-// Build a `Transaction` that archives the given owned object. The object is
-// passed by reference (its ID), and a fresh gas coin is split to cover the
-// archive fee. With STORAGE_NONE the hero image URI/hash are left empty, which
-// the contract's validate_metadata allows.
-//
-// For Coin objects the caller may pass `amount` (in MIST). When `amount` is set
-// and is less than the coin's full balance, the transaction splits that amount
-// off `tx.gas` into a fresh Coin object and archives *that* — so only the chosen
-// quantity is frozen, the remainder stays spendable. `typeArgument` must then be
-// the concrete coin type, e.g. `0x2::coin::Coin<0x2::sui::SUI>`.
-//
-// `archive_forever` is generic over `T: key + store`, so the concrete Move type
-// of the archived object MUST be supplied as a type argument — omitting it fails
-// VM verification with "VerificationOrDeserialization Error in command 1".
+// Build a `Transaction` that archives the given owned object. The selected
+// artifact is passed by reference (its ID), and Coin archives may split only
+// the requested amount from that selected object. The gas coin is passed
+// directly as the `&mut Coin<SUI>` payment required by the current Move ABI;
+// the contract splits the configured fee internally and leaves the remainder
+// in that gas coin.
 export function buildArchiveTransaction({
   objectId,
   typeArgument,
@@ -430,10 +422,9 @@ export function buildArchiveTransaction({
   const emptyHash = tx.pure.vector('u8', hashVector);
   const storageArg = tx.pure.u8(storageType);
 
-  // archive_forever takes `payment` as &mut Coin<SUI> and does NOT consume it.
-  // Passing tx.gas directly (instead of a split coin) avoids creating an unused
-  // result with no `drop` ability, which would fail with
-  // "UnusedValueWithoutDrop". The policy fee is currently 0, so no SUI moves.
+  // `archive_forever` takes `payment` as `&mut Coin<SUI>` and does not consume
+  // the payment object. Passing `tx.gas` directly matches the ABI; the Move
+  // contract splits only the configured archive fee and retains the remainder.
   const payment = tx.gas;
 
   // The artifact: either the selected object, or — for a partial Coin archive —
