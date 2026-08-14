@@ -225,7 +225,7 @@ export async function fetchOwnedObjects(client, address) {
       for (const cap of caps) {
         const content = cap?.json || cap?.content?.json || cap?.content?.fields || cap?.content || {};
         const fields = content?.fields || content;
-        const kioskId=objectIdValue(fields?.kiosk||fields?.kiosk_id||fields?.id);
+        const kioskId=objectIdValue(fields?.for||fields?.kiosk||fields?.kiosk_id||fields?.id);
         if (kioskId) {
           kioskIds.add(kioskId);
           kioskCapByKiosk.set(kioskId, cap?.objectId || '');

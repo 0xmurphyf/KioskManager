@@ -1954,7 +1954,7 @@ async function completeArchive(){
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
     let kioskId=selectedCardForArchive?.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||undefined;
     let kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
-    if(selectedModel?.ownerObjectId&&(!kioskId||!kioskOwnerCapId)){
+    if(selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId){
       const refreshed=await txApi.fetchOwnedObjects(client,connection.address);
       const kioskMatch=refreshed.find(object=>object.objectId===selectedObjectId&&object.kioskId&&object.kioskOwnerCapId);
       kioskId=kioskMatch?.kioskId||kioskId;
