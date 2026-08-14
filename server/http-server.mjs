@@ -61,10 +61,29 @@ async function existingFile(path) {
   }
 }
 
+function resolveImageTarget(target) {
+  const raw = String(target || '').trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^ipfs:\/\//i.test(raw)) {
+    const parsed = new URL(raw);
+    const path = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, '');
+    const gateway = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io/ipfs/';
+    return `${gateway.replace(/\/+$/, '')}/${path}${parsed.search}`;
+  }
+  if (/^walrus:\/\//i.test(raw) || /^walrus:/i.test(raw)) {
+    const parsed = new URL(raw);
+    const blobId = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, '');
+    const aggregator = process.env.WALRUS_AGGREGATOR_URL || 'https://aggregator.walrus.space/v1/blobs';
+    return `${aggregator.replace(/\/+$/, '')}/${blobId}${parsed.search}`;
+  }
+  throw new Error('Only http(s), ipfs://, and walrus:// image URLs are supported');
+}
+
 async function hashRemoteImage(target, signal, maxBytes) {
+  const resolvedTarget=resolveImageTarget(target);
   let parsed;
-  try { parsed = new URL(target); } catch { throw new Error('Image URL is invalid'); }
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only http and https image URLs are supported');
+  try { parsed = new URL(resolvedTarget); } catch { throw new Error('Image URL is invalid'); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Image gateway URL is invalid');
   if (/^(localhost|127\.|0\.0\.0\.0$|::1$)/i.test(parsed.hostname)) throw new Error('Private image hosts are not allowed');
   const response = await fetch(parsed, { signal, redirect: 'follow' });
   if (!response.ok || !response.body) throw new Error(`Image fetch failed with HTTP ${response.status}`);
