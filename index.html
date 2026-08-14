@@ -800,10 +800,15 @@ function archiveImageUrl(archive){
   // memory-vial asset so Just-archive / no-image entries still show an image.
   return onChain || CONTRACT_HERO_URL;
 }
+function fallbackArchiveImage(event){
+  const image=event.currentTarget;
+  image.onerror=null;
+  image.src=CONTRACT_HERO_URL;
+}
 function renderLiveChainArchiveRows(archives){
   return archives.map(archive=>{
     const imageUrl=archiveImageUrl(archive);
-    const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:`<span class="archive-row-image placeholder">—</span>`;
+    const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="" onerror="fallbackArchiveImage(event)">`:`<span class="archive-row-image placeholder">—</span>`;
     const sig=capFirst(archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous");
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}" onclick="openChainArchive(this.dataset.chainArchive)">
       ${image}
@@ -871,6 +876,7 @@ function openChainArchive(archiveId){
   detailAge.textContent=`Sui Mainnet · ${sourceLabel} image`;
   const imageUrl=archiveImageUrl(archive);
   detailImage.hidden=!imageUrl;
+  detailImage.onerror=fallbackArchiveImage;
   if(imageUrl)detailImage.src=imageUrl;
   else detailImage.removeAttribute("src");
   renderVisitorNotes();
