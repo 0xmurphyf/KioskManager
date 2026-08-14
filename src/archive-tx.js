@@ -95,6 +95,8 @@ export async function fetchOwnedObjects(client, address) {
   const listOwned = client.core?.listOwnedObjects?.bind(client.core) || client.listOwnedObjects?.bind(client);
   const listCoins = client.core?.listCoins?.bind(client.core) || client.listCoins?.bind(client);
   const getCoinMetadata = client.core?.getCoinMetadata?.bind(client.core) || client.getCoinMetadata?.bind(client);
+  const listDynamicFields = client.core?.listDynamicFields?.bind(client.core) || client.listDynamicFields?.bind(client);
+  const getDynamicObjectField = client.core?.getDynamicObjectField?.bind(client.core) || client.getDynamicObjectField?.bind(client);
   if (!listOwned) throw new Error('Sui client cannot list owned objects');
   const include = client.core ? { json: true, display: true } : { content: true, display: true };
   const collected = [];
@@ -106,7 +108,45 @@ export async function fetchOwnedObjects(client, address) {
     cursor = result.hasNextPage ? result.cursor : null;
   } while (cursor);
 
-  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object');
+  // Kiosk items are not returned by listOwnedObjects because the kiosk owns them.
+  // Walk each owned Kiosk's item table and resolve dynamic object fields. KioskOwnerCap
+  // is deliberately excluded; it is a capability, not an archivable user item.
+  if (listDynamicFields && getDynamicObjectField) {
+    const owned = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object');
+    const kioskIds = owned
+      .filter((o) => /::kiosk::Kiosk(?:<|$)/.test(o.type))
+      .map((o) => o.objectId);
+    const kioskParents = new Set(kioskIds);
+    for (const raw of collected) {
+      const data = raw?.data ?? raw;
+      const content = data?.json || data?.content?.json || data?.content?.fields || data?.content || {};
+      const fields = content?.fields || content;
+      const tableId = fields?.items?.fields?.id?.id || fields?.items?.id?.id;
+      if (tableId && kioskIds.includes(data.objectId)) kioskParents.add(tableId);
+    }
+    for (const parentId of kioskParents) {
+      let fieldCursor = null;
+      do {
+        try {
+          const result = await listDynamicFields({ parentId, cursor: fieldCursor, limit: 50 });
+          for (const field of result.dynamicFields || result.fields || []) {
+            if (!field.name) continue;
+            const resolved = await getDynamicObjectField({ parentId, name: field.name, include });
+            const object = resolved?.object || resolved?.data || resolved;
+            const item = object?.data ?? object;
+            const itemType = item?.type || item?.objectType || '';
+            if (item?.objectId && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(itemType)) collected.push(object);
+          }
+          fieldCursor = result.hasNextPage ? result.cursor : null;
+        } catch (error) {
+          console.debug('[owned-objects] kiosk item scan unavailable', parentId, error);
+          fieldCursor = null;
+        }
+      } while (fieldCursor);
+    }
+  }
+
+  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type));
   const coins = described.filter((o) => o.isCoin);
   const nonCoins = described.filter((o) => !o.isCoin && o.objectId);
 
@@ -162,7 +202,7 @@ export async function fetchOwnedObjects(client, address) {
     };
   }));
 
-  return [...coinResults, ...nonCoins].filter((o) => o.objectId);
+  return [...new Map([...coinResults, ...nonCoins].filter((o) => o.objectId).map((o) => [o.objectId, o])).values()];
 }
 
 export async function fetchArchivePolicy(client) {
