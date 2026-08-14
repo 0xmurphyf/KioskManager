@@ -1710,6 +1710,7 @@ function loadWizardObjects(){
         ...existing,
         name:existing.name||object.name,
         imageUrl:existing.imageUrl||object.imageUrl,
+        imageHash:Array.isArray(existing.imageHash)&&existing.imageHash.length===32?existing.imageHash:object.imageHash,
         type:existing.type||object.type,
       }:object);
     }
