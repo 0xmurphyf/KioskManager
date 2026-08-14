@@ -1,6 +1,6 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 
@@ -59,6 +59,23 @@ async function existingFile(path) {
   } catch {
     return null;
   }
+}
+
+async function hashRemoteImage(target, signal, maxBytes) {
+  let parsed;
+  try { parsed = new URL(target); } catch { throw new Error('Image URL is invalid'); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only http and https image URLs are supported');
+  if (/^(localhost|127\.|0\.0\.0\.0$|::1$)/i.test(parsed.hostname)) throw new Error('Private image hosts are not allowed');
+  const response = await fetch(parsed, { signal, redirect: 'follow' });
+  if (!response.ok || !response.body) throw new Error(`Image fetch failed with HTTP ${response.status}`);
+  const hash = createHash('sha256');
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error(`Image exceeds ${maxBytes} bytes`);
+    hash.update(chunk);
+  }
+  return { hash: Array.from(hash.digest()), bytes: size, contentType: response.headers.get('content-type') || '' };
 }
 
 async function serveStatic(req, res, staticDir, pathname) {
@@ -122,6 +139,15 @@ export function createArchiveHttpServer({
     }
 
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/image-hash' && req.method === 'GET') {
+      const target = url.searchParams.get('url') || '';
+      try {
+        json(res, 200, await hashRemoteImage(target, req.signal, maxUploadBytes));
+      } catch (error) {
+        json(res, 502, { error: String(error?.message || error) });
+      }
+      return;
+    }
     if (url.pathname === '/api/uploads' && req.method === 'POST') {
       const contentType = String(req.headers['content-type'] || '').toLowerCase();
       const contentLength = Number(req.headers['content-length'] || 0);

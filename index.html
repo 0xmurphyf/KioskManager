@@ -1657,13 +1657,21 @@ async function getContractHeroHash(){
   return _contractHeroHash;
 }
 async function getImageHash(url){
-  // Hash the actual image bytes, not the URL string. The image must permit a
-  // browser fetch (CORS); otherwise the archive is stopped instead of writing
-  // a misleading hash that cannot be verified against the image.
-  const res=await fetch(url,{mode:'cors'});
-  if(!res.ok) throw new Error(`Could not fetch image bytes (HTTP ${res.status})`);
-  const buf=new Uint8Array(await res.arrayBuffer());
-  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf)));
+  // Hash actual bytes. Try the browser first, then use the same-origin server
+  // proxy when the source blocks browser CORS.
+  try{
+    const res=await fetch(url,{mode:'cors'});
+    if(!res.ok) throw new Error(`Could not fetch image bytes (HTTP ${res.status})`);
+    const buf=new Uint8Array(await res.arrayBuffer());
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf)));
+  }catch(browserError){
+    const response=await fetch(`/api/image-hash?url=${encodeURIComponent(url)}`);
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok||!Array.isArray(body.hash)||body.hash.length!==32){
+      throw new Error(body.error||browserError.message||'Could not read image bytes');
+    }
+    return body.hash;
+  }
 }
 async function fetchArchivedArtifactIds(){
   const query=`query($t:String!){events(last:50,filter:{type:$t}){nodes{contents{json}}}}`;
