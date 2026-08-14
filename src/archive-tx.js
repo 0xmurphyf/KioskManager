@@ -18,6 +18,7 @@ const STORAGE_ARWEAVE = 3;
 const SOURCE_ORIGINAL = 0;
 const SOURCE_ONLINE = 1;
 const SOURCE_UPLOADED = 2;
+const SUI_COIN_ICON_URL = 'https://coin-images.coingecko.com/coins/images/26375/small/sui-ocean-square.png?1727791290';
 
 // Helper: extract a readable object type + label from a Sui owned-object struct.
 // Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/
@@ -58,7 +59,8 @@ function describeObject(obj) {
     displayFields.imageUrl ||
     displayFields.url ||
     displayFields.image ||
-    '';
+    (isCoin && coinSymbol(type) === 'SUI' ? SUI_COIN_ICON_URL : '')
+    || '';
   return {
     objectId: data.objectId,
     type,
