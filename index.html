@@ -501,7 +501,7 @@ body.wallet-open{overflow:hidden}
 
     <div class="step active" data-step="1">
       <h2>Choose an object</h2>
-      <p>Select one object to remove from ownership forever. This is a real Sui Mainnet transaction — the object will be <strong>frozen and can never be recovered</strong>.</p>
+      <p>Select one object to remove from ownership forever. <strong>The object will be frozen and can never be recovered.</strong></p>
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button><button class="btn" type="button" onclick="refreshWizardObjects()">Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
@@ -1811,7 +1811,21 @@ function refreshWizardObjects(){
   loadWizardObjects();
 }
 function utf8ByteLength(value){return new TextEncoder().encode(String(value??'')).length;}
+async function externalizeImageSource(source){
+  const value=String(source??'').trim();
+  if(!/^data:image\//i.test(value))return {url:value,hash:null};
+  const response=await fetch(value);
+  if(!response.ok)throw new Error('Could not read the original image data');
+  const blob=await response.blob();
+  const bytes=await blob.arrayBuffer();
+  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
+  const upload=await fetch('/api/uploads',{method:'POST',headers:{'content-type':blob.type||'application/octet-stream'},body:blob});
+  const body=await upload.json().catch(()=>({}));
+  if(!upload.ok||!body.url)throw new Error(body.error||'Could not externalize the original image');
+  return {url:body.url,hash};
+}
 function validateArchivePureArguments({message,signature,heroUri,heroHash}){
+  if(/^data:/i.test(String(heroUri??'')))throw new Error('Image data must be uploaded first; choose Upload Image or use an external URL.');
   const limits=[
     ['message',message,16_382],
     ['sealer signature',signature,16_382],
@@ -1856,11 +1870,14 @@ async function completeArchive(){
     if(useImage){
       if(heroChoice==="Original Image"){
         if(objectImage){
-          // Original Image: persist the selected object's own image URI directly.
-          heroUri=objectImage;
+          // Original Image: preserve a normal external URI. Sui Display may
+          // expose a large data URI; externalize it before it reaches the
+          // 16,384-byte pure-argument boundary.
+          const external=await externalizeImageSource(objectImage);
+          heroUri=external.url;
           storageType=txApi.STORAGE_EXTERNAL;
           sourceType=txApi.SOURCE_ORIGINAL;
-          heroHash=objectImageHash.length===32?objectImageHash:await getImageHash(heroUri);
+          heroHash=external.hash|| (objectImageHash.length===32?objectImageHash:await getImageHash(heroUri));
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.

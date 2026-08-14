@@ -463,7 +463,7 @@ export function buildArchiveTransaction({
     arguments: [
       tx.object(POLICY_OBJECT_ID), // shared ArchivePolicy
       artifactArg, // the artifact to archive (object or split coin)
-      payment, // &mut Coin<SUI> for the fee (gas itself, unused at fee 0)
+      payment, // &mut Coin<SUI>; contract splits the configured fee
       messageArg,
       signatureArg,
       emptyUri,
