@@ -1523,8 +1523,7 @@ async function nextStep(){
       selectedModel?.kioskId||
       selectedModel?.kioskOwnerCapId||
       selectedModel?.kiosk||
-      selectedModel?.ownershipStatus==='Locked in Kiosk'||
-      selectedModel?.ownerObjectId
+      selectedModel?.ownershipStatus==='Locked in Kiosk'
     );
     if(!isKioskItem){
       try{
@@ -1982,7 +1981,7 @@ async function completeArchive(){
     }
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    const isKioskItem=Boolean(selectedCardForArchive?.dataset.kioskId||selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskId||selectedModel?.kioskOwnerCapId||selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId);
+    const isKioskItem=Boolean(selectedCardForArchive?.dataset.kioskId||selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskId||selectedModel?.kioskOwnerCapId||selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk');
     if(!isKioskItem){
       const abilities=await fetchMoveAbilities(selectedObjectType);
       if(!abilities.includes('STORE'))throw new Error('This object cannot be archived: its Move type does not have the store ability');
