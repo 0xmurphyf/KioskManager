@@ -507,7 +507,7 @@ body.wallet-open{overflow:hidden}
         </div>
       </div>
       <div class="manual-object-controls">
-        <input type="text" id="manualObjectId" placeholder="Enter any Object ID (0x…)" autocomplete="off" spellcheck="false">
+        <input type="text" id="manualObjectId" placeholder="Enter Object ID" autocomplete="off" spellcheck="false">
         <button class="btn" type="button" id="loadObjectByIdBtn" onclick="loadObjectById()">Add Object ID</button>
         <span class="muted">Ownership is not checked here; the archive contract will decide.</span>
       </div>
@@ -1690,18 +1690,24 @@ async function loadObjectById(){
     // lookup; the archive transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
     object.manual=true;
-    const existing=wizardObjects.find(o=>o.objectId===object.objectId);
-    if(!existing)wizardObjects.push(object);
+    const existingIndex=wizardObjects.findIndex(o=>o.objectId===object.objectId);
+    let selectedObject=object;
+    if(existingIndex>=0){
+      selectedObject=wizardObjects.splice(existingIndex,1)[0];
+      selectedObject.manual=true;
+    }
+    wizardObjects.unshift(selectedObject);
     wizardObjectsLoaded=true;
-    wizardCollection=null;
     wizardFilter='all';
+    const selectedKind=objectKind(selectedObject);
+    wizardCollection=selectedKind==='nft'?objectCollection(selectedObject).key:null;
     document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.toggle('selected',x.dataset.kind==='all'));
     if(document.getElementById('objectSearch'))document.getElementById('objectSearch').value='';
     renderFilteredObjects();
-    const card=document.querySelector(`[data-step="1"] [data-object-id="${CSS.escape(object.objectId)}"]`);
+    const card=document.querySelector(`[data-step="1"] [data-object-id="${CSS.escape(selectedObject.objectId)}"]`);
     if(card)selectObject(card);
     if(input)input.value='';
-    showToast(existing?'Object already loaded and selected':'Object loaded and selected');
+    showToast(existingIndex>=0?'Object found and highlighted':'Object added first and selected');
   }catch(error){
     showToast(`Could not read Object ID: ${error?.message||'unknown error'}`);
   }finally{
