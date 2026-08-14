@@ -1888,8 +1888,15 @@ async function completeArchive(){
     }
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    const kioskId=selectedCardForArchive?.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||undefined;
-    const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
+    let kioskId=selectedCardForArchive?.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||undefined;
+    let kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
+    if(selectedModel?.ownerObjectId&&(!kioskId||!kioskOwnerCapId)){
+      const refreshed=await txApi.fetchOwnedObjects(client,connection.address);
+      const kioskMatch=refreshed.find(object=>object.objectId===selectedObjectId&&object.kioskId&&object.kioskOwnerCapId);
+      kioskId=kioskMatch?.kioskId||kioskId;
+      kioskOwnerCapId=kioskMatch?.kioskOwnerCapId||kioskOwnerCapId;
+      if(!kioskId||!kioskOwnerCapId)throw new Error('This object is owned by another object, but its KioskOwnerCap was not found in the connected wallet. Refresh the wallet objects and try again.');
+    }
     try{
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
       if(!preflight.success && !preflight.unavailable) throw new Error(preflight.message||'Transaction preflight failed');

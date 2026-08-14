@@ -75,13 +75,19 @@ function ownerAddressOf(owner) {
   return owner.AddressOwner || owner.address || owner.Address?.address || '';
 }
 
+function ownerObjectIdOf(owner){
+  if(!owner||typeof owner!=='object')return '';
+  return objectIdValue(owner.ObjectOwner||owner.objectOwner||owner.Object?.objectId||owner.object?.objectId);
+}
+
 function objectStateOf(data) {
   const owner = data?.owner;
-  if (owner?.Immutable || owner?.immutable) return { objectStatus: 'Immutable', ownershipStatus: 'Immutable', ownerAddress: '' };
-  if (owner?.Shared || owner?.shared) return { objectStatus: 'Shared', ownershipStatus: 'Shared', ownerAddress: '' };
+  const ownerObjectId=ownerObjectIdOf(owner);
+  if (owner?.Immutable || owner?.immutable) return { objectStatus: 'Immutable', ownershipStatus: 'Immutable', ownerAddress: '', ownerObjectId };
+  if (owner?.Shared || owner?.shared) return { objectStatus: 'Shared', ownershipStatus: 'Shared', ownerAddress: '', ownerObjectId };
   const ownerAddress = ownerAddressOf(owner);
-  if (ownerAddress) return { objectStatus: 'Owned', ownershipStatus: 'Owned', ownerAddress };
-  return { objectStatus: 'Unknown', ownershipStatus: 'Unknown', ownerAddress: '' };
+  if (ownerAddress) return { objectStatus: 'Owned', ownershipStatus: 'Owned', ownerAddress, ownerObjectId };
+  return { objectStatus: 'Unknown', ownershipStatus: 'Unknown', ownerAddress: '', ownerObjectId };
 }
 
 function normalizeHash(value){
