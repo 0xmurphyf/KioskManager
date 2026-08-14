@@ -1835,6 +1835,14 @@ function refreshWizardObjects(){
   loadWizardObjects();
 }
 function utf8ByteLength(value){return new TextEncoder().encode(String(value??'')).length;}
+async function fetchMoveAbilities(type){
+  const query=`query($t:String!){type(type:$t){abilities}}`;
+  const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:String(type||'')}})});
+  if(!response.ok)throw new Error(`Move type lookup failed (HTTP ${response.status})`);
+  const body=await response.json();
+  if(body.errors?.length)throw new Error(body.errors[0].message||'Move type lookup failed');
+  return body.data?.type?.abilities||[];
+}
 async function externalizeImageSource(source){
   const value=String(source??'').trim();
   if(!/^data:image\//i.test(value))return {url:value,hash:null};
@@ -1867,6 +1875,13 @@ async function completeArchive(){
   if(!connection){showToast("Connect a wallet first");return;}
   if(!selectedObjectId){showToast("Choose an object first");return;}
   if(!selectedObjectType){showToast("Selected object has no type info");return;}
+  let abilities;
+  try{ abilities=await fetchMoveAbilities(selectedObjectType); }
+  catch(error){ showToast(`Could not verify object type: ${error.message||error}`); return; }
+  if(abilities.length && !abilities.includes('STORE')){
+    showToast("This object cannot be archived: its Move type does not have the store ability");
+    return;
+  }
   if(confirmText.value.trim().toUpperCase()!=="ARCHIVE"){showToast("Type ARCHIVE to confirm");return;}
   archiveBtn.disabled=true;
   showToast("Confirm the transaction in your wallet…");
