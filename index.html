@@ -929,7 +929,7 @@ function viewJustArchived() {
 }
 // Query the most recent MemoryArchived event for a given sender (Mainnet GraphQL).
 async function fetchLatestArchiveId(sender) {
-  const PACKAGE_ID = '0xc32c09413a8fd25463e08fc39b77a0d358597f6f2905165d8a40b43cd4643f52';
+  const PACKAGE_ID = '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d';
   const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
   const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
   const body = {
@@ -942,7 +942,7 @@ async function fetchLatestArchiveId(sender) {
   return node?.contents?.json?.archive_id || null;
 }
 async function fetchArchiveIdForArtifact(sender, artifactId) {
-  const PACKAGE_ID = '0xc32c09413a8fd25463e08fc39b77a0d358597f6f2905165d8a40b43cd4643f52';
+  const PACKAGE_ID = '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d';
   const EVENT_TYPE = `${PACKAGE_ID}::memory_archive::MemoryArchived`;
   const query=`query($t:String!){events(last:50,filter:{type:$t}){nodes{contents{json}}}}`;
   const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:EVENT_TYPE}})});
@@ -1941,7 +1941,7 @@ async function completeArchive(){
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
       if(!preflight.success && !preflight.unavailable) throw new Error(preflight.message||'Transaction preflight failed');
     }catch(preflightError){
-      if(/owned by object|input objects|invalid params/i.test(String(preflightError?.message||preflightError)))throw preflightError;
+      if(/owned by object|input objects|invalid params|VerificationOrDeserialization|VM Verification|MoveAbort/i.test(String(preflightError?.message||preflightError)))throw preflightError;
       console.warn('[archive-preflight] unavailable',preflightError);
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
