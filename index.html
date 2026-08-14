@@ -1884,12 +1884,10 @@ async function externalizeImageSource(source){
   const response=await fetch(value);
   if(!response.ok)throw new Error('Could not read the original image data');
   const blob=await response.blob();
-  const bytes=await blob.arrayBuffer();
-  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
   const upload=await fetch('/api/uploads',{method:'POST',headers:{'content-type':blob.type||'application/octet-stream'},body:blob});
   const body=await upload.json().catch(()=>({}));
   if(!upload.ok||!body.url)throw new Error(body.error||'Could not externalize the original image');
-  return {url:body.url,hash};
+  return {url:body.url,hash:null};
 }
 function validateArchivePureArguments({message,signature,heroUri,heroHash}){
   if(/^data:/i.test(String(heroUri??'')))throw new Error('Image data must be uploaded first; choose Upload Image or use an external URL.');
@@ -1947,7 +1945,6 @@ async function completeArchive(){
           storageType=txApi.STORAGE_EXTERNAL;
           sourceType=txApi.SOURCE_ORIGINAL;
           heroHash=external.hash || (objectImageHash.length===32?objectImageHash:[]);
-          if(heroUri && heroHash.length!==32)heroHash=await getImageHash(heroUri);
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.
@@ -1979,7 +1976,7 @@ async function completeArchive(){
       }
     }
     validateArchivePureArguments({message,signature,heroUri,heroHash});
-    if(storageType!==txApi.STORAGE_NONE && heroHash.length!==32){
+    if(storageType!==txApi.STORAGE_NONE && sourceType!==txApi.SOURCE_ORIGINAL && heroHash.length!==32){
       throw new Error('A valid 32-byte SHA-256 image hash is required before archiving');
     }
     // Resolve a partial Coin amount, if the selected object is a coin and the
