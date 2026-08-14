@@ -1755,6 +1755,18 @@ async function loadObjectById(){
     // Deliberately do not call an ownership API here. This is a public object
     // lookup; the archive transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
+    let resolvedObject=object;
+    try{
+      // A manually entered ID may be a Kiosk child. Reuse the same Mainnet
+      // Kiosk scan as the wallet object list so the transaction can take it
+      // with the user's KioskOwnerCap instead of passing the child directly.
+      const discovered=await window.theArchiveTx.fetchOwnedObjects(client,connection.address);
+      const kioskMatch=discovered.find(candidate=>candidate.objectId===object.objectId&&candidate.kioskId&&candidate.kioskOwnerCapId);
+      if(kioskMatch)resolvedObject={...object,...kioskMatch};
+    }catch(kioskError){
+      console.debug('[manual-object] kiosk context unavailable',kioskError);
+    }
+    Object.assign(object,resolvedObject);
     object.manual=true;
     const existingIndex=wizardObjects.findIndex(o=>o.objectId===object.objectId);
     let selectedObject=object;
@@ -1877,8 +1889,9 @@ async function completeArchive(){
     const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||undefined;
     try{
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
-      if(!preflight.success) console.warn('[archive-preflight]',preflight.message,preflight.result);
+      if(!preflight.success && !preflight.unavailable) throw new Error(preflight.message||'Transaction preflight failed');
     }catch(preflightError){
+      if(/owned by object|input objects|invalid params/i.test(String(preflightError?.message||preflightError)))throw preflightError;
       console.warn('[archive-preflight] unavailable',preflightError);
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
