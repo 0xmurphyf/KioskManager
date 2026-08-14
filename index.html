@@ -1801,6 +1801,19 @@ function refreshWizardObjects(){
   wizardObjectsLoaded=false;
   loadWizardObjects();
 }
+function utf8ByteLength(value){return new TextEncoder().encode(String(value??'')).length;}
+function validateArchivePureArguments({message,signature,heroUri,heroHash}){
+  const limits=[
+    ['message',message,2048],
+    ['sealer signature',signature,256],
+    ['image URL',heroUri,2048],
+  ];
+  for(const [label,value,max] of limits){
+    const bytes=utf8ByteLength(value);
+    if(bytes>max)throw new Error(`${label} is too large (${bytes} bytes; maximum ${max}). Use a shorter value or choose Upload Image for large image data.`);
+  }
+  if(!Array.isArray(heroHash)||heroHash.length>32)throw new Error('Image hash must be at most 32 bytes');
+}
 async function completeArchive(){
   const connection=window.theArchiveWallet?.getConnection?.();
   const txApi=window.theArchiveTx;
@@ -1869,6 +1882,7 @@ async function completeArchive(){
         heroHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await uploadedFinalImageBlob.arrayBuffer())));
       }
     }
+    validateArchivePureArguments({message,signature,heroUri,heroHash});
     // Resolve a partial Coin amount, if the selected object is a coin and the
     // user entered one. Blank / zero => archive the whole coin object. If the
     // entered amount meets-or-exceeds the full balance, archive the whole coin
