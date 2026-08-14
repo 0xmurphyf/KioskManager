@@ -57,6 +57,20 @@ async function retryScanRequest(fn, attempts = 3) {
   throw lastError;
 }
 
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 const POLICY_OBJECT_ID =
   '0xfd3a6fd05d9f30f0cac49f133445e13dea730206d5d87bcf4e5890c5b89f681f';
 const CLOCK_OBJECT_ID = '0x6';
@@ -251,31 +265,31 @@ export async function fetchOwnedObjects(client, address) {
           const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
           const conn = result?.object?.dynamicFields;
           const nodes = conn?.nodes || [];
-          for (const node of nodes) {
-              // Each kiosk item is a dynamic field whose value is the referenced
-              // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
-              // address and are skipped.
-              const itemId=objectIdValue(node?.value?.address||node?.value);
-              if (!itemId || seen.has(itemId)) continue;
-              kioskItemContext.set(itemId, {
-                kioskId,
-                kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
-              });
-              try {
-                const obj = await retryScanRequest(() => getObject({ objectId: itemId, include }));
-                // gRPC getObject returns { object: <flat> }, JSON-RPC returns
-                // { data: <flat> }; normalize to the flat object shape used by
-                // the rest of this function and by describeObject.
-                const o = obj?.object ?? obj?.data ?? obj;
-                const objType = o?.type || o?.objectType || '';
-                if (!/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(objType)) {
-                  collected.push(o);
-                  seen.add(itemId);
-                }
-              } catch (objErr) {
-                throw new Error(`Kiosk item ${itemId} could not be loaded: ${objErr.message || objErr}`);
+          await mapWithConcurrency(nodes, 8, async (node) => {
+            // Each kiosk item is a dynamic field whose value is the referenced
+            // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
+            // address and are skipped.
+            const itemId=objectIdValue(node?.value?.address||node?.value);
+            if (!itemId || seen.has(itemId)) return;
+            kioskItemContext.set(itemId, {
+              kioskId,
+              kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
+            });
+            try {
+              const obj = await retryScanRequest(() => getObject({ objectId: itemId, include }));
+              // gRPC getObject returns { object: <flat> }, JSON-RPC returns
+              // { data: <flat> }; normalize to the flat object shape used by
+              // the rest of this function and by describeObject.
+              const o = obj?.object ?? obj?.data ?? obj;
+              const objType = o?.type || o?.objectType || '';
+              if (!/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(objType)) {
+                collected.push(o);
+                seen.add(itemId);
               }
-          }
+            } catch (objErr) {
+              throw new Error(`Kiosk item ${itemId} could not be loaded: ${objErr.message || objErr}`);
+            }
+          });
           fieldCursor = conn?.pageInfo?.hasNextPage ? conn?.pageInfo?.endCursor : null;
         } while (fieldCursor);
       };
