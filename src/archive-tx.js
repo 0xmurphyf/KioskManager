@@ -84,6 +84,15 @@ function objectStateOf(data) {
   return { objectStatus: 'Unknown', ownershipStatus: 'Unknown', ownerAddress: '' };
 }
 
+function normalizeHash(value){
+  if(Array.isArray(value))return value.length===32&&value.every(byte=>Number.isInteger(byte)&&byte>=0&&byte<=255)?value:[];
+  if(typeof value==='string'&&/^(0x)?[0-9a-fA-F]{64}$/.test(value)){
+    const hex=value.replace(/^0x/,'');
+    return Array.from({length:32},(_,index)=>Number.parseInt(hex.slice(index*2,index*2+2),16));
+  }
+  return [];
+}
+
 function describeObject(obj) {
   const data = obj?.data ?? obj;
   const state = objectStateOf(data);
@@ -113,6 +122,7 @@ function describeObject(obj) {
     displayFields.image ||
     (isCoin && coinSymbol(type) === 'SUI' ? SUI_COIN_ICON_URL : '')
     || '';
+  const imageHash=normalizeHash(fields.image_hash||fields.imageHash||displayFields.image_hash||displayFields.imageHash);
   return {
     objectId: data.objectId,
     type,
@@ -120,6 +130,7 @@ function describeObject(obj) {
     name: typeof name === 'string' ? name : '',
     isCoin,
     imageUrl,
+    imageHash,
     exists: true,
     ...state,
     balance:

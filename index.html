@@ -1824,6 +1824,8 @@ async function completeArchive(){
     // The selected image is stored externally: original object URI, verified online URL,
     // or the TheArchive server upload URL. No decentralized-storage upload is used.
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
+    const selectedImageModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    const objectImageHash=Array.isArray(selectedImageModel?.imageHash)&&selectedImageModel.imageHash.length===32?selectedImageModel.imageHash:[];
     let storageType=txApi.STORAGE_NONE, sourceType=txApi.SOURCE_ORIGINAL, heroUri="", heroHash=[];
     const useImage = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Memory vials" || heroChoice==="Upload Image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
@@ -1836,7 +1838,7 @@ async function completeArchive(){
           heroUri=objectImage;
           storageType=txApi.STORAGE_EXTERNAL;
           sourceType=txApi.SOURCE_ORIGINAL;
-          heroHash=await getImageHash(heroUri);
+          heroHash=objectImageHash.length===32?objectImageHash:await getImageHash(heroUri);
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.
