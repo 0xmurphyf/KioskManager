@@ -1733,19 +1733,24 @@ async function getImageHash(url){
 }
 async function fetchArchivedArtifactIds(){
   const query=`query($t:String!){events(last:50,filter:{type:$t}){nodes{contents{json}}}}`;
-  const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:`${window.theArchiveTx.PACKAGE_ID||''}::memory_archive::MemoryArchived`}})});
-  if(!response.ok){console.warn('[archive-filter] GraphQL HTTP error',response.status);return new Set();}
-  const body=await response.json();
-  if(body.errors?.length){console.warn('[archive-filter] GraphQL query failed',body.errors);return new Set();}
-  const normalize=(value)=>{const raw=String(value||'').toLowerCase().replace(/^0x/,'').replace(/^0+/,'');return raw?`0x${raw}`:''};
-  const ids=new Set();
-  for(const node of body.data?.events?.nodes||[]){
-    const raw=node.contents?.json;
-    const json=typeof raw==='string'?((()=>{try{return JSON.parse(raw)}catch(_){return {}}})()):raw||{};
-    for(const key of ['original_object_id','artifact_id']){const id=normalize(json[key]);if(id)ids.add(id);}
+  try {
+    const response=await fetch('https://graphql.mainnet.sui.io/graphql',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,variables:{t:`${window.theArchiveTx.PACKAGE_ID||''}::memory_archive::MemoryArchived`}})});
+    if(!response.ok){console.warn('[archive-filter] GraphQL HTTP error',response.status);return new Set();}
+    const body=await response.json();
+    if(body.errors?.length){console.warn('[archive-filter] GraphQL query failed',body.errors);return new Set();}
+    const normalize=(value)=>{const raw=String(value||'').toLowerCase().replace(/^0x/,'').replace(/^0+/,'');return raw?`0x${raw}`:''};
+    const ids=new Set();
+    for(const node of body.data?.events?.nodes||[]){
+      const raw=node.contents?.json;
+      const json=typeof raw==='string'?((()=>{try{return JSON.parse(raw)}catch(_){return {}}})()):raw||{};
+      for(const key of ['original_object_id','artifact_id']){const id=normalize(json[key]);if(id)ids.add(id);}
+    }
+    console.info('[archive-filter] loaded archived artifact ids',ids.size);
+    return ids;
+  } catch(error) {
+    console.warn('[archive-filter] unavailable; continuing without archive filter',error);
+    return new Set();
   }
-  console.info('[archive-filter] loaded archived artifact ids',ids.size);
-  return ids;
 }
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
