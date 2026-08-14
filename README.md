@@ -1,7 +1,7 @@
 # The Archive
 
 The current deployment indexes the Sui Mainnet package at
-`0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d`.
+`0xc32c09413a8fd25463e08fc39b77a0d358597f6f2905165d8a40b43cd4643f52`.
 
 ## How the live archive works
 
