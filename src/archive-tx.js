@@ -39,7 +39,7 @@ async function graphqlFetch(query, variables) {
 }
 
 const POLICY_OBJECT_ID =
-  '0x91a69ae73077eef3c59bece51e9860ccbff888cfb01d7747d2bd29fc397b7d48';
+  '0xfd3a6fd05d9f30f0cac49f133445e13dea730206d5d87bcf4e5890c5b89f681f';
 const CLOCK_OBJECT_ID = '0x6';
 const STORAGE_NONE = 0;
 const STORAGE_EXTERNAL = 1;
