@@ -88,11 +88,12 @@ export function normalizeArchiveEvent(rawEvent, expectedEventType = '') {
 export function enrichArchive(event, object, cachedAt = new Date().toISOString()) {
   const content =
     jsonValue(object?.asMoveObject?.contents?.json ?? object?.content ?? object?.json) || {};
+  const objectType = String(object?.asMoveObject?.contents?.type?.repr || object?.type || '');
   return {
     ...event,
     objectVersion: String(object?.version ?? ''),
     objectDigest: String(object?.digest ?? ''),
-    content,
+    content: { ...content, artifact_type: objectType },
     cachedAt,
   };
 }

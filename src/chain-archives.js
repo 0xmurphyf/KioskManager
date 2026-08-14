@@ -28,7 +28,7 @@ const OBJECT_QUERY = `
       version
       digest
       asMoveObject {
-        contents { json }
+        contents { json type { repr } }
       }
     }
   }
@@ -121,11 +121,12 @@ async function enrichArchive(event) {
   const data = await graphql(OBJECT_QUERY, { address: event.archiveId });
   const object = data.object;
   const contents = object?.asMoveObject?.contents?.json || {};
+  const objectType = object?.asMoveObject?.contents?.type?.repr || '';
   return {
     ...event,
     objectVersion: object?.version || '',
     objectDigest: object?.digest || '',
-    content: contents,
+    content: { ...contents, artifact_type: objectType },
   };
 }
 
