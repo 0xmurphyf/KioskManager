@@ -1769,6 +1769,7 @@ async function completeArchive(){
           heroUri=objectImage;
           storageType=txApi.STORAGE_EXTERNAL;
           sourceType=txApi.SOURCE_ORIGINAL;
+          heroHash=await getImageHash(heroUri);
         }else{
           // No original image exists: keep metadata storage empty. The UI fallback
           // is display-only and must never become the contract URI.
