@@ -1651,7 +1651,12 @@ function loadWizardObjects(){
         type:existing.type||object.type,
       }:object);
     }
-    const objects=[...byId.values(),...wizardObjects.filter(object=>object.manual && !byId.has(object.objectId))];
+    const manualObjects=wizardObjects.filter(object=>object.manual);
+    const manualIds=new Set(manualObjects.map(object=>object.objectId));
+    const objects=[
+      ...manualObjects.map(object=>byId.get(object.objectId)||object),
+      ...[...byId.values()].filter(object=>!manualIds.has(object.objectId)),
+    ];
     wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML='<div class="chain-empty">No archivable objects found in this wallet. Mint or receive a Mainnet object first.</div>';
