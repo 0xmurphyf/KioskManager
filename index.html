@@ -482,8 +482,14 @@ body.wallet-open{overflow:hidden}
       <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="wizardWalletBtn" type="button">Connect Wallet</button><button class="btn" type="button" onclick="refreshWizardObjects()">Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
+        <div class="filter-tabs" id="objectFilter">
+          <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
+          <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
+          <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
+        </div>
       </div>
-      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>      <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
+      <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
+      <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
     </div>
 
     <div class="step" data-step="2">
@@ -1250,6 +1256,7 @@ let selectedObjectId=null;
 let selectedObjectType=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
+let wizardFilter='all';
 let archivePolicy=null;
 const FIXED_ARCHIVE_FEE_MIST=9190000n;
 const FIXED_ARCHIVE_GAS_MIST=20000000n;
@@ -1282,11 +1289,19 @@ async function refreshArchiveCost(){
   if(gas)gas.textContent=gasDisplay(FIXED_ARCHIVE_GAS_MIST);
   if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
 }
+function setObjectFilter(kind,el){
+  wizardFilter=kind;
+  document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+  renderFilteredObjects();
+}
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
   const list=wizardObjects.filter(o=>{
+    const kind=o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')?'nft':'object');
+    if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     if(q){
       const label=(o.name||o.type.split('::').pop()).toLowerCase();
       const objectId=(o.objectId||'').toLowerCase();
