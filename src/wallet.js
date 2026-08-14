@@ -244,6 +244,7 @@ function finishConnection(definition) {
   const shouldAdvance = pendingWizardAdvance;
   pendingWizardAdvance = false;
   closeWalletDialog({ cancelWizard: false });
+  window.handleWalletChanged?.(activeConnection());
   if (shouldAdvance && typeof window.renderStep === 'function') window.renderStep();
 }
 
@@ -363,6 +364,7 @@ dAppKit.stores.$connection.subscribe((connection) => {
   if (connection.isConnected && connection.wallet) {
     const definition = definitionForWallet(connection.wallet);
     if (definition) setLastWallet(definition.key);
+    window.handleWalletChanged?.({ address: connection.account?.address });
   }
   renderConnectionState();
 });

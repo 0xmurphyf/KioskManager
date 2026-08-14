@@ -1300,6 +1300,23 @@ let wizardObjects=[];
 let wizardFilter='all';
 let wizardCollection=null;
 let wizardFocusedObjectId=null;
+let lastWizardWalletAddress=null;
+function handleWalletChanged(connection){
+  const address=String(connection?.address||'').toLowerCase();
+  if(!address || address===lastWizardWalletAddress)return;
+  lastWizardWalletAddress=address;
+  wizardObjectsLoaded=false;
+  wizardObjects=[];
+  selectedObjectId=null;
+  selectedObjectType=null;
+  wizardFocusedObjectId=null;
+  wizardCollection=null;
+  wizardFilter='all';
+  currentStep=1;
+  if(typeof window.renderStep==='function')window.renderStep();
+  if(document.getElementById('objectGrid'))refreshWizardObjects();
+}
+window.handleWalletChanged=handleWalletChanged;
 let archivePolicy=null;
 const FIXED_ARCHIVE_FEE_MIST=9190000n;
 const FIXED_ARCHIVE_GAS_MIST=20000000n;
