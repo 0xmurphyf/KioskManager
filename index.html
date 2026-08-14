@@ -787,7 +787,7 @@ function renderLiveChainArchiveRows(archives){
     const imageUrl=archiveImageUrl(archive);
     const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="">`:`<span class="archive-row-image placeholder">—</span>`;
     const sig=capFirst(archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous");
-    return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
+    return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}" onclick="openChainArchive(this.dataset.chainArchive)">
       ${image}
       <span class="muted">${escapeHtml(archiveMessage(archive))}</span>
       <span class="muted hide-mobile">${escapeHtml(sig)}</span>
@@ -796,7 +796,7 @@ function renderLiveChainArchiveRows(archives){
   }).join("");
 }
 function renderChainArchiveRows(archives){
-  return archives.map(archive=>`<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}">
+  return archives.map(archive=>`<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}" onclick="openChainArchive(this.dataset.chainArchive)">
     <span class="archive-id">ARCHIVE·${escapeHtml(shortHash(archive.archiveId,6))}</span>
     <span class="archive-title">${escapeHtml(archiveTitle(archive))}</span>
     <span class="muted hide-mobile">“${escapeHtml(archiveMessage(archive))}”</span>
@@ -830,7 +830,6 @@ window.renderChainArchives=function(archives){
   archiveList.innerHTML=archives.length?renderLiveChainArchiveRows(archives):'<div class="chain-empty">No immutable archive objects have been indexed for this contract yet.</div>';
   recentList.innerHTML=archives.length?renderLiveChainArchiveRows(archives.slice(0,3)):"";
   renderMostCheckedArtifact(archives);
-  document.querySelectorAll("[data-chain-archive]").forEach(button=>button.addEventListener("click",()=>openChainArchive(button.dataset.chainArchive)));
   initWhisperPool();
 }
 window.renderChainArchiveError=function(){
