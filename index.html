@@ -221,8 +221,7 @@ textarea,input[type=text]{width:100%;background:#0f0f0d;border:1px solid var(--l
 textarea{min-height:140px}
 .step-footer{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
 .warning{padding:18px;border:1px solid rgba(154,94,85,.45);color:#d8b8b1;line-height:1.75}
-.preflight-status{min-height:18px;margin:10px 0;font-size:10px;color:var(--muted)}
-.preflight-status.ok{color:#8fd694}.preflight-status.warn{color:#e7b86b}.preflight-status.error{color:#e58b8b}
+
 .fee-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,65%);align-items:start;column-gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
 .fee-row>span:last-child{width:auto;min-width:0;max-width:100%;justify-self:end;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word;font:12px "Courier New",monospace}
 .fee-row>span:last-child[id="confirmObjectId"]{word-break:break-all}
@@ -560,7 +559,7 @@ body.wallet-open{overflow:hidden}
         <div class="fee-row fee-total"><span>Estimated total</span><span id="confirmTotalCost">—</span></div>
       </div>
       <div class="hero-preview" id="confirmHeroPreview" hidden></div>
-      <div class="preflight-status" id="archivePreflightStatus" aria-live="polite"></div>
+
       <div class="field"><label>Verify the object address, then type ARCHIVE to continue</label><input id="confirmText" type="text" oninput="validateConfirm()"></div>
       <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn danger" id="archiveBtn" onclick="completeArchive()" disabled>ARCHIVE FOREVER</button></div>
     </div>
@@ -1861,14 +1860,10 @@ async function completeArchive(){
     const selectedCardForArchive=document.querySelector('[data-step="1"] .option.selected');
     const kioskId=selectedCardForArchive?.dataset.kioskId||undefined;
     const kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||undefined;
-    const preflightEl=document.getElementById('archivePreflightStatus');
-    if(preflightEl){preflightEl.className='preflight-status';preflightEl.textContent='Checking Mainnet transaction…';}
     try{
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
-      if(preflightEl){preflightEl.className=`preflight-status ${preflight.success?'ok':'warn'}`;preflightEl.textContent=preflight.success?'Mainnet preflight passed.':'Mainnet preflight warning: '+(preflight.message||'the archive contract may reject this object.');}
       if(!preflight.success) console.warn('[archive-preflight]',preflight.message,preflight.result);
     }catch(preflightError){
-      if(preflightEl){preflightEl.className='preflight-status warn';preflightEl.textContent='Mainnet preflight unavailable: '+(preflightError?.message||'the wallet will perform final validation.');}
       console.warn('[archive-preflight] unavailable',preflightError);
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
