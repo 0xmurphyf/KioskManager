@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_PACKAGE_ID =
-  '0xf0dc81fe3f4e47580e54bd494adeb6e6d9e41bfa7ad454ad9ff1442530f07b7b';
+  '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d';
 
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? '', 10);
