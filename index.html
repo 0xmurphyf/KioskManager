@@ -186,7 +186,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 }
 .option.selected{border-color:var(--paper)}
 .object-grid .option{box-sizing:border-box;height:280px;min-height:280px;overflow:hidden;display:flex;flex-direction:column;gap:0;position:relative}
-.object-grid .option.is-kiosk{border-color:#c48a45}.object-grid .option.is-no-store{border-color:#b86b5d}.object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
+.object-grid .option.is-kiosk,.object-grid .option.is-special-ownership{border-color:#c48a45}.object-grid .option.is-no-store{border-color:#b86b5d}.object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
 .object-alert{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b86b5d;border-radius:50%;background:#17110f;color:#e7a08e;font-size:15px;line-height:1}
 .object-alert[title]{cursor:help}
 .object-state-warning{display:block;margin-top:5px;padding:5px 7px;background:#3a1b18;color:#ffd1c5;border:1px solid #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}.object-state-kiosk{display:block;margin-top:5px;padding:5px 7px;background:#3b2a16;color:#ffd79b;border:1px solid #c48a45;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}
@@ -1421,12 +1421,13 @@ function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
   const inKiosk=Boolean(obj.inKiosk||obj.kiosk||obj.kioskId||obj.kioskOwnerCapId||obj.indexer?.kioskId);
+  const specialOwnership=!inKiosk&&Boolean(obj.ownerObjectId||obj.objectStatus==='ObjectOwned'||obj.ownershipStatus==='ObjectOwned'||obj.ownershipStatus==='Special');
   const cardImageUrl=safeImageUrl(obj.imageUrl||'');
   const noStore=Boolean(obj.noStore);
   const locked=Boolean(obj.locked);
   const blocked=Boolean(obj.blocked);
   const card=document.createElement('div');
-  card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${noStore?' is-no-store':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
+  card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${specialOwnership?' is-special-ownership':''}${noStore?' is-no-store':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
   card.dataset.objectId=obj.objectId;
   card.dataset.type=obj.type;
   card.dataset.image=cardImageUrl;
@@ -1439,15 +1440,17 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.locked=locked?'1':'';
   card.dataset.blocked=blocked?'1':'';
   card.dataset.inKiosk=inKiosk?'1':'';
+  card.dataset.specialOwnership=specialOwnership?'1':'';
   card.dataset.noStore=noStore?'1':'';
   card.onclick=()=>selectObject(card);
-  let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':obj.kiosk?'KIOSK ITEM':'';
+  let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':specialOwnership?'SPECIAL OWNERSHIP':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${(blocked||noStore)?'status-blocked':''}">${noStore?'⚠ NO STORE':blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
   if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE — CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
   else if(locked)extra+=`<div class="object-state-warning">🔒 LOCKED — TAKE OUT FIRST</div>`;
   else if(inKiosk)extra+=`<div class="object-state-kiosk">▣ IN KIOSK</div>`;
+  else if(specialOwnership)extra+=`<div class="object-state-kiosk">◆ SPECIAL OWNERSHIP — MARKETPLACE / OBJECT CONTROL</div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
