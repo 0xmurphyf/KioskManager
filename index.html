@@ -1542,7 +1542,8 @@ function renderFilteredObjects(){
       card.className='option collection-card';
       card.dataset.collectionKey=group.key;
       card.onclick=()=>openObjectCollection(group.key);
-      card.innerHTML=`<div class="object-thumb">${group.cover?`<img src="${escapeHtml(group.cover)}" alt="">`:'NFT'}</div><strong>${escapeHtml(group.title)}</strong><p>${group.objects.length} NFT${group.objects.length===1?'':'s'}</p><span class="muted">View collection →</span>`;
+      const collectionImage=safeObjectDisplayImageUrl(group.cover);
+      card.innerHTML=`<div class="object-thumb">${collectionImage?`<img src="${escapeHtml(collectionImage)}" alt="" onerror="fallbackObjectImage(event)">`:'NFT'}</div><strong>${escapeHtml(group.title)}</strong><p>${group.objects.length} NFT${group.objects.length===1?'':'s'}</p><span class="muted">View collection →</span>`;
       grid.appendChild(card);
     }
   }
