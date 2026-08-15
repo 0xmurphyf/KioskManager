@@ -44,9 +44,6 @@ export const dAppKit = createDAppKit({
     new SuiGrpcClient({ network, baseUrl: MAINNET_GRPC_URL }),
   autoConnect: true,
   storageKey: 'the-archive:selected-wallet-and-address',
-  slushWalletConfig: {
-    appName: 'The Archive',
-  },
 });
 
 const walletButton = document.getElementById('walletBtn');
