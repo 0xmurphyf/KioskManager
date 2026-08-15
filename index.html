@@ -1543,8 +1543,14 @@ async function nextStep(){
       return;
     }
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    if(selectedModel?.blocked || selectedCard.dataset.blocked==='1'){
+    const scanBlocked=Boolean(selectedModel?.blocked||selectedCard.dataset.blocked==='1');
+    const scanLocked=Boolean(selectedModel?.locked||selectedCard.dataset.locked==='1');
+    if(scanBlocked){
       window.alert('This Coin is blocked by the Sui DenyList and cannot be archived from this wallet.');
+      return;
+    }
+    if(scanLocked){
+      window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
       return;
     }
     const isKioskItem=Boolean(
