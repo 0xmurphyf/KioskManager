@@ -1539,6 +1539,42 @@ async function nextStep(){
       selectedModel?.kiosk||
       selectedModel?.ownershipStatus==='Locked in Kiosk'
     );
+    if(isKioskItem && window.theArchiveWallet?.dAppKit){
+      const kioskId=selectedCard.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||'';
+      const kioskOwnerCapId=selectedCard.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||'';
+      if(kioskId && kioskOwnerCapId){
+        try{
+          const walletConnection=window.theArchiveWallet.getConnection?.();
+          const kioskClient=window.theArchiveWallet.dAppKit.getClient('mainnet');
+          const kioskCheck=await txApi.preflightArchiveTransaction({
+            client:kioskClient,
+            sender:walletConnection?.address,
+            objectId:selectedObjectId,
+            typeArgument:selectedObjectType,
+            message:'',
+            sealerSignature:'',
+            sourceType:txApi.SOURCE_ORIGINAL,
+            storageType:txApi.STORAGE_NONE,
+            heroUri:'',
+            heroHash:[],
+            kioskId,
+            kioskOwnerCapId,
+          });
+          const kioskCheckText=String(kioskCheck?.message||'');
+          if(!kioskCheck?.success && /eitemlocked|item.?locked|transfer.?policy/i.test(kioskCheckText)){
+            window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
+            return;
+          }
+        }catch(kioskCheckError){
+          const kioskCheckText=String(kioskCheckError?.message||kioskCheckError);
+          if(/eitemlocked|item.?locked|transfer.?policy/i.test(kioskCheckText)){
+            window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
+            return;
+          }
+          console.warn('[kiosk-preflight] unavailable',kioskCheckError);
+        }
+      }
+    }
     if(!isKioskItem){
       try{
         const abilities=await fetchMoveAbilities(selectedObjectType);
