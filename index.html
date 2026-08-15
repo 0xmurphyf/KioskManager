@@ -514,6 +514,11 @@ body.wallet-open{overflow:hidden}
       <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
+        <div class="filter-tabs" id="objectFilter">
+          <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
+          <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
+          <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
+        </div>
       </div>
       <div class="manual-object-controls">
         <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
@@ -1415,7 +1420,8 @@ function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
 function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
-  const inKiosk=Boolean(obj.inKiosk||obj.kiosk);
+  const inKiosk=Boolean(obj.inKiosk||obj.kiosk||obj.kioskId||obj.kioskOwnerCapId||obj.indexer?.kioskId);
+  const cardImageUrl=safeImageUrl(obj.imageUrl||'');
   const noStore=Boolean(obj.noStore);
   const locked=Boolean(obj.locked);
   const blocked=Boolean(obj.blocked);
@@ -1423,7 +1429,7 @@ function appendObjectCard(grid,obj,focused=false){
   card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${noStore?' is-no-store':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
   card.dataset.objectId=obj.objectId;
   card.dataset.type=obj.type;
-  card.dataset.image=obj.imageUrl||'';
+  card.dataset.image=cardImageUrl;
   card.dataset.isCoin=obj.isCoin?'1':'';
   card.dataset.name=obj.name||'';
   card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
@@ -1447,8 +1453,8 @@ function appendObjectCard(grid,obj,focused=false){
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
   }
   const alert=blocked?'⛔':locked?'🔒':'';
-  const thumb=obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
-  card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="" onerror="fallbackObjectImage(event)">`:thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
+  const thumb=cardImageUrl?`<img src="${escapeHtml(cardImageUrl)}" alt="" onerror="fallbackObjectImage(event)">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
+  card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
   return card;
 }
