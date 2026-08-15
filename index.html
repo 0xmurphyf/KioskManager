@@ -1414,7 +1414,8 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
   card.onclick=()=>selectObject(card);
-  const stateLabel=obj.manual?'LOOKED UP BY ID':obj.kiosk?'KIOSK ITEM':'';
+  let stateLabel=obj.manual?'LOOKED UP BY ID':obj.kiosk?'KIOSK ITEM':'';
+  if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill">${escapeHtml(stateLabel)}</span></div>`:'';
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
@@ -1752,6 +1753,23 @@ async function fetchArchivedArtifactIds(){
     return new Set();
   }
 }
+async function enrichObjectStoreStatus(objects){
+  const candidates=objects.filter(object=>object?.objectId&&object.type&&object.type!=='Unknown object'&&!object.kiosk&&!object.kioskId&&!object.kioskOwnerCapId);
+  let next=0;
+  async function worker(){
+    while(next<candidates.length){
+      const object=candidates[next++];
+      try{
+        const abilities=await fetchMoveAbilities(object.type);
+        object.noStore=!abilities.includes('STORE');
+      }catch(error){
+        console.debug('[owned-objects] background STORE check unavailable',object.objectId,error);
+      }
+    }
+  }
+  await Promise.all(Array.from({length:Math.min(8,candidates.length)},worker));
+  if(candidates.some(object=>object.noStore))renderFilteredObjects();
+}
 function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1798,6 +1816,7 @@ function loadWizardObjects(){
       return;
     }
     renderFilteredObjects();
+    enrichObjectStoreStatus(objects).catch(error=>console.debug('[owned-objects] background STORE enrichment failed',error));
     if(selectedObjectId){
       const selectedCard=document.querySelector(`[data-step="1"] [data-object-id="${CSS.escape(selectedObjectId)}"]`);
       if(selectedCard)selectObject(selectedCard);
