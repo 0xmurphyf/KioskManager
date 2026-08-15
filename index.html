@@ -1537,13 +1537,17 @@ async function nextStep(){
       selectedModel?.kioskId||
       selectedModel?.kioskOwnerCapId||
       selectedModel?.kiosk||
+      selectedModel?.ownerObjectId||
       selectedModel?.ownershipStatus==='Locked in Kiosk'
     );
     if(isKioskItem && window.theArchiveWallet?.dAppKit){
       const kioskId=selectedCard.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||'';
       const kioskOwnerCapId=selectedCard.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||'';
-      if(kioskId && kioskOwnerCapId){
-        try{
+      if(!kioskId || !kioskOwnerCapId){
+        window.alert('This object is in a Kiosk, but its KioskOwnerCap could not be verified. Refresh your wallet objects before continuing.');
+        return;
+      }
+      try{
           const walletConnection=window.theArchiveWallet.getConnection?.();
           const kioskClient=window.theArchiveWallet.dAppKit.getClient('mainnet');
           const kioskCheck=await txApi.preflightArchiveTransaction({
@@ -1573,7 +1577,6 @@ async function nextStep(){
           }
           console.warn('[kiosk-preflight] unavailable',kioskCheckError);
         }
-      }
     }
     if(!isKioskItem){
       try{
