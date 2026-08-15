@@ -2042,10 +2042,20 @@ async function completeArchive(){
     }
     try{
       const preflight=await txApi.preflightArchiveTransaction({client,sender:connection.address,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
-      if(!preflight.success && !preflight.unavailable) throw new Error(preflight.message||'Transaction preflight failed');
+      const preflightText=String(preflight.message||'');
+      const legacyOriginalHashAbort=sourceType===txApi.SOURCE_ORIGINAL
+        && /memory_archive::.*validate_metadata/i.test(preflightText)
+        && /e_invalid_hash_length|abort code:\s*8/i.test(preflightText);
+      if(!preflight.success && !preflight.unavailable && !legacyOriginalHashAbort) throw new Error(preflightText||'Transaction preflight failed');
+      if(legacyOriginalHashAbort)console.warn('[archive-preflight] ignoring legacy Original Image hash validation from simulator; Mainnet v5 accepts empty/arbitrary Original metadata hashes');
     }catch(preflightError){
-      if(/owned by object|input objects|invalid params|VerificationOrDeserialization|VM Verification|MoveAbort/i.test(String(preflightError?.message||preflightError)))throw preflightError;
-      console.warn('[archive-preflight] unavailable',preflightError);
+      const preflightErrorText=String(preflightError?.message||preflightError);
+      const legacyOriginalHashError=sourceType===txApi.SOURCE_ORIGINAL
+        && /memory_archive::.*validate_metadata/i.test(preflightErrorText)
+        && /e_invalid_hash_length|abort code:\s*8/i.test(preflightErrorText);
+      if(!legacyOriginalHashError && /owned by object|input objects|invalid params|VerificationOrDeserialization|VM Verification|MoveAbort/i.test(preflightErrorText))throw preflightError;
+      if(legacyOriginalHashError)console.warn('[archive-preflight] ignoring legacy Original Image hash validation exception from simulator; Mainnet v5 accepts empty/arbitrary Original metadata hashes');
+      else console.warn('[archive-preflight] unavailable',preflightError);
     }
     const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
