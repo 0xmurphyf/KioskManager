@@ -62,7 +62,7 @@ function kioskObjectToOwnedObject(nft, wallet = '') {
     name: nft.name || objectId,
     imageUrl: nft.media_url || '',
     isCoin: false,
-    ownerObjectId: nft.owner && normalizeAddress(nft.owner) !== normalizeAddress(wallet) && nft.owner !== state.kiosk_id ? normalizeAddress(nft.owner) : '',
+    ownerObjectId: (nft.delegated_owner || nft.owner) && normalizeAddress(nft.delegated_owner || nft.owner) !== normalizeAddress(wallet) && normalizeAddress(nft.delegated_owner || nft.owner) !== normalizeAddress(state.kiosk_id) ? normalizeAddress(nft.delegated_owner || nft.owner) : '',
     json: { id: objectId, name: nft.name || '' },
     display: {
       output: {
