@@ -404,7 +404,7 @@ export async function fetchOwnedObjects(client, address) {
   const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
     return kiosk
- ? { ...object, kiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk' }
+ ? { ...object, kiosk: true, inKiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk' }
       : { ...object, ownershipStatus: object.ownerAddress && object.ownerAddress.toLowerCase() === address.toLowerCase() ? 'Owned by connected wallet' : object.ownershipStatus };
   });
   const coins = described.filter((o) => o.isCoin);

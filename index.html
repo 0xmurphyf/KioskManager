@@ -186,10 +186,10 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 }
 .option.selected{border-color:var(--paper)}
 .object-grid .option{box-sizing:border-box;height:280px;min-height:280px;overflow:hidden;display:flex;flex-direction:column;gap:0;position:relative}
-.object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
+.object-grid .option.is-kiosk{border-color:#c48a45}.object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
 .object-alert{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b86b5d;border-radius:50%;background:#17110f;color:#e7a08e;font-size:15px;line-height:1}
 .object-alert[title]{cursor:help}
-.object-state-warning{display:block;margin-top:5px;padding:5px 7px;background:#3a1b18;color:#ffd1c5;border:1px solid #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}
+.object-state-warning{display:block;margin-top:5px;padding:5px 7px;background:#3a1b18;color:#ffd1c5;border:1px solid #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}.object-state-kiosk{display:block;margin-top:5px;padding:5px 7px;background:#3b2a16;color:#ffd79b;border:1px solid #c48a45;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}
 .coin-glyph{width:72px;height:72px;border:2px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--paper);font:600 12px "Courier New",monospace;letter-spacing:.04em}.object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
 .object-grid .option>p{margin:6px 0 0;min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
 .object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
@@ -1406,10 +1406,11 @@ function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
 function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
+  const inKiosk=Boolean(obj.inKiosk||obj.kiosk);
   const locked=Boolean(obj.locked);
   const blocked=Boolean(obj.blocked);
   const card=document.createElement('div');
-  card.className=`option${focused?' manual-focused':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
+  card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
   card.dataset.objectId=obj.objectId;
   card.dataset.type=obj.type;
   card.dataset.image=obj.imageUrl||'';
@@ -1421,12 +1422,14 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
   card.dataset.locked=locked?'1':'';
   card.dataset.blocked=blocked?'1':'';
+  card.dataset.inKiosk=inKiosk?'1':'';
   card.onclick=()=>selectObject(card);
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${blocked?'status-blocked':''}">${blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
   if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
   else if(locked)extra+=`<div class="object-state-warning">🔒 LOCKED — TAKE OUT FIRST</div>`;
+  else if(inKiosk)extra+=`<div class="object-state-kiosk">▣ IN KIOSK</div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
@@ -1543,16 +1546,6 @@ async function nextStep(){
       return;
     }
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    const scanBlocked=Boolean(selectedModel?.blocked||selectedCard.dataset.blocked==='1');
-    const scanLocked=Boolean(selectedModel?.locked||selectedCard.dataset.locked==='1');
-    if(scanBlocked){
-      window.alert('This Coin is blocked by the Sui DenyList and cannot be archived from this wallet.');
-      return;
-    }
-    if(scanLocked){
-      window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
-      return;
-    }
     const isKioskItem=Boolean(
       selectedCard.dataset.kioskId||
       selectedCard.dataset.kioskOwnerCapId||
@@ -1562,43 +1555,61 @@ async function nextStep(){
       selectedModel?.ownerObjectId||
       selectedModel?.ownershipStatus==='Locked in Kiosk'
     );
-    if(isKioskItem && window.theArchiveWallet?.dAppKit){
-      const kioskId=selectedCard.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||'';
-      const kioskOwnerCapId=selectedCard.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||'';
-      if(!kioskId || !kioskOwnerCapId){
-        window.alert('This object is in a Kiosk, but its KioskOwnerCap could not be verified. Refresh your wallet objects before continuing.');
+    const kioskId=selectedCard.dataset.kioskId||selectedModel?.kioskId||selectedModel?.indexer?.kioskId||'';
+    const kioskOwnerCapId=selectedCard.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||'';
+    if(isKioskItem && (!kioskId || !kioskOwnerCapId)){
+      window.alert('This object is in a Kiosk, but its KioskOwnerCap could not be verified. Refresh your wallet objects before continuing.');
+      return;
+    }
+    if(!window.theArchiveWallet?.dAppKit){
+      showToast('Connect a wallet before checking this object');
+      return;
+    }
+    try{
+      const walletConnection=window.theArchiveWallet.getConnection?.();
+      const preflightImage=(selectedCard.dataset.image||'').trim();
+      const preflightHash=Array.isArray(selectedModel?.imageHash)?selectedModel.imageHash:[];
+      const preflight=await txApi.preflightArchiveTransaction({
+        client:window.theArchiveWallet.dAppKit.getClient('mainnet'),
+        sender:walletConnection?.address,
+        objectId:selectedObjectId,
+        typeArgument:selectedObjectType,
+        message:'',
+        sealerSignature:'',
+        sourceType:txApi.SOURCE_ORIGINAL,
+        storageType:preflightImage?txApi.STORAGE_EXTERNAL:txApi.STORAGE_NONE,
+        heroUri:preflightImage,
+        heroHash:preflightHash,
+        kioskId:isKioskItem?kioskId:undefined,
+        kioskOwnerCapId:isKioskItem?kioskOwnerCapId:undefined,
+      });
+      const preflightText=String(preflight?.message||'');
+      if(!preflight?.success){
+        if(/eitemlocked|item.?locked|transfer.?policy/i.test(preflightText)){
+          window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
+        }else{
+          window.alert(`This object cannot be archived yet.\n\n${preflightText||'Mainnet preflight failed.'}`);
+        }
         return;
       }
-      try{
-          const walletConnection=window.theArchiveWallet.getConnection?.();
-          const kioskClient=window.theArchiveWallet.dAppKit.getClient('mainnet');
-          const kioskCheck=await txApi.preflightArchiveTransaction({
-            client:kioskClient,
-            sender:walletConnection?.address,
-            objectId:selectedObjectId,
-            typeArgument:selectedObjectType,
-            message:'',
-            sealerSignature:'',
-            sourceType:txApi.SOURCE_ORIGINAL,
-            storageType:txApi.STORAGE_NONE,
-            heroUri:'',
-            heroHash:[],
-            kioskId,
-            kioskOwnerCapId,
-          });
-          const kioskCheckText=String(kioskCheck?.message||'');
-          if(!kioskCheck?.success && /eitemlocked|item.?locked|transfer.?policy/i.test(kioskCheckText)){
-            window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
-            return;
-          }
-        }catch(kioskCheckError){
-          const kioskCheckText=String(kioskCheckError?.message||kioskCheckError);
-          if(/eitemlocked|item.?locked|transfer.?policy/i.test(kioskCheckText)){
-            window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
-            return;
-          }
-          console.warn('[kiosk-preflight] unavailable',kioskCheckError);
-        }
+    }catch(preflightError){
+      const preflightText=String(preflightError?.message||preflightError);
+      if(/eitemlocked|item.?locked|transfer.?policy/i.test(preflightText)){
+        window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
+      }else{
+        window.alert(`Could not verify this object on Mainnet.\n\n${preflightText}`);
+      }
+      return;
+    }
+    const scanBlocked=Boolean(selectedModel?.blocked||selectedCard.dataset.blocked==='1');
+    const scanLocked=Boolean(selectedModel?.locked||selectedCard.dataset.locked==='1');
+    if(scanBlocked){
+      window.alert('This Coin is blocked by the Sui DenyList and cannot be archived from this wallet.');
+      return;
+    }
+    if(scanLocked){
+      window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
+      return;
     }
     if(!isKioskItem){
       try{
