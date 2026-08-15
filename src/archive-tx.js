@@ -32,7 +32,7 @@ const KIOSK_FIELDS_QUERY = `
 const DENY_LIST_CONFIGS_QUERY = `
   query DenyListConfigs($cursor: String) {
     object(address: "0x403") {
-      dynamicFields(first: 100, after: $cursor) {
+      dynamicFields(first: 50, after: $cursor) {
         nodes { name { type { repr } json } value { ... on MoveObject { address } } }
         pageInfo { hasNextPage endCursor }
       }
@@ -42,7 +42,7 @@ const DENY_LIST_CONFIGS_QUERY = `
 const DENY_LIST_CONFIG_QUERY = `
   query DenyListConfig($id: SuiAddress!, $cursor: String) {
     object(address: $id) {
-      dynamicFields(first: 100, after: $cursor) {
+      dynamicFields(first: 50, after: $cursor) {
         nodes { name { type { repr } json } value { ... on MoveValue { json type { repr } } } }
         pageInfo { hasNextPage endCursor }
       }
