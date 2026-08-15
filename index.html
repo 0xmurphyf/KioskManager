@@ -185,8 +185,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
   min-height:0;aspect-ratio:1/1;padding:18px;text-align:center;display:grid;place-items:center
 }
 .option.selected{border-color:var(--paper)}
-.object-grid .option{box-sizing:border-box;height:280px;min-height:280px;overflow:hidden;display:flex;flex-direction:column;gap:0}
-.object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
+.object-grid .option{box-sizing:border-box;height:280px;min-height:280px;overflow:hidden;display:flex;flex-direction:column;gap:0;position:relative}
+.object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
+.object-alert{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b86b5d;border-radius:50%;background:#17110f;color:#e7a08e;font-size:15px;line-height:1}
+.object-alert[title]{cursor:help}
+.coin-glyph{width:72px;height:72px;border:2px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--paper);font:600 12px "Courier New",monospace;letter-spacing:.04em}.object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
 .object-grid .option>p{margin:6px 0 0;min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
 .object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
 .object-status .muted{overflow:hidden;text-overflow:ellipsis}
@@ -1402,8 +1405,10 @@ function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
 function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
+  const locked=Boolean(obj.locked);
+  const blocked=Boolean(obj.blocked);
   const card=document.createElement('div');
-  card.className=`option${focused?' manual-focused':''}`;
+  card.className=`option${focused?' manual-focused':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
   card.dataset.objectId=obj.objectId;
   card.dataset.type=obj.type;
   card.dataset.image=obj.imageUrl||'';
@@ -1414,8 +1419,6 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
   card.onclick=()=>selectObject(card);
-  const locked=Boolean(obj.locked);
-  const blocked=Boolean(obj.blocked);
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${blocked?'status-blocked':''}">${blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
@@ -1423,7 +1426,9 @@ function appendObjectCard(grid,obj,focused=false){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
   }
-  card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
+  const alert=blocked?'⛔':locked?'🔒':'';
+  const thumb=obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
+  card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
   return card;
 }

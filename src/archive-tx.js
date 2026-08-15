@@ -367,10 +367,11 @@ export async function fetchOwnedObjects(client, address) {
             // address and are skipped.
             const itemId=objectIdValue(node?.value?.address||node?.value);
             if (!itemId || seen.has(itemId)) return;
+            const existingItemContext=kioskItemContext.get(itemId);
             kioskItemContext.set(itemId, {
               kioskId,
-              kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
-              locked: lockedItems.has(itemId),
+              kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || existingItemContext?.kioskOwnerCapId || '',
+              locked: Boolean(existingItemContext?.locked || lockedItems.has(itemId)),
             });
             try {
               const obj = await retryScanRequest(() => getObject({ objectId: itemId, include }));
