@@ -798,6 +798,20 @@ function safeImageUrl(value){
     return "";
   }catch{return ""}
 }
+function fallbackObjectImage(event){
+  const image=event.currentTarget;
+  const match=String(image.src||'').match(/\/ipfs\/([^/?#]+)([^#]*)/i);
+  if(!match)return;
+  const gateways=[
+    `https://gateway.pinata.cloud/ipfs/${match[1]}${match[2]||''}`,
+    `https://${match[1]}.ipfs.dweb.link/${(match[2]||'').replace(/^\//,'')}`,
+    `https://ipfs.filebase.io/ipfs/${match[1]}${match[2]||''}`,
+  ];
+  const index=Number(image.dataset.gatewayFallback||0);
+  if(index>=gateways.length)return;
+  image.dataset.gatewayFallback=String(index+1);
+  image.src=gateways[index];
+}
 function archiveImageUrl(archive){
   const onChain=safeImageUrl(archive.content?.image_url||archive.content?.artifact?.image_url||"");
   // STORAGE_NONE archives carry no on-chain hero; fall back to the canonical
@@ -1434,7 +1448,7 @@ function appendObjectCard(grid,obj,focused=false){
   }
   const alert=blocked?'⛔':locked?'🔒':'';
   const thumb=obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
-  card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
+  card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="" onerror="fallbackObjectImage(event)">`:thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
   return card;
 }
