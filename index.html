@@ -1419,7 +1419,7 @@ function appendObjectCard(grid,obj,focused=false){
   let extra=stateLabel?`<div class="object-status"><span class="status-pill">${escapeHtml(stateLabel)}</span></div>`:'';
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
-    extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="e.g. ${fullSUI.toFixed(4)}" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)} — leave blank to archive all</span></div>`;
+    extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" step="0.000000001" placeholder="leave blank to archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled></div>`;
   }
   card.innerHTML=`<div class="object-thumb">${obj.imageUrl?`<img src="${escapeHtml(obj.imageUrl)}" alt="">`:kind.slice(0,4)}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
