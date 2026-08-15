@@ -219,6 +219,8 @@ function describeObject(obj) {
   const imageUrl =
     fields.image_url ||
     fields.imageUrl ||
+    fields.media_url ||
+    fields.mediaUrl ||
     fields.url ||
     artifactFields.image_url ||
     artifactFields.imageUrl ||
