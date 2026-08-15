@@ -29,6 +29,26 @@ const KIOSK_FIELDS_QUERY = `
     }
   }
 `;
+const DENY_LIST_CONFIGS_QUERY = `
+  query DenyListConfigs($cursor: String) {
+    object(address: "0x403") {
+      dynamicFields(first: 100, after: $cursor) {
+        nodes { name { type { repr } json } value { ... on MoveObject { address } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+const DENY_LIST_CONFIG_QUERY = `
+  query DenyListConfig($id: SuiAddress!, $cursor: String) {
+    object(address: $id) {
+      dynamicFields(first: 100, after: $cursor) {
+        nodes { name { type { repr } json } value { ... on MoveValue { json type { repr } } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
 
 function objectIdValue(value){
   if(typeof value==='string')return value;
@@ -46,6 +66,52 @@ async function graphqlFetch(query, variables) {
   const body = await response.json();
   if (body.errors?.length) throw new Error(body.errors[0].message || 'Mainnet GraphQL query failed');
   return body.data;
+}
+
+function decodeDenyListKey(value){
+  try{
+    const binary=atob(String(value||''));
+    return decodeURIComponent(Array.from(binary,c=>`%${c.charCodeAt(0).toString(16).padStart(2,'0')}`).join(''));
+  }catch{return '';}
+}
+function coinTypeSuffix(type){
+  const inner=String(type||'').match(/::Coin<(.+)>$/)?.[1]||String(type||'');
+  const parts=inner.split('::');
+  return parts.length>=2?`::${parts.at(-2)}::${parts.at(-1)}`:'';
+}
+async function fetchDeniedCoinSuffixes(address,coinTypes){
+  if(!address||!coinTypes.length)return new Set();
+  try{
+    const epochResult=await graphqlFetch('{ epoch { epochId } }',{});
+    const epoch=Number(epochResult?.epoch?.epochId??-1);
+    const wanted=new Set(coinTypes.map(coinTypeSuffix).filter(Boolean));
+    const configs=[]; let cursor=null;
+    do{
+      const result=await graphqlFetch(DENY_LIST_CONFIGS_QUERY,{cursor});
+      for(const node of result?.object?.dynamicFields?.nodes||[]){
+        const decoded=decodeDenyListKey(node?.name?.json?.per_type_key);
+        const suffix=[...wanted].find(candidate=>decoded.endsWith(candidate));
+        if(suffix&&node?.value?.address)configs.push({suffix,id:node.value.address});
+      }
+      const page=result?.object?.dynamicFields?.pageInfo;
+      cursor=page?.hasNextPage?page.endCursor:null;
+    }while(cursor);
+    const blocked=new Set();
+    for(const config of configs){
+      let settingCursor=null;
+      do{
+        const result=await graphqlFetch(DENY_LIST_CONFIG_QUERY,{id:config.id,cursor:settingCursor});
+        for(const node of result?.object?.dynamicFields?.nodes||[]){
+          if(!/::deny_list::AddressKey$/.test(node?.name?.type?.repr||'')||String(node?.name?.json?.pos0||'').toLowerCase()!==address.toLowerCase())continue;
+          const data=node?.value?.json?.data||{};
+          if(data.older_value_opt===true||(data.newer_value===true&&Number(data.newer_value_epoch)<=epoch))blocked.add(config.suffix);
+        }
+        const page=result?.object?.dynamicFields?.pageInfo;
+        settingCursor=page?.hasNextPage?page.endCursor:null;
+      }while(settingCursor);
+    }
+    return blocked;
+  }catch(error){console.debug('[owned-objects] Sui DenyList scan unavailable',error);return new Set();}
 }
 
 async function retryScanRequest(fn, attempts = 3) {
@@ -275,11 +341,27 @@ export async function fetchOwnedObjects(client, address) {
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
       const scanKiosk = async (kioskId) => {
         let fieldCursor = null;
+        const lockedItems = new Set();
         do {
           const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
           const conn = result?.object?.dynamicFields;
           const nodes = conn?.nodes || [];
           await mapWithConcurrency(nodes, 8, async (node) => {
+            const fieldType = node?.name?.type?.repr || '';
+            if (/::kiosk::Lock(?:<|$)/.test(fieldType)) {
+              const lockedId = objectIdValue(node?.name?.json);
+              if (lockedId) {
+                lockedItems.add(lockedId);
+                const existing = kioskItemContext.get(lockedId) || {};
+                kioskItemContext.set(lockedId, {
+                  ...existing,
+                  kioskId,
+                  kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || existing.kioskOwnerCapId || '',
+                  locked: true,
+                });
+              }
+              return;
+            }
             // Each kiosk item is a dynamic field whose value is the referenced
             // object. Non-object fields (e.g. `Lock`, `Extension`) have no value
             // address and are skipped.
@@ -288,6 +370,7 @@ export async function fetchOwnedObjects(client, address) {
             kioskItemContext.set(itemId, {
               kioskId,
               kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || '',
+              locked: lockedItems.has(itemId),
             });
             try {
               const obj = await retryScanRequest(() => getObject({ objectId: itemId, include }));
@@ -320,7 +403,7 @@ export async function fetchOwnedObjects(client, address) {
   const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
     return kiosk
-      ? { ...object, kiosk: true, kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: 'Locked in Kiosk', ownershipStatus: 'Locked in Kiosk' }
+ ? { ...object, kiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk' }
       : { ...object, ownershipStatus: object.ownerAddress && object.ownerAddress.toLowerCase() === address.toLowerCase() ? 'Owned by connected wallet' : object.ownershipStatus };
   });
   const coins = described.filter((o) => o.isCoin);
@@ -341,6 +424,7 @@ export async function fetchOwnedObjects(client, address) {
 
   const balanceByObject = new Map();
   const distinctTypes = [...new Set(coins.map((c) => norm(innerTypeOf(c.type))))];
+  const denyListedSuffixes = await fetchDeniedCoinSuffixes(address, distinctTypes);
   if (listCoins) {
     for (const it of distinctTypes) {
       let c = null;
@@ -378,6 +462,7 @@ export async function fetchOwnedObjects(client, address) {
     }
     return {
       ...o,
+      blocked: denyListedSuffixes.has(coinTypeSuffix(o.type)),
       imageUrl,
       balance: balanceByObject.has(o.objectId) ? balanceByObject.get(o.objectId) : o.balance,
     };

@@ -1414,9 +1414,11 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
   card.onclick=()=>selectObject(card);
-  let stateLabel=obj.manual?'LOOKED UP BY ID':obj.kiosk?'KIOSK ITEM':'';
+  const locked=Boolean(obj.locked);
+  const blocked=Boolean(obj.blocked);
+  let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
-  let extra=stateLabel?`<div class="object-status"><span class="status-pill">${escapeHtml(stateLabel)}</span></div>`:'';
+  let extra=stateLabel?`<div class="object-status"><span class="status-pill ${blocked?'status-blocked':''}">${blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
@@ -1531,6 +1533,10 @@ async function nextStep(){
       return;
     }
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    if(selectedModel?.blocked){
+      window.alert('This Coin is blocked by the Sui DenyList and cannot be archived from this wallet.');
+      return;
+    }
     const isKioskItem=Boolean(
       selectedCard.dataset.kioskId||
       selectedCard.dataset.kioskOwnerCapId||
