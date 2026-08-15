@@ -1546,6 +1546,11 @@ async function nextStep(){
       return;
     }
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
+    const txApi=window.theArchiveTx;
+    if(!txApi){
+      window.alert('Archive transaction API is not available. Reload the page and try again.');
+      return;
+    }
     const isKioskItem=Boolean(
       selectedCard.dataset.kioskId||
       selectedCard.dataset.kioskOwnerCapId||
