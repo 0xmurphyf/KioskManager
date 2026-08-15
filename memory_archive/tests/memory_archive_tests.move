@@ -56,6 +56,15 @@ fun accepts_original_external_uri_without_hash() {
     );
 }
 
+#[test]
+fun accepts_original_external_uri_with_arbitrary_metadata_hash() {
+    memory_archive::validate_metadata_for_testing(
+        string::utf8(b"message"), string::utf8(b"signature"),
+        string::utf8(b"http://unreachable.example/image.png"), vector[1, 2, 3],
+        memory_archive::source_original(), memory_archive::storage_external(),
+    );
+}
+
 #[test, expected_failure(abort_code = 10)]
 fun rejects_online_arweave_pair() {
     memory_archive::validate_metadata_for_testing(
