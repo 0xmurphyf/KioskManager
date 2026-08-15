@@ -813,7 +813,7 @@ function fallbackArchiveImage(event){
 function renderLiveChainArchiveRows(archives){
   return archives.map(archive=>{
     const imageUrl=archiveImageUrl(archive);
-    const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="" onerror="fallbackArchiveImage(event)">`:`<span class="archive-row-image placeholder">—</span>`;
+    const image=imageUrl?`<img class="archive-row-image" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" decoding="async" onerror="fallbackArchiveImage(event)">`:`<span class="archive-row-image placeholder">—</span>`;
     const sig=capFirst(archive.content?.sealer_signature && archive.content.sealer_signature.trim()!=="" ? archive.content.sealer_signature.trim() : "anonymous");
     return `<button class="archive-row" data-chain-archive="${escapeHtml(archive.archiveId)}" onclick="openChainArchive(this.dataset.chainArchive)">
       ${image}
