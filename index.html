@@ -1580,7 +1580,14 @@ async function nextStep(){
     }
     try{
       const walletConnection=window.theArchiveWallet.getConnection?.();
-      const preflightImage=(selectedCard.dataset.image||'').trim();
+      let preflightImage=(selectedCard.dataset.image||'').trim();
+      if(/^data:image\//i.test(preflightImage)){
+        const external=await externalizeImageSource(preflightImage);
+        preflightImage=external.url;
+      }
+      if(utf8ByteLength(preflightImage)>16_382){
+        throw new Error('Original image URL is too large for a Sui transaction. The image must be externalized before continuing.');
+      }
       const preflightHash=Array.isArray(selectedModel?.imageHash)?selectedModel.imageHash:[];
       const preflight=await txApi.preflightArchiveTransaction({
         client:window.theArchiveWallet.dAppKit.getClient('mainnet'),
