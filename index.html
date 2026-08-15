@@ -189,6 +189,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-grid .option.is-locked,.object-grid .option.is-blocked{border-color:#b86b5d}
 .object-alert{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b86b5d;border-radius:50%;background:#17110f;color:#e7a08e;font-size:15px;line-height:1}
 .object-alert[title]{cursor:help}
+.object-state-warning{display:block;margin-top:5px;padding:5px 7px;background:#3a1b18;color:#ffd1c5;border:1px solid #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}
 .coin-glyph{width:72px;height:72px;border:2px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--paper);font:600 12px "Courier New",monospace;letter-spacing:.04em}.object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
 .object-grid .option>p{margin:6px 0 0;min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
 .object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
@@ -1418,10 +1419,14 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.kioskId=obj.kioskId||obj.indexer?.kioskId||'';
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
+  card.dataset.locked=locked?'1':'';
+  card.dataset.blocked=blocked?'1':'';
   card.onclick=()=>selectObject(card);
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${blocked?'status-blocked':''}">${blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
+  if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
+  else if(locked)extra+=`<div class="object-state-warning">🔒 LOCKED — TAKE OUT FIRST</div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
@@ -1538,7 +1543,7 @@ async function nextStep(){
       return;
     }
     const selectedModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    if(selectedModel?.blocked){
+    if(selectedModel?.blocked || selectedCard.dataset.blocked==='1'){
       window.alert('This Coin is blocked by the Sui DenyList and cannot be archived from this wallet.');
       return;
     }
