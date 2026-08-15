@@ -514,11 +514,6 @@ body.wallet-open{overflow:hidden}
       <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
-        <div class="filter-tabs" id="objectFilter">
-          <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
-          <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
-          <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
-        </div>
       </div>
       <div class="manual-object-controls">
         <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
