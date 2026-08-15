@@ -1774,7 +1774,7 @@ function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
   if(!connection){
-    grid.innerHTML='<div class="chain-empty">Connect a wallet first (step 1), then return here.</div>';
+    grid.innerHTML='<div class="chain-empty">Connect a wallet first, then return here.</div>';
     return;
   }
   if(!window.theArchiveTx.isMainnetAccount(connection)){
