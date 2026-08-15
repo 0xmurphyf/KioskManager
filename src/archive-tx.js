@@ -13,6 +13,7 @@ const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
 // package ID for event type queries; transaction targets must use the published
 // package that actually contains the v5 metadata validation.
 const RUNTIME_PACKAGE_ID = '0xc4a05bd6f1950e2db689599894bfe08217a1ca34223b8597cd41db24d6ffe52e';
+const EVENT_PACKAGE_ID = '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b5098d855851d';
 
 // Enumerate the dynamic object fields (i.e. items) of a Kiosk object. Kiosk items
 // are stored as dynamic fields on the Kiosk object keyed by item object id.
@@ -713,6 +714,7 @@ export async function archiveObject({
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
   PACKAGE_ID,
+  EVENT_PACKAGE_ID,
   fetchOwnedObjects,
   fetchObjectById,
   preflightArchiveTransaction,
