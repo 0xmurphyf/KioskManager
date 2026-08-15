@@ -225,16 +225,21 @@ export async function fetchOwnedObjects(client, address) {
   if (!listOwned) throw new Error('Sui client cannot list owned objects');
   const include = client.core ? { json: true, display: true } : { content: true, display: true };
   const collected = [];
+  let scanIncomplete = false;
   let cursor = null;
-  do {
-    const result = await retryScanRequest(() => listOwned({ owner: address, cursor, limit: 100, include }));
-    const page = result.objects || result.data || [];
-    collected.push(...page);
-    cursor = result.hasNextPage ? result.cursor : null;
-  } while (cursor);
+  try {
+    do {
+      const result = await retryScanRequest(() => listOwned({ owner: address, cursor, limit: 100, include }));
+      const page = result.objects || result.data || [];
+      collected.push(...page);
+      cursor = result.hasNextPage ? result.cursor : null;
+    } while (cursor);
+  } catch (error) {
+    scanIncomplete = true;
+    console.debug('[owned-objects] wallet object scan incomplete; keeping partial results', error);
+  }
 
   const kioskItemContext = new Map();
-  let scanIncomplete = false;
   // Kiosk items are NOT returned by listOwnedObjects because the Kiosk owns them.
   // The connected account owns a KioskOwnerCap per kiosk; from each cap we read the
   // kiosk id, then enumerate the Kiosk object's dynamic object fields (GraphQL
@@ -331,16 +336,21 @@ export async function fetchOwnedObjects(client, address) {
   if (listCoins) {
     for (const it of distinctTypes) {
       let c = null;
-      do {
-        const res = await retryScanRequest(() => listCoins({ owner: address, coinType: it, cursor: c, limit: 100 }));
-        for (const obj of res.objects || []) {
-          balanceByObject.set(
-            obj.objectId,
-            obj.balance !== undefined ? BigInt(obj.balance) : undefined,
-          );
-        }
-        c = res.hasNextPage ? res.cursor : null;
-      } while (c);
+      try {
+        do {
+          const res = await retryScanRequest(() => listCoins({ owner: address, coinType: it, cursor: c, limit: 100 }));
+          for (const obj of res.objects || []) {
+            balanceByObject.set(
+              obj.objectId,
+              obj.balance !== undefined ? BigInt(obj.balance) : undefined,
+            );
+          }
+          c = res.hasNextPage ? res.cursor : null;
+        } while (c);
+      } catch (error) {
+        scanIncomplete = true;
+        console.debug('[owned-objects] coin balance scan incomplete', it, error);
+      }
     }
   }
 

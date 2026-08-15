@@ -1822,7 +1822,11 @@ function loadWizardObjects(){
       if(selectedCard)selectObject(selectedCard);
     }
   }).catch(error=>{
-    grid.innerHTML=`<div class="chain-empty">Could not load objects: ${escapeHtml(String(error.message||error))}</div>`;
+    const detail=String(error?.message||error||'').toLowerCase();
+    const message=detail.includes('failed to fetch')||detail.includes('network')||detail.includes('timeout')
+      ? 'The Mainnet object scan could not reach the Sui network. Showing no cached objects; enter an Object ID above or try Refresh.'
+      : `Could not load objects: ${escapeHtml(String(error.message||error))}`;
+    grid.innerHTML=`<div class="chain-empty scan-incomplete-notice">${message}</div>`;
   });
 }
 async function loadObjectById(){
