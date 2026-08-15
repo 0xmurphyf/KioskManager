@@ -136,6 +136,7 @@ function describeObject(obj) {
   const rawContent = data?.json || data?.content || data?.contentJson || {};
   const contentJson = rawContent?.json || rawContent?.fields || rawContent;
   const fields = contentJson?.fields || contentJson;
+  const artifactFields = fields?.artifact?.fields || fields?.artifact || {};
   const type = data?.type || data?.objectType || fields?.type || 'Unknown object';
   const isCoin = type.includes('::coin::Coin<') || type.includes('0x2::coin::Coin');
   // Fallback label for non-coins: last segment of the Move type (e.g.
@@ -153,6 +154,9 @@ function describeObject(obj) {
     fields.image_url ||
     fields.imageUrl ||
     fields.url ||
+    artifactFields.image_url ||
+    artifactFields.imageUrl ||
+    artifactFields.url ||
     displayFields.image_url ||
     displayFields.imageUrl ||
     displayFields.url ||
