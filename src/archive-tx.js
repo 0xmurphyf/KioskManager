@@ -196,6 +196,23 @@ function normalizeHash(value){
   return [];
 }
 
+function normalizeImageUrl(value){
+  const raw=String(value||'').trim();
+  if(!raw)return '';
+  try{
+    const url=new URL(raw);
+    if(url.protocol==='ipfs:'){
+      const path=`${url.hostname}${url.pathname}`.replace(/^\/+/, '');
+      return `https://ipfs.io/ipfs/${path}${url.search}`;
+    }
+    if(url.protocol==='walrus:'){
+      const blobId=`${url.hostname}${url.pathname}`.replace(/^\/+/, '');
+      return `https://aggregator.walrus.space/v1/blobs/${blobId}${url.search}`;
+    }
+  }catch{}
+  return raw;
+}
+
 function describeObject(obj) {
   const data = obj?.data ?? obj;
   const state = objectStateOf(data);
@@ -216,7 +233,7 @@ function describeObject(obj) {
   const balanceRaw = fields.balance !== undefined ? fields.balance : contentJson?.balance;
   const display = data?.display?.output || data?.display?.data || data?.display || fields?.display?.output || fields?.display?.data || fields?.display || contentJson?.display?.output || contentJson?.display?.data || contentJson?.display || {};
   const displayFields = display?.data || display;
-  const imageUrl =
+  const imageUrl=normalizeImageUrl(
     fields.image_url ||
     fields.imageUrl ||
     fields.media_url ||
@@ -230,7 +247,8 @@ function describeObject(obj) {
     displayFields.url ||
     displayFields.image ||
     (isCoin && coinSymbol(type) === 'SUI' ? SUI_COIN_ICON_URL : '')
-    || '';
+    || ''
+  );
   const imageHash=normalizeHash(fields.image_hash||fields.imageHash||displayFields.image_hash||displayFields.imageHash);
   return {
     objectId: data.objectId,
