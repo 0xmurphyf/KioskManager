@@ -1913,7 +1913,7 @@ async function externalizeImageSource(source){
   if(!upload.ok||!body.url)throw new Error(body.error||'Could not externalize the original image');
   return {url:body.url,hash:null};
 }
-function validateArchivePureArguments({message,signature,heroUri,heroHash}){
+function validateArchivePureArguments({message,signature,heroUri,heroHash,sourceType}){
   if(/^data:/i.test(String(heroUri??'')))throw new Error('Image data must be uploaded first; choose Upload Image or use an external URL.');
   const limits=[
     ['message',message,16_382],
@@ -1924,7 +1924,7 @@ function validateArchivePureArguments({message,signature,heroUri,heroHash}){
     const bytes=utf8ByteLength(value);
     if(bytes>max)throw new Error(`${label} is too large (${bytes} bytes; maximum ${max}). Use a shorter value or choose Upload Image for large image data.`);
   }
-  if(!Array.isArray(heroHash)||heroHash.length>32)throw new Error('Image hash must be at most 32 bytes');
+  if(sourceType!==0 && (!Array.isArray(heroHash)||heroHash.length>32))throw new Error('Online and uploaded images require a hash no longer than 32 bytes.');
 }
 async function completeArchive(){
   const connection=window.theArchiveWallet?.getConnection?.();
@@ -1999,7 +1999,7 @@ async function completeArchive(){
         heroHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await uploadedFinalImageBlob.arrayBuffer())));
       }
     }
-    validateArchivePureArguments({message,signature,heroUri,heroHash});
+    validateArchivePureArguments({message,signature,heroUri,heroHash,sourceType});
     if(storageType!==txApi.STORAGE_NONE && sourceType!==txApi.SOURCE_ORIGINAL && heroHash.length!==32){
       throw new Error('A valid 32-byte SHA-256 image hash is required before archiving');
     }
