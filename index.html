@@ -346,6 +346,11 @@ body.wallet-open{overflow:hidden}
 }
 @media (max-width:599px){
   .object-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .object-grid .option>strong{font-size:10px;line-height:1.15}
+  .object-grid .option>p{font-size:8px}
+  .object-grid .object-status{font-size:7px;min-height:16px}
+  .object-grid .status-pill{font-size:6px;padding:2px 4px}
+  .object-grid .object-state-warning,.object-grid .object-state-kiosk{font-size:8px;line-height:1.2;letter-spacing:.04em;padding:4px 3px;overflow-wrap:anywhere}
 }
 
 @media(max-width:900px){
@@ -1460,11 +1465,11 @@ function appendObjectCard(grid,obj,focused=false){
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':specialOwnership?'SPECIAL OWNERSHIP':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${(blocked||noStore)?'status-blocked':''}">${noStore?'⚠ NO STORE':blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
-  if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE — CANNOT ARCHIVE</div>`;
+  if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
-  else if(locked)extra+=`<div class="object-state-warning"><a href="https://microsoft.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED — TAKE OUT FIRST</a></div>`;
+  else if(locked)extra+=`<div class="object-state-warning"><a href="https://microsoft.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED TAKE OUT FIRST</a></div>`;
   else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://google.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▣ IN KIOSK</a></div>`;
-  else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://yahoo.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ SPECIAL OWNERSHIP — MARKETPLACE / OBJECT CONTROL</a></div>`;
+  else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://yahoo.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ SPECIAL OWNERSHIP MARKETPLACE OBJECT CONTROL</a></div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
