@@ -1898,10 +1898,29 @@ function loadWizardObjects(){
     }
     const manualObjects=wizardObjects.filter(object=>object.manual);
     const manualIds=new Set(manualObjects.map(object=>object.objectId));
-    const objects=[
-      ...manualObjects.map(object=>byId.get(object.objectId)||object),
-      ...[...byId.values()].filter(object=>!manualIds.has(object.objectId)),
-    ].filter(object=>manualIds.has(object.objectId)||!archivedIds.has(String(object.objectId||'').toLowerCase()));
+    const previousById=new Map(wizardObjects.filter(object=>object?.objectId).map(object=>[String(object.objectId).toLowerCase(),object]));
+    const mergedById=new Map(previousById);
+    for(const [id,incoming] of byId){
+      const previous=previousById.get(String(id).toLowerCase());
+      mergedById.set(String(id).toLowerCase(),previous?{
+        ...previous,
+        ...incoming,
+        name:incoming.name||previous.name,
+        imageUrl:incoming.imageUrl||previous.imageUrl,
+        imageHash:Array.isArray(incoming.imageHash)&&incoming.imageHash.length===32?incoming.imageHash:previous.imageHash,
+        type:incoming.type||previous.type,
+        kiosk:incoming.kiosk??previous.kiosk,
+        inKiosk:incoming.inKiosk??previous.inKiosk,
+        locked:incoming.locked??previous.locked,
+        blocked:incoming.blocked??previous.blocked,
+        noStore:incoming.noStore??previous.noStore,
+        kioskId:incoming.kioskId||previous.kioskId,
+        kioskOwnerCapId:incoming.kioskOwnerCapId||previous.kioskOwnerCapId,
+        objectStatus:incoming.objectStatus||previous.objectStatus,
+        ownershipStatus:incoming.ownershipStatus||previous.ownershipStatus,
+      }:incoming);
+    }
+    const objects=[...mergedById.values()].filter(object=>manualIds.has(object.objectId)||!archivedIds.has(String(object.objectId||'').toLowerCase()));
     wizardObjects=objects;
     if(!objects.length){
       grid.innerHTML=`${wizardScanIncomplete?'<div class="chain-empty scan-incomplete-notice">Scan incomplete. Enter an Object ID above to add a missing object.</div>':''}<div class="chain-empty">No objects found in this wallet. Mint or receive a Mainnet object first.</div>`;
