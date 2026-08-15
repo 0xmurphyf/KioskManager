@@ -817,6 +817,14 @@ function fallbackObjectImage(event){
   image.dataset.gatewayFallback=String(index+1);
   image.src=gateways[index];
 }
+function fallbackCoinImage(event){
+  const image=event.currentTarget;
+  const label=image.closest('.option')?.querySelector('strong')?.textContent?.slice(0,6)||'COIN';
+  const fallback=document.createElement('div');
+  fallback.className='coin-glyph';
+  fallback.textContent=label;
+  image.replaceWith(fallback);
+}
 function archiveImageUrl(archive){
   const onChain=safeImageUrl(archive.content?.image_url||archive.content?.artifact?.image_url||"");
   // STORAGE_NONE archives carry no on-chain hero; fall back to the canonical
@@ -1399,6 +1407,7 @@ async function refreshArchiveCost(){
   if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
+  if(wizardObjects.length<=1)return;
   wizardFilter=kind;
   wizardCollection=null;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
@@ -1456,7 +1465,7 @@ function appendObjectCard(grid,obj,focused=false){
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
   }
   const alert=blocked?'⛔':locked?'🔒':'';
-  const thumb=cardImageUrl?`<img src="${escapeHtml(cardImageUrl)}" alt="" onerror="fallbackObjectImage(event)">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
+  const thumb=cardImageUrl?`<img src="${escapeHtml(cardImageUrl)}" alt="" onerror="${obj.isCoin?'fallbackCoinImage(event)':'fallbackObjectImage(event)'}">`:obj.isCoin?`<div class="coin-glyph">${escapeHtml(label.slice(0,6))}</div>`:kind.slice(0,4);
   card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
   return card;
@@ -1464,6 +1473,12 @@ function appendObjectCard(grid,obj,focused=false){
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
+  const filterTabs=document.getElementById('objectFilter');
+  if(filterTabs){
+    const showFilters=wizardObjects.length>1;
+    filterTabs.style.display=showFilters?'flex':'none';
+    if(!showFilters)wizardFilter='all';
+  }
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
   const list=wizardObjects.filter(o=>{
     const kind=objectKind(o);
@@ -1941,6 +1956,7 @@ function loadWizardObjects(){
         noStore:incoming.noStore??previous.noStore,
         kioskId:incoming.kioskId||previous.kioskId,
         kioskOwnerCapId:incoming.kioskOwnerCapId||previous.kioskOwnerCapId,
+        ownerObjectId:incoming.ownerObjectId||previous.ownerObjectId,
         objectStatus:incoming.objectStatus||previous.objectStatus,
         ownershipStatus:incoming.ownershipStatus||previous.ownershipStatus,
       }:incoming);

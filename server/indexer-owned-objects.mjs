@@ -49,7 +49,7 @@ function normalizeAddress(address) {
   return /^0x[0-9a-f]{1,64}$/.test(value) ? value : '';
 }
 
-function kioskObjectToOwnedObject(nft) {
+function kioskObjectToOwnedObject(nft, wallet = '') {
   const state = nft?.chain_state || {};
   const type = state?.bcs?.type || state?.type || '';
   const objectId = nft?.token_id || '';
@@ -62,6 +62,7 @@ function kioskObjectToOwnedObject(nft) {
     name: nft.name || objectId,
     imageUrl: nft.media_url || '',
     isCoin: false,
+    ownerObjectId: nft.owner && normalizeAddress(nft.owner) !== normalizeAddress(wallet) && nft.owner !== state.kiosk_id ? normalizeAddress(nft.owner) : '',
     json: { id: objectId, name: nft.name || '' },
     display: {
       output: {
@@ -155,7 +156,7 @@ export function createOwnedObjectIndexer({
 
     const objects = new Map();
     for (const row of nftRows) {
-      const object = kioskObjectToOwnedObject(row);
+      const object = kioskObjectToOwnedObject(row, wallet);
       if (object && !object.indexer.burned) objects.set(object.objectId, object);
     }
     return {
