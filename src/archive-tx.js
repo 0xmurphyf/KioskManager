@@ -9,6 +9,10 @@ import { Transaction } from '@mysten/sui/transactions';
 import { PACKAGE_ID } from './chain-archives.js';
 
 const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
+// Mainnet v5 runtime package. Keep chain-archives.js on the canonical/original
+// package ID for event type queries; transaction targets must use the published
+// package that actually contains the v5 metadata validation.
+const RUNTIME_PACKAGE_ID = '0xc4a05bd6f1950e2db689599894bfe08217a1ca34223b8597cd41db24d6ffe52e';
 
 // Enumerate the dynamic object fields (i.e. items) of a Kiosk object. Kiosk items
 // are stored as dynamic fields on the Kiosk object keyed by item object id.
@@ -499,7 +503,7 @@ export function buildArchiveTransaction({
   }
 
   const args = {
-    target: `${PACKAGE_ID}::memory_archive::archive_forever`,
+    target: `${RUNTIME_PACKAGE_ID}::memory_archive::archive_forever`,
     arguments: [
       tx.object(POLICY_OBJECT_ID), // shared ArchivePolicy
       artifactArg, // the artifact to archive (object or split coin)
