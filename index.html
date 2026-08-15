@@ -803,6 +803,11 @@ function safeImageUrl(value){
     return "";
   }catch{return ""}
 }
+function safeObjectDisplayImageUrl(value){
+  const raw=String(value||'').trim();
+  if(/^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,/i.test(raw))return raw;
+  return safeImageUrl(raw);
+}
 function fallbackObjectImage(event){
   const image=event.currentTarget;
   const match=String(image.src||'').match(/\/ipfs\/([^/?#]+)([^#]*)/i);
@@ -1431,7 +1436,7 @@ function appendObjectCard(grid,obj,focused=false){
   const kind=obj.isCoin?'COIN':'OBJ';
   const inKiosk=Boolean(obj.inKiosk||obj.kiosk||obj.kioskId||obj.kioskOwnerCapId||obj.indexer?.kioskId);
   const specialOwnership=!inKiosk&&Boolean(obj.ownerObjectId||obj.objectStatus==='ObjectOwned'||obj.ownershipStatus==='ObjectOwned'||obj.ownershipStatus==='Special');
-  const cardImageUrl=safeImageUrl(obj.imageUrl||'');
+  const cardImageUrl=safeObjectDisplayImageUrl(obj.imageUrl||'');
   const noStore=Boolean(obj.noStore);
   const locked=Boolean(obj.locked);
   const blocked=Boolean(obj.blocked);
