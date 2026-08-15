@@ -1933,7 +1933,7 @@ async function completeArchive(){
     // or the TheArchive server upload URL. No decentralized-storage upload is used.
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
     const selectedImageModel=wizardObjects.find(object=>object.objectId===selectedObjectId);
-    const objectImageHash=Array.isArray(selectedImageModel?.imageHash)&&selectedImageModel.imageHash.length===32?selectedImageModel.imageHash:[];
+    const objectImageHash=Array.isArray(selectedImageModel?.imageHash)?selectedImageModel.imageHash:[];
     let storageType=txApi.STORAGE_NONE, sourceType=txApi.SOURCE_ORIGINAL, heroUri="", heroHash=[];
     const useImage = heroChoice==="Original Image" || heroChoice==="Online Image" || heroChoice==="Memory vials" || heroChoice==="Upload Image";
     if(heroChoice==="Online Image" && !onlineImageContractUrl){
