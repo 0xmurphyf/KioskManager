@@ -1417,13 +1417,14 @@ async function refreshArchiveCost(){
   if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
-  if(wizardObjects.length<=1)return;
+  if(wizardObjects.filter(o=>!isSuiCoin(o)).length<=1)return;
   wizardFilter=kind;
   wizardCollection=null;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
   el.classList.add('selected');
   renderFilteredObjects();
 }
+function isSuiCoin(o){return Boolean(o?.isCoin&&/::coin::Coin<\s*0x2::sui::SUI\s*>/i.test(String(o.type||'')))}
 function objectKind(o){return o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')||o.indexer?.collection?'nft':'object')}
 function objectCollection(o){
   const collection=o.indexer?.collection;
@@ -1485,12 +1486,12 @@ function renderFilteredObjects(){
   if(!grid)return;
   const filterTabs=document.getElementById('objectFilter');
   if(filterTabs){
-    const showFilters=wizardObjects.length>1;
+    const showFilters=wizardObjects.filter(o=>!isSuiCoin(o)).length>1;
     filterTabs.style.display=showFilters?'flex':'none';
     if(!showFilters)wizardFilter='all';
   }
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
-  const list=wizardObjects.filter(o=>{
+  const list=wizardObjects.filter(o=>!isSuiCoin(o)).filter(o=>{
     const kind=objectKind(o);
     if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     const collection=kind==='nft'?objectCollection(o):null;
@@ -1503,8 +1504,8 @@ function renderFilteredObjects(){
     }
     return true;
   });
-  if(!wizardObjects.length){
-    grid.innerHTML='<div class="chain-empty">Connect a wallet to load your Mainnet objects.</div>';
+  if(!wizardObjects.some(o=>!isSuiCoin(o))){
+    grid.innerHTML='<div class="chain-empty">No selectable objects found in this wallet.</div>';
     return;
   }
   if(!list.length){
