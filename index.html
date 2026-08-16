@@ -2316,6 +2316,47 @@ function wireFinalImageUpload(){
   const popupUploadBtn=document.getElementById("popupUploadFinalBtn");
   const popupClearBtn=document.getElementById("popupClearFinalBtn");
   if(!fileInput||!nameInput||!popupUploadBtn)return;
+  const makeSquareImage=async(blob)=>{
+    const maxCanvasSide=4096;
+    let source=null;
+    let width=0;
+    let height=0;
+    let revokeUrl=null;
+    try{
+      if(window.createImageBitmap){
+        source=await createImageBitmap(blob,{imageOrientation:"from-image"});
+        width=source.width;
+        height=source.height;
+      }else{
+        revokeUrl=URL.createObjectURL(blob);
+        source=await new Promise((resolve,reject)=>{
+          const image=new Image();
+          image.onload=()=>resolve(image);
+          image.onerror=()=>reject(new Error("Could not decode image"));
+          image.src=revokeUrl;
+        });
+        width=source.naturalWidth;
+        height=source.naturalHeight;
+      }
+      if(!width||!height)throw new Error("Image has no readable dimensions");
+      const side=Math.min(Math.max(width,height),maxCanvasSide);
+      const scale=Math.min(side/width,side/height);
+      const drawWidth=Math.max(1,Math.round(width*scale));
+      const drawHeight=Math.max(1,Math.round(height*scale));
+      const canvas=document.createElement("canvas");
+      canvas.width=side;
+      canvas.height=side;
+      const context=canvas.getContext("2d");
+      if(!context)throw new Error("Transparent square canvas is unavailable");
+      context.clearRect(0,0,side,side);
+      context.drawImage(source,Math.round((side-drawWidth)/2),Math.round((side-drawHeight)/2),drawWidth,drawHeight);
+      const squareBlob=await new Promise((resolve,reject)=>canvas.toBlob(result=>result?resolve(result):reject(new Error("Could not encode square image")),"image/png"));
+      return squareBlob;
+    }finally{
+      if(revokeUrl)URL.revokeObjectURL(revokeUrl);
+      source?.close?.();
+    }
+  };
   const imageUrlInput=document.getElementById("finalImageUrl");
   const useUrlBtn=document.getElementById("useFinalImageUrlBtn");
   const clearUrlBtn=document.getElementById("clearFinalImageUrlBtn");
@@ -2385,6 +2426,7 @@ function wireFinalImageUpload(){
       popupUploadBtn.disabled=false;
       popupClearBtn.hidden=false;
       renderStepImagePreview();
+      showToast("Upload image prepared as a transparent square without cropping");
       closeFinalImagePopup();
     };
     const readBlob=(blob)=>new Promise((resolve,reject)=>{
@@ -2398,10 +2440,11 @@ function wireFinalImageUpload(){
         const converted=window.theArchiveHeicSupport?.isHeicFile(file)
           ? await window.theArchiveHeicSupport.convertFile(file)
           : file;
-        finishLocalImage(await readBlob(converted),converted);
+        const squareBlob=await makeSquareImage(converted);
+        finishLocalImage(await readBlob(squareBlob),squareBlob);
       }catch(error){
-        console.error("HEIC conversion failed",error);
-        showToast("This HEIC/HEIF image could not be decoded");
+        console.error("Upload image square conversion failed",error);
+        showToast(error?.message||"This image could not be converted to a square");
       }
     })();
   });
