@@ -1424,7 +1424,7 @@ function setObjectFilter(kind,el){
   el.classList.add('selected');
   renderFilteredObjects();
 }
-function isSuiCoin(o){return Boolean(o?.isCoin&&/::coin::Coin<\s*0x2::sui::SUI\s*>/i.test(String(o.type||'')))}
+function isSuiCoin(o){return /::coin::Coin<[^>]*::sui::SUI\s*>/i.test(String(o?.type||''))}
 function objectKind(o){return o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')||o.indexer?.collection?'nft':'object')}
 function objectCollection(o){
   const collection=o.indexer?.collection;
