@@ -1385,7 +1385,7 @@ function handleWalletChanged(connection){
 }
 window.handleWalletChanged=handleWalletChanged;
 let archivePolicy=null;
-const FIXED_ARCHIVE_FEE_MIST=9190000n;
+const FIXED_ARCHIVE_FEE_MIST=91900000n;
 const FIXED_ARCHIVE_GAS_MIST=20000000n;
 const FIXED_ARCHIVE_TOTAL_MIST=FIXED_ARCHIVE_FEE_MIST+FIXED_ARCHIVE_GAS_MIST;
 let archiveGasEstimateMist=FIXED_ARCHIVE_GAS_MIST;
@@ -1402,7 +1402,8 @@ async function refreshArchiveCost(){
   const total=document.getElementById('confirmTotalCost');
   try{
     archivePolicy=await api.fetchArchivePolicy(client);
-    if(fee)fee.textContent=feeDisplay(FIXED_ARCHIVE_FEE_MIST);
+    const liveFee=archivePolicy.archiveFeeMist??FIXED_ARCHIVE_FEE_MIST;
+    if(fee)fee.textContent=feeDisplay(liveFee);
   }catch(error){
     console.warn('[archive-fee] unable to read policy', error);
     archivePolicy=null;
@@ -1413,8 +1414,9 @@ async function refreshArchiveCost(){
     return;
   }
   archiveGasEstimateMist=FIXED_ARCHIVE_GAS_MIST;
+  const liveFee=archivePolicy?.archiveFeeMist??FIXED_ARCHIVE_FEE_MIST;
   if(gas)gas.textContent=gasDisplay(FIXED_ARCHIVE_GAS_MIST);
-  if(total)total.textContent=`≈ ${(Number(FIXED_ARCHIVE_TOTAL_MIST)/1e9).toFixed(5)} SUI`;
+  if(total)total.textContent=`≈ ${(Number(liveFee+FIXED_ARCHIVE_GAS_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
   if(wizardObjects.filter(o=>!isSuiCoin(o)).length<=1)return;
