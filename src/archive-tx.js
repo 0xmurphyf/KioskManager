@@ -88,6 +88,44 @@ async function graphqlFetch(query, variables) {
   return body.data;
 }
 
+// Authoritative lock check read directly from the Kiosk's dynamic fields.
+// Mirrors the on-chain `kiosk::is_locked(id)` logic: an item is locked iff a
+// `0x2::kiosk::Lock<T>` dynamic field exists for it. We never assume scan state.
+const KIOSK_LOCK_QUERY = `
+  query KioskLockCheck($id: SuiAddress!, $cursor: String) {
+    object(address: $id) {
+      dynamicFields(first: 50, after: $cursor) {
+        nodes { name { type { repr } json } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+export async function isKioskItemLocked(kioskId, itemId) {
+  if (!kioskId || !itemId) return false;
+  try {
+    let cursor = null;
+    const target = String(itemId).toLowerCase();
+    do {
+      const result = await graphqlFetch(KIOSK_LOCK_QUERY, { id: kioskId, cursor });
+      const conn = result?.object?.dynamicFields;
+      for (const node of conn?.nodes || []) {
+        const repr = node?.name?.type?.repr || '';
+        if (!/::kiosk::Lock(?:<|$)/.test(repr)) continue;
+        const lockedId = objectIdValue(node?.name?.json);
+        if (lockedId && String(lockedId).toLowerCase() === target) return true;
+      }
+      cursor = conn?.pageInfo?.hasNextPage ? conn?.pageInfo?.endCursor : null;
+    } while (cursor);
+    return false;
+  } catch {
+    // If we cannot verify, do not block — the chain will reject with EItemLocked
+    // and the UI already explains that case.
+    return false;
+  }
+}
+
 function decodeDenyListKey(value){
   try{
     const binary=atob(String(value||''));
@@ -736,8 +774,45 @@ export async function takeKioskItemToWallet({
     ['target wallet', targetAddress],
   ].filter(([, value]) => !value).map(([label]) => label);
   if (missing.length) throw new Error(`Kiosk transfer is missing: ${missing.join(', ')}`);
+  // Authoritative lock check: never sign a take on a locked Kiosk item. The
+  // chain would abort with EItemLocked (code 8) otherwise, which is confusing
+  // to users. Re-read the Kiosk's dynamic fields here rather than trusting the
+  // possibly-stale scan snapshot.
+  if (kioskId && objectId) {
+    const locked = await isKioskItemLocked(kioskId, objectId);
+    if (locked) {
+      throw new Error(
+        'This Kiosk item is locked by its TransferPolicy (kiosk::EItemLocked). ' +
+        'Unlock or delist it first, then try again.'
+      );
+    }
+  }
+  // Resolve the real capability type from chain state instead of trusting the
+  // possibly-stale `kioskCapKind` dataset. Passing a PersonalKioskCap into the
+  // standard kiosk::take (which expects a KioskOwnerCap) aborts with
+  // CommandArgumentError TypeMismatch at arg_idx 1.
+  let resolvedKind = kioskCapabilityKind(
+    kioskCapKind === 'personal-kiosk-cap' ? '0x0::personal_kiosk::PersonalKioskCap' : ''
+  );
+  if (!resolvedKind && kioskOwnerCapId && client) {
+    try {
+      const capObj = await fetchObjectById(client, kioskOwnerCapId);
+      const capType = capObj?.object?.type || capObj?.data?.type || capObj?.type || '';
+      resolvedKind = kioskCapabilityKind(capType);
+    } catch {
+      // fall back to the dataset hint below
+    }
+  }
+  if (!resolvedKind) {
+    resolvedKind = kioskCapabilityKind(
+      kioskCapKind === 'personal-kiosk-cap'
+        ? '0x0::personal_kiosk::PersonalKioskCap'
+        : '0x0::kiosk::KioskOwnerCap'
+    );
+  }
+  const isPersonal = resolvedKind === 'personal-kiosk-cap';
   const tx = new Transaction();
-  if (kioskCapKind === 'personal-kiosk-cap') {
+  if (isPersonal) {
     // PersonalKioskCap wraps a KioskOwnerCap behind an Option. Standard
     // kiosk::take cannot read through the wrapper, so expose the inner cap
     // via borrow_val, take the item, then return the cap with return_val.
