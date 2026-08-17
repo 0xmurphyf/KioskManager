@@ -255,6 +255,7 @@ function describeObject(obj) {
     objectId: data.objectId,
     type,
     version: data.version,
+    digest: data.digest,
     name: typeof name === 'string' ? name : '',
     isCoin,
     imageUrl,
@@ -562,6 +563,7 @@ export function buildArchiveTransaction({
   amount,
   kioskId,
   kioskOwnerCapId,
+  gasPayment,
 }) {
   const tx = new Transaction();
 
@@ -580,6 +582,9 @@ export function buildArchiveTransaction({
   // `archive_forever` takes `payment` as `&mut Coin<SUI>` and does not consume
   // the payment object. Passing `tx.gas` directly matches the ABI; the Move
   // contract splits only the configured archive fee and retains the remainder.
+  if (gasPayment?.objectId && gasPayment?.version !== undefined && gasPayment?.digest) {
+    tx.setGasPayment([gasPayment]);
+  }
   const payment = tx.gas;
 
   // The artifact: either the selected object, or — for a partial Coin archive —
@@ -693,6 +698,7 @@ export async function archiveObject({
   amount,
   kioskId,
   kioskOwnerCapId,
+  gasPayment,
 }) {
   const tx = buildArchiveTransaction({
     objectId,
@@ -706,6 +712,7 @@ export async function archiveObject({
     amount,
     kioskId,
     kioskOwnerCapId,
+    gasPayment,
   });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;

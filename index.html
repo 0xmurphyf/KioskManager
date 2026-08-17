@@ -1360,6 +1360,7 @@ archiveList.innerHTML='<div class="chain-empty loading">Connecting to the Sui Ma
 let currentStep=1;
 let selectedObjectId=null;
 let selectedObjectType=null;
+let selectedGasPayment=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardScanIncomplete=false;
@@ -1376,6 +1377,7 @@ function handleWalletChanged(connection){
   wizardScanIncomplete=false;
   selectedObjectId=null;
   selectedObjectType=null;
+  selectedGasPayment=null;
   wizardFocusedObjectId=null;
   wizardCollection=null;
   wizardFilter='all';
@@ -1493,7 +1495,7 @@ function renderFilteredObjects(){
     if(!showFilters)wizardFilter='all';
   }
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
-  const list=wizardObjects.filter(o=>!isSuiCoin(o)).filter(o=>{
+  const list=wizardObjects.filter(o=>o.objectId).filter(o=>{
     const kind=objectKind(o);
     if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     const collection=kind==='nft'?objectCollection(o):null;
@@ -1506,7 +1508,7 @@ function renderFilteredObjects(){
     }
     return true;
   });
-  if(!wizardObjects.some(o=>!isSuiCoin(o))){
+  if(!wizardObjects.some(o=>o.objectId)){
     grid.innerHTML='<div class="chain-empty">No selectable objects found in this wallet.</div>';
     return;
   }
@@ -1584,6 +1586,21 @@ function renderStep(){
     void refreshArchiveCost();
   }
 }
+async function resolveSeparateGasPayment(client,selectedId){
+  const candidates=wizardObjects.filter(o=>isSuiCoin(o)&&o.objectId!==selectedId);
+  for(const candidate of candidates){
+    try{
+      const live=await window.theArchiveTx.fetchObjectById(client,candidate.objectId);
+      if(live?.version===undefined||!live.digest)continue;
+      const balance=live.balance??candidate.balance??0n;
+      if(BigInt(balance)<20_000_000n)continue;
+      return {objectId:live.objectId,version:live.version,digest:live.digest};
+    }catch(error){
+      console.debug('[gas-payment] candidate unavailable',candidate.objectId,error);
+    }
+  }
+  return null;
+}
 async function nextStep(){
   if(currentStep===1){
     const selectedCard=document.querySelector('[data-step="1"] .option.selected');
@@ -1599,6 +1616,11 @@ async function nextStep(){
     const txApi=window.theArchiveTx;
     if(!txApi){
       window.alert('Archive transaction API is not available. Reload the page and try again.');
+      return;
+    }
+    selectedGasPayment=await resolveSeparateGasPayment(window.theArchiveWallet.dAppKit.getClient('mainnet'),selectedObjectId);
+    if(!selectedGasPayment){
+      window.alert('A separate confirmed SUI Coin is required for gas. Keep another SUI Coin besides the object you want to archive, then try again.');
       return;
     }
     const scanNoStore=Boolean(selectedModel?.noStore||selectedCard.dataset.noStore==='1');
@@ -1649,6 +1671,7 @@ async function nextStep(){
         heroHash:preflightHash,
         kioskId:isKioskItem?kioskId:undefined,
         kioskOwnerCapId:isKioskItem?kioskOwnerCapId:undefined,
+        gasPayment:selectedGasPayment,
       });
       const preflightText=String(preflight?.message||'');
       if(!preflight?.success){
@@ -1715,6 +1738,7 @@ function selectObject(el){
   });
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
+  selectedGasPayment=null;
   setConfirmObject();
   objectNext.disabled=!selectedObjectId;
 }
@@ -2111,7 +2135,7 @@ async function completeArchive(){
     const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
     archivePolicy=await txApi.fetchArchivePolicy(client);
     const suiBalance=await txApi.fetchSuiBalance(client,connection.address);
-    const requiredBalance=FIXED_ARCHIVE_TOTAL_MIST;
+    const requiredBalance=BigInt(archivePolicy.archiveFeeMist)+FIXED_ARCHIVE_GAS_MIST;
     if(suiBalance<requiredBalance){
       throw new Error(`Insufficient SUI. Need at least ${suiAmount(requiredBalance)} including estimated gas; wallet has ${suiAmount(suiBalance)}`);
     }
@@ -2223,7 +2247,7 @@ async function completeArchive(){
       if(legacyOriginalHashError)console.warn('[archive-preflight] ignoring legacy Original Image hash validation exception from simulator; Mainnet v5 accepts empty/arbitrary Original metadata hashes');
       else console.warn('[archive-preflight] unavailable',preflightError);
     }
-    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId});
+    const result=await txApi.archiveObject({client,dAppKit:window.theArchiveWallet.dAppKit,objectId:selectedObjectId,typeArgument:selectedObjectType,message,sealerSignature:signature,sourceType,storageType,heroUri,heroHash,amount,kioskId,kioskOwnerCapId,gasPayment:selectedGasPayment});
     showToast("Archived forever. TX: "+String(result.digest||"").slice(0,12)+"…");
     // Capture the newly created archive object id so the success view routes to
     // the entry we just froze (not the hardcoded demo detail).
