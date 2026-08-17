@@ -1,4 +1,5 @@
 import './wallet.js';
+import './archive-loader.js';
 import {
   ARCHIVE_STREAM_URL,
   EVENT_TYPE,
@@ -78,7 +79,7 @@ function startArchiveStream() {
     } catch (error) {
       console.warn('Ignored an invalid archive stream event', error);
     }
-    void refreshCacheFromStream();
+    if (event.type === 'ready') void refreshCacheFromStream();
   };
 
   archiveStream.onmessage = handleEvent;

@@ -1581,7 +1581,7 @@ function renderFilteredObjects(){
   if(wizardCollection && !otherObjects.length && !focusedObject)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
 }
 
-function startWizard(){
+async function startWizard(){
   // Step 1 is "Choose an object" and folds in the wallet-connect gate: if not
   // connected, the grid shows a connect prompt and the user connects there.
   currentStep = 1;
@@ -1590,7 +1590,15 @@ function startWizard(){
   if(manualObjectId){manualObjectId.value='';manualObjectId.disabled=false;}
   if(confirmText)confirmText.value="";
   if(typeof validateConfirm==='function')validateConfirm();
-  showView("wizard");renderStep();
+  showView("wizard");
+  try{
+    await window.theArchiveModuleLoader?.loadArchiveModules?.();
+    if(!window.theArchiveTx)throw new Error('Archive transaction module did not initialize');
+    renderStep();
+  }catch(error){
+    console.error('Could not load archive modules',error);
+    showToast('Archive tools could not be loaded. Please reload and try again.');
+  }
 }
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
@@ -1598,7 +1606,7 @@ function renderStep(){
   const pos=steps.indexOf(currentStep);
   progress.innerHTML="";
   for(let i=0;i<steps.length;i++){const x=document.createElement("i");if(pos>=0 && i<=pos)x.className="on";progress.appendChild(x)}
-  if(currentStep===1 && !wizardObjectsLoaded) loadWizardObjects();
+  if(currentStep===1 && !wizardObjectsLoaded && window.theArchiveTx) loadWizardObjects();
   const objectNextBtn=document.getElementById("objectNext");
   if(objectNextBtn)objectNextBtn.disabled=!selectedObjectId;
 
@@ -2486,6 +2494,7 @@ function wireFinalImageUpload(){
     });
     (async()=>{
       try{
+        if(!window.theArchiveHeicSupport)await window.theArchiveModuleLoader?.loadHeicSupport?.();
         const converted=window.theArchiveHeicSupport?.isHeicFile(file)
           ? await window.theArchiveHeicSupport.convertFile(file)
           : file;
@@ -2501,9 +2510,7 @@ function wireFinalImageUpload(){
 renderStep();
 wireFinalImageUpload();
 </script>
-<script type="module" src="/src/heic-support.js"></script>
 <script type="module" src="/src/wallet.js"></script>
 <script type="module" src="/src/app.js"></script>
-<script type="module" src="/src/archive-tx.js"></script>
 </body>
 </html>
