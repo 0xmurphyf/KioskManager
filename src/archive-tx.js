@@ -57,6 +57,25 @@ function objectIdValue(value){
   return objectIdValue(value.id||value.ID||value.address||value.objectId||value.object_id);
 }
 
+function kioskCapabilityKind(type=''){
+  if(/::kiosk::KioskOwnerCap(?:<|$)/.test(type))return 'standard-kiosk-owner-cap';
+  if(/::personal_kiosk::PersonalKioskCap(?:<|$)/.test(type))return 'personal-kiosk-cap';
+  return '';
+}
+
+function kioskCapabilityReference(value, depth=0){
+  if(!value||typeof value!=='object'||depth>5)return null;
+  if(value.for){
+    const kioskId=objectIdValue(value.for);
+    if(kioskId)return {kioskId,innerCapId:objectIdValue(value.id)||''};
+  }
+  for(const key of ['cap','fields','value','json','content']){
+    const found=kioskCapabilityReference(value[key],depth+1);
+    if(found)return found;
+  }
+  return null;
+}
+
 async function graphqlFetch(query, variables) {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
@@ -345,19 +364,25 @@ export async function fetchOwnedObjects(client, address) {
     try {
       const caps = collected
         .map((c) => (c?.data ?? c))
-        .filter((d) => /::kiosk::KioskOwnerCap(?:<|$)/.test(d?.type || d?.objectType || ''));
+        .map((data) => ({ data, kind: kioskCapabilityKind(data?.type || data?.objectType || '') }))
+        .filter((entry) => entry.kind);
       const kioskCapByKiosk = new Map();
       const ownedKiosks = collected
         .map((c) => (c?.data ?? c))
         .filter((d) => /::kiosk::Kiosk(?:<|$)/.test(d?.type || d?.objectType || ''));
       const kioskIds = new Set(ownedKiosks.map((kiosk) => kiosk?.objectId).filter(Boolean));
       for (const cap of caps) {
-        const content = cap?.json || cap?.content?.json || cap?.content?.fields || cap?.content || {};
-        const fields = content?.fields || content;
-        const kioskId=objectIdValue(fields?.for||fields?.kiosk||fields?.kiosk_id||fields?.id);
-        if (kioskId) {
-          kioskIds.add(kioskId);
-          kioskCapByKiosk.set(kioskId, cap?.objectId || '');
+        const capData=cap.data;
+        const content = capData?.json || capData?.content?.json || capData?.content?.fields || capData?.content || {};
+        const reference=kioskCapabilityReference(content) || kioskCapabilityReference(capData);
+        if (reference?.kioskId) {
+          kioskIds.add(reference.kioskId);
+          kioskCapByKiosk.set(reference.kioskId, {
+            kind:cap.kind,
+            capObjectId:capData?.objectId||'',
+            innerCapId:reference.innerCapId||'',
+            capOwner:address,
+          });
         }
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
@@ -378,7 +403,10 @@ export async function fetchOwnedObjects(client, address) {
                 kioskItemContext.set(lockedId, {
                   ...existing,
                   kioskId,
-                  kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || existing.kioskOwnerCapId || '',
+                  kioskOwnerCapId:kioskCapByKiosk.get(kioskId)?.capObjectId||existing.kioskOwnerCapId||'',
+                  kioskCapKind:kioskCapByKiosk.get(kioskId)?.kind||existing.kioskCapKind||'',
+                  kioskInnerCapId:kioskCapByKiosk.get(kioskId)?.innerCapId||existing.kioskInnerCapId||'',
+                  kioskCapOwner:kioskCapByKiosk.get(kioskId)?.capOwner||existing.kioskCapOwner||'',
                   locked: true,
                 });
               }
@@ -392,7 +420,10 @@ export async function fetchOwnedObjects(client, address) {
             const existingItemContext=kioskItemContext.get(itemId);
             kioskItemContext.set(itemId, {
               kioskId,
-              kioskOwnerCapId: kioskCapByKiosk.get(kioskId) || existingItemContext?.kioskOwnerCapId || '',
+              kioskOwnerCapId:kioskCapByKiosk.get(kioskId)?.capObjectId||existingItemContext?.kioskOwnerCapId||'',
+              kioskCapKind:kioskCapByKiosk.get(kioskId)?.kind||existingItemContext?.kioskCapKind||'',
+              kioskInnerCapId:kioskCapByKiosk.get(kioskId)?.innerCapId||existingItemContext?.kioskInnerCapId||'',
+              kioskCapOwner:kioskCapByKiosk.get(kioskId)?.capOwner||existingItemContext?.kioskCapOwner||'',
               locked: Boolean(existingItemContext?.locked || lockedItems.has(itemId)),
             });
             try {
@@ -423,10 +454,10 @@ export async function fetchOwnedObjects(client, address) {
     }
   }
 
-  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type)).map((object) => {
+  const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type) && !/::personal_kiosk::PersonalKioskCap(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
     return kiosk
- ? { ...object, kiosk: true, inKiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk' }
+ ? { ...object, kiosk: true, inKiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, kioskCapKind:kiosk.kioskCapKind||'', kioskInnerCapId:kiosk.kioskInnerCapId||'', kioskCapOwner:kiosk.kioskCapOwner||'', objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.kioskCapKind === 'personal-kiosk-cap' ? 'Personal Kiosk' : (kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk') }
       : { ...object, ownershipStatus: object.ownerAddress && object.ownerAddress.toLowerCase() === address.toLowerCase() ? 'Owned by connected wallet' : object.ownershipStatus };
   });
   const coins = described.filter((o) => o.isCoin);

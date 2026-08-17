@@ -1494,6 +1494,7 @@ function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
   const inKiosk=Boolean(obj.inKiosk||obj.kiosk||obj.kioskId||obj.kioskOwnerCapId||obj.indexer?.kioskId);
+  const personalKiosk=obj.kioskCapKind==='personal-kiosk-cap';
   const specialOwnership=!inKiosk&&Boolean(obj.ownerObjectId||obj.objectStatus==='ObjectOwned'||obj.ownershipStatus==='ObjectOwned'||obj.ownershipStatus==='Special');
   const cardImageUrl=safeObjectDisplayImageUrl(obj.imageUrl||'');
   const noStore=Boolean(obj.noStore);
@@ -1509,6 +1510,9 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.balance=obj.balance!==undefined?String(obj.balance):'';
   card.dataset.kioskId=obj.kioskId||obj.indexer?.kioskId||'';
   card.dataset.kioskOwnerCapId=obj.kioskOwnerCapId||'';
+  card.dataset.kioskCapKind=obj.kioskCapKind||'';
+  card.dataset.kioskInnerCapId=obj.kioskInnerCapId||'';
+  card.dataset.kioskCapOwner=obj.kioskCapOwner||'';
   card.dataset.objectStatus=obj.objectStatus||'Unknown';
   card.dataset.locked=locked?'1':'';
   card.dataset.blocked=blocked?'1':'';
@@ -1522,6 +1526,7 @@ function appendObjectCard(grid,obj,focused=false){
   if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
   else if(locked)extra+=`<div class="object-state-warning"><a href="https://microsoft.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED TAKE OUT FIRST</a></div>`;
+  else if(inKiosk&&personalKiosk)extra+=`<div class="object-state-kiosk">◆ PERSONAL KIOSK · SPECIAL TAKE FLOW</div>`;
   else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="#" data-object-id="${escapeHtml(obj.objectId)}" data-type="${escapeHtml(obj.type)}" data-kiosk-id="${escapeHtml(obj.kioskId||'')}" data-kiosk-owner-cap-id="${escapeHtml(obj.kioskOwnerCapId||'')}" onclick="event.stopPropagation();takeKioskItemToWallet(this);return false;">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://yahoo.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ LISTED / OBJECT CONTROLLED</a></div>`;
   if(obj.isCoin){
@@ -2051,6 +2056,9 @@ function loadWizardObjects(){
         noStore:incoming.noStore??previous.noStore,
         kioskId:incoming.kioskId||previous.kioskId,
         kioskOwnerCapId:incoming.kioskOwnerCapId||previous.kioskOwnerCapId,
+        kioskCapKind:incoming.kioskCapKind||previous.kioskCapKind,
+        kioskInnerCapId:incoming.kioskInnerCapId||previous.kioskInnerCapId,
+        kioskCapOwner:incoming.kioskCapOwner||previous.kioskCapOwner,
         ownerObjectId:incoming.ownerObjectId||previous.ownerObjectId,
         objectStatus:incoming.objectStatus||previous.objectStatus,
         ownershipStatus:incoming.ownershipStatus||previous.ownershipStatus,
