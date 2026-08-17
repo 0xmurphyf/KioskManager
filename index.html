@@ -1441,6 +1441,31 @@ function objectCollection(o){
 }
 function openObjectCollection(key){wizardCollection=key;renderFilteredObjects()}
 function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
+async function takeKioskItemToWallet(link){
+  const connection=window.theArchiveWallet?.getConnection?.();
+  const txApi=window.theArchiveTx;
+  if(!connection?.address){showToast('Connect the Kiosk owner wallet first');return;}
+  if(!txApi?.takeKioskItemToWallet){showToast('Kiosk transfer API is unavailable. Reload the page and try again.');return;}
+  const objectId=link?.dataset.objectId||'';
+  const typeArgument=link?.dataset.type||'';
+  const kioskId=link?.dataset.kioskId||'';
+  const kioskOwnerCapId=link?.dataset.kioskOwnerCapId||'';
+  link.classList.add('is-loading');
+  try{
+    const client=window.theArchiveWallet.dAppKit.getClient('mainnet');
+    const result=await txApi.takeKioskItemToWallet({client,dAppKit:window.theArchiveWallet.dAppKit,objectId,typeArgument,kioskId,kioskOwnerCapId,targetAddress:connection.address});
+    showToast(`Kiosk item is now wallet-owned. TX: ${String(result?.digest||'').slice(0,12)}…`);
+    wizardObjectsLoaded=false;
+    await loadWizardObjects();
+  }catch(error){
+    const text=String(error?.message||error);
+    if(/eitemlocked|item.?locked|transfer.?policy/i.test(text))window.alert('This Kiosk item is locked by a TransferPolicy. Unlock or delist it first, then try again.');
+    else window.alert(`Could not take this Kiosk item out.\n\n${text}`);
+  }finally{
+    link.classList.remove('is-loading');
+  }
+}
+window.takeKioskItemToWallet=takeKioskItemToWallet;
 function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
@@ -1473,7 +1498,7 @@ function appendObjectCard(grid,obj,focused=false){
   if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
   else if(locked)extra+=`<div class="object-state-warning"><a href="https://microsoft.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED TAKE OUT FIRST</a></div>`;
-  else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://google.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▣ IN KIOSK</a></div>`;
+  else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="#" data-object-id="${escapeHtml(obj.objectId)}" data-type="${escapeHtml(obj.type)}" data-kiosk-id="${escapeHtml(obj.kioskId||'')}" data-kiosk-owner-cap-id="${escapeHtml(obj.kioskOwnerCapId||'')}" onclick="event.stopPropagation();takeKioskItemToWallet(this);return false;">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://yahoo.com" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ LISTED / OBJECT CONTROLLED</a></div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;

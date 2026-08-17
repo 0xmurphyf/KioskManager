@@ -684,6 +684,35 @@ export async function estimateArchiveGas({
   return total;
 }
 // Sign and execute via the connected dAppKit wallet on Mainnet.
+export async function takeKioskItemToWallet({
+  client,
+  dAppKit,
+  objectId,
+  typeArgument,
+  kioskId,
+  kioskOwnerCapId,
+  targetAddress,
+}) {
+  if (!client || !dAppKit || !objectId || !typeArgument || !kioskId || !kioskOwnerCapId || !targetAddress) {
+    throw new Error('Kiosk item, type, Kiosk ID, OwnerCap, target wallet, and wallet client are required');
+  }
+  const tx = new Transaction();
+  const [item] = tx.moveCall({
+    target: '0x2::kiosk::take',
+    typeArguments: [typeArgument],
+    arguments: [
+      tx.object(kioskId),
+      tx.object(kioskOwnerCapId),
+      tx.pure.id(objectId),
+    ],
+  });
+  tx.transferObjects([item], tx.pure.address(targetAddress));
+  tx.setSender(targetAddress);
+  tx.setGasBudget(100_000_000);
+  const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+  return result;
+}
+
 export async function archiveObject({
   client,
   dAppKit,
@@ -727,6 +756,7 @@ window.theArchiveTx = {
   preflightArchiveTransaction,
   buildArchiveTransaction,
   archiveObject,
+  takeKioskItemToWallet,
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
