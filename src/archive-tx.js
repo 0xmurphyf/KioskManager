@@ -77,15 +77,43 @@ function kioskCapabilityReference(value, depth=0){
 }
 
 async function graphqlFetch(query, variables) {
-  const response = await fetch(GRAPHQL_ENDPOINT, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query, variables }),
+  return withRetry(async () => {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!response.ok) throw new Error(`Mainnet GraphQL returned HTTP ${response.status}`);
+    const body = await response.json();
+    if (body.errors?.length) throw new Error(body.errors[0].message || 'Mainnet GraphQL query failed');
+    return body.data;
   });
-  if (!response.ok) throw new Error(`Mainnet GraphQL returned HTTP ${response.status}`);
-  const body = await response.json();
-  if (body.errors?.length) throw new Error(body.errors[0].message || 'Mainnet GraphQL query failed');
-  return body.data;
+}
+
+// Shared exponential-backoff retry for any Mainnet read/simulation that can fail
+// transiently on the free public endpoints (429 rate-limit, 5xx, network blip,
+// gRPC hiccup). Retries on thrown errors and on HTTP 429/5xx; does NOT retry on
+// 4xx other than 429 (those are permanent client errors).
+async function withRetry(fn, { attempts = 4, baseMs = 500, maxMs = 8000 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error || '').toLowerCase();
+      const isTransient =
+        /failed to fetch|network|timeout|abort|econnreset|etimedout|429|rate.?limit|5[0-9]{2}|grpc|unavailable|deadline|too many requests/i.test(message);
+      const status = Number(error?.status || error?.response?.status || 0);
+      const statusTransient = status === 429 || (status >= 500 && status < 600);
+      if (!isTransient && !statusTransient) throw error;
+      if (attempt + 1 < attempts) {
+        const delay = Math.min(maxMs, baseMs * 2 ** attempt) + Math.floor(Math.random() * 250);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
 }
 
 // Authoritative lock check read directly from the Kiosk's dynamic fields.
@@ -345,13 +373,15 @@ export async function fetchObjectById(client, objectId) {
   const getObject = client.core?.getObject?.bind(client.core) || client.getObject?.bind(client);
   if (!getObject) throw new Error('Sui client cannot read objects');
   const include = client.core ? { json: true, display: true } : { content: true, display: true };
-  const result = await getObject({ objectId, include });
-  const object = result?.object ?? result?.data ?? result;
-  const described = describeObject(object);
-  if (!described.objectId || described.type === 'Unknown object') {
-    throw new Error('Object metadata is unavailable');
-  }
-  return described;
+  return withRetry(async () => {
+    const result = await getObject({ objectId, include });
+    const object = result?.object ?? result?.data ?? result;
+    const described = describeObject(object);
+    if (!described.objectId || described.type === 'Unknown object') {
+      throw new Error('Object metadata is unavailable');
+    }
+    return described;
+  });
 }
 
 export async function preflightArchiveTransaction({ client, sender, ...params }) {
@@ -359,10 +389,12 @@ export async function preflightArchiveTransaction({ client, sender, ...params })
   const tx = buildArchiveTransaction(params);
   tx.setSender(sender);
   tx.setGasBudget(100_000_000);
-  const bytes = await tx.build({ client });
+  // Free public endpoints intermittently fail tx.build (gRPC object reads) and
+  // simulate; retry both so a transient blip doesn't surface as "Could not verify".
+  const bytes = await withRetry(() => tx.build({ client }), { attempts: 4, baseMs: 500, maxMs: 8000 });
   const simulate = client.core?.simulateTransaction?.bind(client.core) || client.simulateTransaction?.bind(client);
   if (!simulate) return { success: true, unavailable: true, message: 'Simulation API unavailable; transaction build passed.' };
-  const result = await simulate({ transaction: bytes, include: { effects: true } });
+  const result = await withRetry(() => simulate({ transaction: bytes, include: { effects: true } }), { attempts: 4, baseMs: 500, maxMs: 8000 });
   const status = result?.effects?.status || result?.Transaction?.status || result?.transaction?.effects?.status;
   const success = status?.success === true || status?.status === 'success' || result?.effects?.status === 'success';
   return { success, unavailable: false, message: status?.error || (success ? 'Preflight passed.' : 'Mainnet simulation did not pass.'), result };

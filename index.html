@@ -1751,7 +1751,11 @@ async function nextStep(){
       if(/eitemlocked|item.?locked|transfer.?policy/i.test(preflightText)){
         window.alert('This Kiosk item is locked by a TransferPolicy. Take or unlock the item first, then try again.');
       }else{
-        window.alert(`Could not verify this object on Mainnet.\n\n${preflightText}`);
+        // Surface the real underlying cause, not just "Could not verify". Public
+        // endpoints fail transiently; tell the user it may be a network blip so
+        // they can retry instead of assuming the object is invalid.
+        const isTransient=/failed to fetch|network|timeout|abort|429|rate.?limit|5[0-9]{2}|grpc|unavailable|deadline|too many requests/i.test(preflightText);
+        window.alert(`${isTransient?'Mainnet is temporarily unreachable (free public node). Retry in a moment.\n\n':'Could not verify this object on Mainnet.\n\n'}${preflightText}`);
       }
       return;
     }
