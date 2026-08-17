@@ -693,9 +693,16 @@ export async function takeKioskItemToWallet({
   kioskOwnerCapId,
   targetAddress,
 }) {
-  if (!client || !dAppKit || !objectId || !typeArgument || !kioskId || !kioskOwnerCapId || !targetAddress) {
-    throw new Error('Kiosk item, type, Kiosk ID, OwnerCap, target wallet, and wallet client are required');
-  }
+  const missing = [
+    ['client', client],
+    ['wallet client', dAppKit],
+    ['Kiosk item', objectId],
+    ['type', typeArgument],
+    ['Kiosk ID', kioskId],
+    ['KioskOwnerCap', kioskOwnerCapId],
+    ['target wallet', targetAddress],
+  ].filter(([, value]) => !value).map(([label]) => label);
+  if (missing.length) throw new Error(`Kiosk transfer is missing: ${missing.join(', ')}`);
   const tx = new Transaction();
   const [item] = tx.moveCall({
     target: '0x2::kiosk::take',

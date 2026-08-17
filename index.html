@@ -1448,11 +1448,35 @@ async function takeKioskItemToWallet(link){
   if(!txApi?.takeKioskItemToWallet){showToast('Kiosk transfer API is unavailable. Reload the page and try again.');return;}
   const objectId=link?.dataset.objectId||'';
   const typeArgument=link?.dataset.type||'';
-  const kioskId=link?.dataset.kioskId||'';
-  const kioskOwnerCapId=link?.dataset.kioskOwnerCapId||'';
+  let kioskId=link?.dataset.kioskId||'';
+  let kioskOwnerCapId=link?.dataset.kioskOwnerCapId||'';
   link.classList.add('is-loading');
   try{
     const client=window.theArchiveWallet.dAppKit.getClient('mainnet');
+    // The first scan can finish before the KioskOwnerCap association is
+    // available (especially when the indexer result wins the merge). Re-read
+    // Mainnet at the point of action instead of asking the user to copy IDs.
+    if(!kioskId||!kioskOwnerCapId){
+      const discovered=await txApi.fetchOwnedObjects(client,connection.address);
+      const match=discovered.find(object=>
+        object?.objectId===objectId && object.kioskId && object.kioskOwnerCapId
+      );
+      if(match){
+        kioskId=match.kioskId;
+        kioskOwnerCapId=match.kioskOwnerCapId;
+        link.dataset.kioskId=kioskId;
+        link.dataset.kioskOwnerCapId=kioskOwnerCapId;
+      }
+    }
+    const missing=[
+      ['item',objectId],
+      ['type',typeArgument],
+      ['Kiosk ID',kioskId],
+      ['KioskOwnerCap',kioskOwnerCapId],
+      ['target wallet',connection.address],
+      ['wallet client',client],
+    ].filter(([,value])=>!value).map(([label])=>label);
+    if(missing.length)throw new Error(`Could not auto-read ${missing.join(', ')} from the connected Mainnet wallet. Refresh the wallet objects and try again.`);
     const result=await txApi.takeKioskItemToWallet({client,dAppKit:window.theArchiveWallet.dAppKit,objectId,typeArgument,kioskId,kioskOwnerCapId,targetAddress:connection.address});
     showToast(`Kiosk item is now wallet-owned. TX: ${String(result?.digest||'').slice(0,12)}…`);
     wizardObjectsLoaded=false;
