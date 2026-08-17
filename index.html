@@ -1364,10 +1364,19 @@ let selectedGasPayment=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardScanIncomplete=false;
+let walletCaps=[];
 let wizardFilter='all';
 let wizardCollection=null;
 let wizardFocusedObjectId=null;
 let lastWizardWalletAddress=null;
+function persistWalletCaps(address,caps){
+  walletCaps=Array.isArray(caps)?caps:[];
+  try{
+    localStorage.setItem('thearchive:wallet-caps',JSON.stringify({address,scannedAt:Date.now(),caps:walletCaps}));
+  }catch(_){}
+  window.theArchiveScan=window.theArchiveScan||{};
+  window.theArchiveScan.caps=walletCaps;
+}
 function handleWalletChanged(connection){
   const address=String(connection?.address||'').toLowerCase();
   if(!address || address===lastWizardWalletAddress)return;
@@ -1459,6 +1468,7 @@ async function takeKioskItemToWallet(link){
     // Mainnet at the point of action instead of asking the user to copy IDs.
     if(!kioskId||!kioskOwnerCapId){
       const discovered=await txApi.fetchOwnedObjects(client,connection.address);
+      if(Array.isArray(discovered?.caps)&&discovered.caps.length)persistWalletCaps(connection.address,discovered.caps);
       const match=discovered.find(object=>
         object?.objectId===objectId && object.kioskId && object.kioskOwnerCapId
       );
@@ -2030,6 +2040,10 @@ function loadWizardObjects(){
     fetchArchivedArtifactIds(),
   ]).then(([rpcObjects,indexed,archivedIds])=>{
     wizardScanIncomplete=Boolean(rpcObjects?.scanIncomplete);
+    // Persist the wallet's full capability inventory (KioskOwnerCap,
+    // PersonalKioskCap, TransferPolicyCap, TransferPolicy, Kiosk, UpgradeCap) so
+    // it survives reloads and is readable by other flows.
+    persistWalletCaps(connection.address,Array.isArray(rpcObjects?.caps)?rpcObjects.caps:[]);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
@@ -2296,6 +2310,7 @@ async function completeArchive(){
     let kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
     if(selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId){
       const refreshed=await txApi.fetchOwnedObjects(client,connection.address);
+      if(Array.isArray(refreshed?.caps)&&refreshed.caps.length)persistWalletCaps(connection.address,refreshed.caps);
       const kioskMatch=refreshed.find(object=>object.objectId===selectedObjectId&&object.kioskId&&object.kioskOwnerCapId);
       kioskId=kioskMatch?.kioskId||kioskId;
       kioskOwnerCapId=kioskMatch?.kioskOwnerCapId||kioskOwnerCapId;

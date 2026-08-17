@@ -76,6 +76,34 @@ function kioskCapabilityReference(value, depth=0){
   return null;
 }
 
+// Record every capability object owned by the connected wallet so the UI can
+// persist the full capability inventory (not just the ones tied to a Kiosk we
+// happen to enumerate). `data` is the flat object shape from listOwnedObjects.
+const CAP_PATTERNS = [
+  { re: /::kiosk::KioskOwnerCap(?:<|$)/, kind: 'KioskOwnerCap', ref: 'kiosk' },
+  { re: /::personal_kiosk::PersonalKioskCap(?:<|$)/, kind: 'PersonalKioskCap', ref: 'kiosk' },
+  { re: /::transfer_policy::TransferPolicyCap(?:<|$)/, kind: 'TransferPolicyCap', ref: 'policy' },
+  { re: /::transfer_policy::TransferPolicy(?:<|$)/, kind: 'TransferPolicy', ref: 'policy' },
+  { re: /::kiosk::Kiosk(?:<|$)/, kind: 'Kiosk', ref: 'kiosk' },
+  { re: /::package::UpgradeCap(?:<|$)/, kind: 'UpgradeCap', ref: 'package' },
+];
+function collectCap(data) {
+  const type = data?.type || data?.objectType || '';
+  const match = CAP_PATTERNS.find((p) => p.re.test(type));
+  if (!match) return null;
+  const json = data?.json || data?.content?.json || data?.content?.fields || data?.content || {};
+  const ref = kioskCapabilityReference(json) || kioskCapabilityReference(data);
+  return {
+    kind: match.kind,
+    objectId: data?.objectId || data?.data?.objectId,
+    type,
+    kioskId: match.ref === 'kiosk' ? (ref?.kioskId || json?.for || json?.id || null) : null,
+    policyId: match.ref === 'policy' ? (ref?.kioskId || json?.id || json?.policy_id || null) : null,
+    packageId: match.ref === 'package' ? (json?.package || null) : null,
+    innerCapId: match.ref === 'kiosk' ? (ref?.innerCapId || null) : null,
+  };
+}
+
 async function graphqlFetch(query, variables) {
   return withRetry(async () => {
     const response = await fetch(GRAPHQL_ENDPOINT, {
@@ -410,6 +438,7 @@ export async function fetchOwnedObjects(client, address) {
   if (!listOwned) throw new Error('Sui client cannot list owned objects');
   const include = client.core ? { json: true, display: true } : { content: true, display: true };
   const collected = [];
+  const caps = [];
   let scanIncomplete = false;
   let cursor = null;
   try {
@@ -524,6 +553,16 @@ export async function fetchOwnedObjects(client, address) {
     }
   }
 
+  // Record every capability object owned by this wallet (KioskOwnerCap,
+  // PersonalKioskCap, TransferPolicyCap, TransferPolicy, Kiosk, UpgradeCap),
+  // independent of whether it is attached to an enumerated Kiosk. This gives the
+  // UI a full, persisted inventory of the wallet's capabilities.
+  for (const raw of collected) {
+    const data = raw?.data ?? raw;
+    const cap = collectCap(data);
+    if (cap && cap.objectId) caps.push(cap);
+  }
+
   const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type) && !/::personal_kiosk::PersonalKioskCap(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
     return kiosk
@@ -594,6 +633,7 @@ export async function fetchOwnedObjects(client, address) {
 
   const finalObjects=[...new Map([...coinResults, ...nonCoins].filter((o) => o.objectId).map((o) => [o.objectId, o])).values()];
   Object.defineProperty(finalObjects, 'scanIncomplete', { value: scanIncomplete, enumerable: false });
+  Object.defineProperty(finalObjects, 'caps', { value: caps, enumerable: false });
   return finalObjects;
 }
 
