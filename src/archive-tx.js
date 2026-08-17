@@ -715,6 +715,7 @@ export async function estimateArchiveGas({
   return total;
 }
 // Sign and execute via the connected dAppKit wallet on Mainnet.
+const PERSONAL_KIOSK_PACKAGE = '0x0cb4bcc0560340eb1a1b929cabe56b33fc6449820ec8c1980d69bb98b649b802';
 export async function takeKioskItemToWallet({
   client,
   dAppKit,
@@ -722,6 +723,7 @@ export async function takeKioskItemToWallet({
   typeArgument,
   kioskId,
   kioskOwnerCapId,
+  kioskCapKind = '',
   targetAddress,
 }) {
   const missing = [
@@ -735,16 +737,32 @@ export async function takeKioskItemToWallet({
   ].filter(([, value]) => !value).map(([label]) => label);
   if (missing.length) throw new Error(`Kiosk transfer is missing: ${missing.join(', ')}`);
   const tx = new Transaction();
-  const [item] = tx.moveCall({
-    target: '0x2::kiosk::take',
-    typeArguments: [typeArgument],
-    arguments: [
-      tx.object(kioskId),
-      tx.object(kioskOwnerCapId),
-      tx.pure.id(objectId),
-    ],
-  });
-  tx.transferObjects([item], tx.pure.address(targetAddress));
+  if (kioskCapKind === 'personal-kiosk-cap') {
+    // PersonalKioskCap wraps a KioskOwnerCap behind an Option. Standard
+    // kiosk::take cannot read through the wrapper, so expose the inner cap
+    // via borrow_val, take the item, then return the cap with return_val.
+    const [cap, borrow] = tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::borrow_val`,
+      arguments: [tx.object(kioskOwnerCapId)],
+    });
+    const [item] = tx.moveCall({
+      target: '0x2::kiosk::take',
+      typeArguments: [typeArgument],
+      arguments: [tx.object(kioskId), cap, tx.pure.id(objectId)],
+    });
+    tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::return_val`,
+      arguments: [tx.object(kioskOwnerCapId), cap, borrow],
+    });
+    tx.transferObjects([item], tx.pure.address(targetAddress));
+  } else {
+    const [item] = tx.moveCall({
+      target: '0x2::kiosk::take',
+      typeArguments: [typeArgument],
+      arguments: [tx.object(kioskId), tx.object(kioskOwnerCapId), tx.pure.id(objectId)],
+    });
+    tx.transferObjects([item], tx.pure.address(targetAddress));
+  }
   tx.setSender(targetAddress);
   tx.setGasBudget(100_000_000);
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
