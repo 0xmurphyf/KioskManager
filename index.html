@@ -388,19 +388,26 @@ body.wallet-open{overflow:hidden}
   .wizard{padding:24px 8px 48px}
   .step{padding:24px 16px}
 }
-.caps-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center}
+.caps-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
 .caps-modal[hidden]{display:none}
-.caps-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
-.caps-modal-panel{position:relative;background:#fff;color:#111;width:min(640px,92vw);max-height:80vh;overflow:auto;border-radius:14px;padding:20px 22px;box-shadow:0 18px 48px rgba(0,0,0,.35)}
+.caps-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.caps-modal-panel{position:relative;background:var(--bg);color:var(--paper);width:min(680px,94vw);max-height:84vh;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 18px 48px rgba(0,0,0,.5)}
 .caps-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
-.caps-modal-head h3{margin:0;font-size:18px}
-.caps-modal-sub{margin:0 0 12px;color:#777;font-size:12px}
+.caps-modal-head h3{margin:0;font-size:clamp(15px,1.1vw + .4vh,19px);letter-spacing:.04em}
+.caps-modal-sub{margin:0 0 14px;color:var(--dim);font-size:clamp(10px,.4vw + .3vh,12px)}
+.caps-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.caps-filter .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:7px 12px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
+.caps-filter .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
 .caps-list{display:flex;flex-direction:column;gap:10px}
-.cap-row{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid #e6e6e6;border-radius:10px;background:#fafafa}
-.cap-kind{font-weight:700;font-size:13px;color:#b5580a}
-.cap-id{font-size:12px;word-break:break-all;color:#333}
+.cap-row{display:flex;flex-direction:column;gap:4px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#11110e}
+.cap-kind{font-weight:700;font-size:clamp(11px,.5vw + .3vh,13px);letter-spacing:.04em}
+.cap-kind.kiosk{color:var(--accent)}
+.cap-kind.personal{color:#b58a3a}
+.cap-kind.other{color:var(--dim)}
+.cap-id{font:11px "Courier New",monospace;word-break:break-all;color:var(--paper)}
 .cap-metas{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:2px}
-.cap-meta{font-size:11px;color:#666}
+.cap-meta{font-size:clamp(9px,.35vw + .25vh,11px);color:var(--dim)}
+.cap-meta code{color:var(--paper);font-family:"Courier New",monospace}
 </style>
 </head>
 <body>
@@ -549,6 +556,12 @@ body.wallet-open{overflow:hidden}
         <div class="caps-modal-panel">
           <div class="caps-modal-head"><h3>Wallet capabilities</h3><button class="btn" type="button" onclick="hideWalletCaps()">Close</button></div>
           <p class="caps-modal-sub" id="capsScannedAt"></p>
+          <div class="caps-filter" id="capsFilter">
+            <button class="filter-tab selected" data-kind="all" onclick="setCapFilter('all',this)">All</button>
+            <button class="filter-tab" data-kind="kiosk" onclick="setCapFilter('kiosk',this)">Kiosk caps</button>
+            <button class="filter-tab" data-kind="personal" onclick="setCapFilter('personal',this)">Personal caps</button>
+            <button class="filter-tab" data-kind="other" onclick="setCapFilter('other',this)">Others</button>
+          </div>
           <div class="caps-list" id="capsList"></div>
         </div>
       </div>
@@ -1573,6 +1586,42 @@ function appendObjectCard(grid,obj,focused=false){
   grid.appendChild(card);
   return card;
 }
+let capFilter='all';
+function capGroup(kind){
+  if(kind==='KioskOwnerCap'||kind==='Kiosk')return 'kiosk';
+  if(kind==='PersonalKioskCap')return 'personal';
+  return 'other';
+}
+function setCapFilter(kind,btn){
+  capFilter=kind;
+  document.querySelectorAll('#capsFilter .filter-tab').forEach(t=>t.classList.toggle('selected',t===btn));
+  renderCapsList();
+}
+function renderCapsList(){
+  const list=document.getElementById('capsList');
+  if(!list)return;
+  if(!walletCaps.length){
+    list.innerHTML='<div class="chain-empty">No capabilities found. Connect a wallet and run Scan and Refresh first.</div>';
+    return;
+  }
+  const order={'KioskOwnerCap':0,'PersonalKioskCap':1,'TransferPolicyCap':2,'TransferPolicy':3,'Kiosk':4,'UpgradeCap':5};
+  const sorted=[...walletCaps].sort((a,b)=>(order[a.kind]??9)-(order[b.kind]??9));
+  const visible=sorted.filter(c=>capFilter==='all'||capGroup(c.kind)===capFilter);
+  if(!visible.length){
+    list.innerHTML='<div class="chain-empty">No capabilities in this group.</div>';
+    return;
+  }
+  list.innerHTML=visible.map(c=>{
+    const group=capGroup(c.kind);
+    const metas=[];
+    if(c.kioskId)metas.push(`Kiosk: <code>${c.kioskId}</code>`);
+    if(c.policyId)metas.push(`Policy: <code>${c.policyId}</code>`);
+    if(c.packageId)metas.push(`Package: <code>${c.packageId}</code>`);
+    // innerCapId is part of the Personal cap's own structure and is not shown
+    // separately — it would only duplicate information already implied by the cap.
+    return `<div class="cap-row"><div class="cap-kind ${group}">${c.kind}</div><code class="cap-id">${c.objectId}</code>${metas.length?`<div class="cap-metas">${metas.map(m=>`<span class="cap-meta">${m}</span>`).join('')}</div>`:''}</div>`;
+  }).join('');
+}
 function updateCapCount(){
   const el=document.getElementById('capCount');
   if(el)el.textContent=String(walletCaps.length);
@@ -1580,23 +1629,12 @@ function updateCapCount(){
 function showWalletCaps(){
   updateCapCount();
   const modal=document.getElementById('capsModal');
-  const list=document.getElementById('capsList');
   const sub=document.getElementById('capsScannedAt');
-  if(!modal||!list)return;
-  if(!walletCaps.length){
-    list.innerHTML='<div class="chain-empty">No capabilities found. Connect a wallet and run Scan and Refresh first.</div>';
-  }else{
-    const order={'KioskOwnerCap':0,'PersonalKioskCap':1,'TransferPolicyCap':2,'TransferPolicy':3,'Kiosk':4,'UpgradeCap':5};
-    const sorted=[...walletCaps].sort((a,b)=>(order[a.kind]??9)-(order[b.kind]??9));
-    list.innerHTML=sorted.map(c=>{
-      const links=[];
-      if(c.kioskId)links.push(`<span class="cap-meta">Kiosk: <code>${c.kioskId}</code></span>`);
-      if(c.policyId)links.push(`<span class="cap-meta">Policy: <code>${c.policyId}</code></span>`);
-      if(c.packageId)links.push(`<span class="cap-meta">Package: <code>${c.packageId}</code></span>`);
-      if(c.innerCapId)links.push(`<span class="cap-meta">Inner cap: <code>${c.innerCapId}</code></span>`);
-      return `<div class="cap-row"><div class="cap-kind">${c.kind}</div><code class="cap-id">${c.objectId}</code>${links.length?`<div class="cap-metas">${links.join('')}</div>`:''}</div>`;
-    }).join('');
-  }
+  if(!modal)return;
+  // reset filter to All each open
+  capFilter='all';
+  document.querySelectorAll('#capsFilter .filter-tab').forEach(t=>t.classList.toggle('selected',t.dataset.kind==='all'));
+  renderCapsList();
   if(sub){
     try{
       const stored=JSON.parse(localStorage.getItem('thearchive:wallet-caps')||'{}');
