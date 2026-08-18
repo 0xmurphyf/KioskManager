@@ -278,7 +278,7 @@ const STORAGE_ARWEAVE = 3;
 const SOURCE_ORIGINAL = 0;
 const SOURCE_ONLINE = 1;
 const SOURCE_UPLOADED = 2;
-const SUI_COIN_ICON_URL = '/archive-assets/sui-coin.png';
+const SUI_COIN_ICON_URL = '/archive-assets/sui-coin.svg';
 
 // Helper: extract a readable object type + label from a Sui owned-object struct.
 // Works with the gRPC client's `listOwnedObjects` shape (objects[].data/objectId/

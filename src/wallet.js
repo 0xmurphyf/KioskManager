@@ -3,6 +3,7 @@ import { SuiGrpcClient } from '@mysten/sui/grpc';
 
 const MAINNET_GRPC_URL = 'https://fullnode.mainnet.sui.io:443';
 const LAST_WALLET_KEY = 'the-archive:last-wallet';
+let lastConnection = null;
 
 const walletDefinitions = [
   {
@@ -189,6 +190,10 @@ function renderConnectionState() {
   const current = activeConnection();
   const reconnecting = connection.isReconnecting;
 
+  // Remember the last fully-connected wallet so the UI can still show its name
+  // while a reconnection is in flight (otherwise it gets stuck on "Reconnecting…").
+  if (current) lastConnection = current;
+
   if (current) {
     walletButton.textContent = shortAddress(current.address);
     walletButton.title = `${current.walletName} · ${current.address}`;
@@ -196,6 +201,15 @@ function renderConnectionState() {
     walletDisconnectButton.hidden = false;
     walletDisconnectTopButton.hidden = false;
     walletStatus.textContent = `${current.walletName} connected on Sui Mainnet · ${shortAddress(current.address)}`;
+  } else if (reconnecting && lastConnection) {
+    // Reconnecting: keep showing the wallet name (with a subtle reconnect hint)
+    // so it does not appear stuck on "Reconnecting…" forever.
+    walletButton.textContent = shortAddress(lastConnection.address);
+    walletButton.title = `${lastConnection.walletName} · reconnecting…`;
+    walletButton.setAttribute('aria-label', `Wallet reconnecting: ${lastConnection.walletName}`);
+    walletDisconnectButton.hidden = false;
+    walletDisconnectTopButton.hidden = false;
+    walletStatus.textContent = `Reconnecting ${lastConnection.walletName} on Sui Mainnet…`;
   } else {
     walletButton.textContent = reconnecting ? 'Reconnecting…' : 'Connect Wallet';
     walletButton.title = '';

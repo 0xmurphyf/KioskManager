@@ -828,8 +828,11 @@ function archiveDisplayTitle(archive){
   return archiveTitle(archive);
 }
 function safeImageUrl(value){
+  const raw=String(value||'').trim();
+  // Root-relative (same-origin) paths are always safe to use directly.
+  if(raw.startsWith('/'))return raw;
   try{
-    const url=new URL(String(value||''));
+    const url=new URL(raw);
     if(url.protocol==="http:"||url.protocol==="https:")return url.href;
     if(url.protocol==="ipfs:"){
       const path=`${url.hostname}${url.pathname}`.replace(/^\/+/,"");
