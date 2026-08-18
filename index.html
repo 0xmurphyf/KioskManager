@@ -190,9 +190,6 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-alert{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border:1px solid #b86b5d;border-radius:50%;background:#17110f;color:#e7a08e;font-size:15px;line-height:1}
 .object-alert[title]{cursor:help}
 .object-state-warning{display:block;margin-top:5px;padding:5px 7px;background:#3a1b18;color:#ffd1c5;border:1px solid #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}.object-state-kiosk{display:block;margin-top:5px;padding:5px 7px;background:#3b2a16;color:#ffd79b;border:1px solid #c48a45;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}.object-state-warning a,.object-state-kiosk a{color:inherit;text-decoration:underline;text-underline-offset:2px}
-.object-grid .option.is-archive-blocked{opacity:.55;filter:grayscale(.6);cursor:not-allowed}
-.object-grid .option.is-archive-blocked:hover{transform:none}
-.object-state-blocked-badge{display:block;margin-top:5px;padding:5px 7px;background:#241a14;color:#e7c9a0;border:1px dashed #b86b5d;font:700 10px "Courier New",monospace;letter-spacing:.12em;text-align:center}
 .coin-glyph{width:72px;height:72px;border:2px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--paper);font:600 12px "Courier New",monospace;letter-spacing:.04em}.object-grid .option>strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;line-height:1.2;font-size:11px;font-weight:500;overflow-wrap:anywhere}
 .object-grid .option>p{margin:6px 0 0;min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
 .object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
@@ -1463,13 +1460,8 @@ function appendObjectCard(grid,obj,focused=false){
   const noStore=Boolean(obj.noStore);
   const locked=Boolean(obj.locked);
   const blocked=Boolean(obj.blocked);
-  // Objects that can never be archived from this wizard (kiosk items, listed/
-  // special-ownership objects, and NO STORE types) are rendered as disabled so
-  // the user sees up front they cannot be selected, rather than selecting then
-  // being blocked at Continue.
-  const archiveBlocked=Boolean(inKiosk||specialOwnership||noStore);
   const card=document.createElement('div');
-  card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${specialOwnership?' is-special-ownership':''}${noStore?' is-no-store':''}${locked?' is-locked':''}${blocked?' is-blocked':''}${archiveBlocked?' is-archive-blocked':''}`;
+  card.className=`option${focused?' manual-focused':''}${inKiosk?' is-kiosk':''}${specialOwnership?' is-special-ownership':''}${noStore?' is-no-store':''}${locked?' is-locked':''}${blocked?' is-blocked':''}`;
   card.dataset.objectId=obj.objectId;
   card.dataset.type=obj.type;
   card.dataset.image=cardImageUrl;
@@ -1487,7 +1479,6 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.inKiosk=inKiosk?'1':'';
   card.dataset.specialOwnership=specialOwnership?'1':'';
   card.dataset.noStore=noStore?'1':'';
-  card.dataset.archiveBlocked=archiveBlocked?'1':'';
   card.onclick=()=>selectObject(card);
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':specialOwnership?'LISTED / OBJECT CONTROLLED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
@@ -1498,7 +1489,6 @@ function appendObjectCard(grid,obj,focused=false){
   else if(inKiosk&&personalKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ PERSONAL KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ LISTED / OBJECT CONTROLLED</a></div>`;
-  if(archiveBlocked)extra+=`<div class="object-state-blocked-badge">✕ CANNOT ARCHIVE</div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
     extra+=`<div class="coin-amount" onclick="event.stopPropagation()"><label>Amount</label><input type="number" min="0" max="${fullSUI}" step="0.000000001" placeholder="Default archive all" data-balance="${obj.balance!==undefined?obj.balance:''}" disabled><span class="muted">max ${fullSUI.toFixed(4)}</span></div>`;
@@ -1703,12 +1693,6 @@ async function nextStep(){
 }
 function prevStep(){currentStep--; if(currentStep===4)currentStep--; renderStep()}
 function selectObject(el){
-  // Kiosk items, listed/special-ownership, and NO STORE objects cannot be
-  // archived from this wizard. Don't select them at all — just surface why.
-  if(el.dataset.archiveBlocked==='1'){
-    showToast('This object cannot be archived from here — take it out of its Kiosk / resolve ownership first.');
-    return;
-  }
   document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
   document.querySelectorAll('[data-step="1"] .coin-amount input').forEach(input=>{
