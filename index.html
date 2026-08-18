@@ -388,31 +388,6 @@ body.wallet-open{overflow:hidden}
   .wizard{padding:24px 8px 48px}
   .step{padding:24px 16px}
 }
-.caps-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
-.caps-modal[hidden]{display:none}
-.caps-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
-.caps-modal-panel{position:relative;background:var(--bg);color:var(--paper);width:min(680px,94vw);max-height:84vh;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 18px 48px rgba(0,0,0,.5)}
-.caps-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
-.caps-modal-head h3{margin:0;font-size:clamp(15px,1.1vw + .4vh,19px);letter-spacing:.04em}
-.caps-modal-sub{margin:0 0 14px;color:var(--dim);font-size:clamp(10px,.4vw + .3vh,12px)}
-.caps-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.caps-filter .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:7px 12px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
-.caps-filter .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
-.caps-list{display:flex;flex-direction:column;gap:10px}
-.cap-row{display:flex;flex-direction:column;gap:4px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#11110e}
-.cap-kind{font-weight:700;font-size:clamp(11px,.5vw + .3vh,13px);letter-spacing:.04em}
-.cap-kind.kiosk{color:var(--accent)}
-.cap-kind.personal{color:#b58a3a}
-.cap-kind.other{color:var(--dim)}
-.cap-id{font:11px "Courier New",monospace;word-break:break-all;color:var(--paper)}
-.cap-metas{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:2px}
-.cap-meta{font-size:clamp(9px,.35vw + .25vh,11px);color:var(--dim)}
-.cap-meta code{color:var(--paper);font-family:"Courier New",monospace}
-.cap-status-row{display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap}
-.cap-status{font:700 10px "Courier New",monospace;letter-spacing:.08em;color:var(--dim)}
-.cap-status.deletable{color:#7fbf6a}
-.cap-delete{background:transparent;border:1px solid #b86b5d;color:#ffd1c5;padding:6px 12px;font:11px "Courier New",monospace;letter-spacing:.06em;cursor:pointer}
-.cap-delete:hover{background:#3a1b18}
 </style>
 </head>
 <body>
@@ -541,7 +516,7 @@ body.wallet-open{overflow:hidden}
     <div class="step active" data-step="1">
       <h2>Choose an object</h2>
       <p>Select an object currently under your full control to permanently freeze.<br><strong>Once frozen, it will be removed from your ownership and can never be recovered.</strong></p>
-      <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button><button class="btn" type="button" onclick="showWalletCaps()">View my caps (<span id="capCount">0</span>)</button></div>
+      <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
         <div class="filter-tabs" id="objectFilter">
@@ -556,20 +531,6 @@ body.wallet-open{overflow:hidden}
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
-      <div class="caps-modal" id="capsModal" hidden>
-        <div class="caps-modal-backdrop" onclick="hideWalletCaps()"></div>
-        <div class="caps-modal-panel">
-          <div class="caps-modal-head"><h3>Wallet capabilities</h3><button class="btn" type="button" onclick="hideWalletCaps()">Close</button></div>
-          <p class="caps-modal-sub" id="capsScannedAt"></p>
-          <div class="caps-filter" id="capsFilter">
-            <button class="filter-tab selected" data-kind="all" onclick="setCapFilter('all',this)">All</button>
-            <button class="filter-tab" data-kind="kiosk" onclick="setCapFilter('kiosk',this)">Kiosk caps</button>
-            <button class="filter-tab" data-kind="personal" onclick="setCapFilter('personal',this)">Personal caps</button>
-            <button class="filter-tab" data-kind="other" onclick="setCapFilter('other',this)">Others</button>
-          </div>
-          <div class="caps-list" id="capsList"></div>
-        </div>
-      </div>
     </div>
 
     <div class="step" data-step="2">
@@ -1412,20 +1373,10 @@ let selectedGasPayment=null;
 let wizardObjectsLoaded=false;
 let wizardObjects=[];
 let wizardScanIncomplete=false;
-let walletCaps=[];
 let wizardFilter='all';
 let wizardCollection=null;
 let wizardFocusedObjectId=null;
 let lastWizardWalletAddress=null;
-function persistWalletCaps(address,caps){
-  walletCaps=Array.isArray(caps)?caps:[];
-  try{
-    localStorage.setItem('thearchive:wallet-caps',JSON.stringify({address,scannedAt:Date.now(),caps:walletCaps}));
-  }catch(_){}
-  window.theArchiveScan=window.theArchiveScan||{};
-  window.theArchiveScan.caps=walletCaps;
-  updateCapCount();
-}
 function handleWalletChanged(connection){
   const address=String(connection?.address||'').toLowerCase();
   if(!address || address===lastWizardWalletAddress)return;
@@ -1517,7 +1468,6 @@ async function takeKioskItemToWallet(link){
     // Mainnet at the point of action instead of asking the user to copy IDs.
     if(!kioskId||!kioskOwnerCapId){
       const discovered=await txApi.fetchOwnedObjects(client,connection.address);
-      if(Array.isArray(discovered?.caps)&&discovered.caps.length)persistWalletCaps(connection.address,discovered.caps);
       const match=discovered.find(object=>
         object?.objectId===objectId && object.kioskId && object.kioskOwnerCapId
       );
@@ -1599,114 +1549,6 @@ function appendObjectCard(grid,obj,focused=false){
   card.innerHTML=`${alert?`<span class="object-alert" title="${blocked?'Blocked by Sui DenyList':'Locked by Kiosk TransferPolicy'}">${alert}</span>`:''}<div class="object-thumb">${thumb}</div><strong>${escapeHtml(label)}</strong><p>${suiscanLink(obj.objectId, obj.objectId.slice(0,10)+'…')}</p>${extra}`;
   grid.appendChild(card);
   return card;
-}
-let capFilter='all';
-function capGroup(kind){
-  if(kind==='KioskOwnerCap'||kind==='Kiosk')return 'kiosk';
-  if(kind==='PersonalKioskCap')return 'personal';
-  return 'other';
-}
-function setCapFilter(kind,btn){
-  capFilter=kind;
-  document.querySelectorAll('#capsFilter .filter-tab').forEach(t=>t.classList.toggle('selected',t===btn));
-  renderCapsList();
-}
-function renderCapsList(){
-  const list=document.getElementById('capsList');
-  if(!list)return;
-  if(!walletCaps.length){
-    list.innerHTML='<div class="chain-empty">No capabilities found. Connect a wallet and run Scan and Refresh first.</div>';
-    return;
-  }
-  const order={'KioskOwnerCap':0,'PersonalKioskCap':1,'TransferPolicyCap':2,'TransferPolicy':3,'Kiosk':4,'UpgradeCap':5};
-  const sorted=[...walletCaps].sort((a,b)=>(order[a.kind]??9)-(order[b.kind]??9));
-  const visible=sorted.filter(c=>capFilter==='all'||capGroup(c.kind)===capFilter);
-  if(!visible.length){
-    list.innerHTML='<div class="chain-empty">No capabilities in this group.</div>';
-    return;
-  }
-  list.innerHTML=visible.map(c=>{
-    const group=capGroup(c.kind);
-    const metas=[];
-    if(c.kioskId)metas.push(`Kiosk: <code>${c.kioskId}</code>`);
-    if(c.policyId)metas.push(`Policy: <code>${c.policyId}</code>`);
-    if(c.packageId)metas.push(`Package: <code>${c.packageId}</code>`);
-    // Kiosk object: surface emptiness so the user can spot deletable Kiosks.
-    let status='';
-    if(c.kind==='Kiosk'){
-      if(c.deletable){
-        status='<span class="cap-status deletable">EMPTY · DELETABLE</span>';
-      }else{
-        const items=c.kioskItemCount??'?';
-        const profits=c.kioskProfits??'0';
-        status=`<span class="cap-status">${items} item(s) · profits ${profits}</span>`;
-      }
-    }
-    // Delete button only on empty Kiosk rows.
-    let action='';
-    if(c.kind==='Kiosk' && c.deletable){
-      action=`<button class="btn cap-delete" type="button" data-kiosk-id="${c.kioskId}" onclick="deleteKioskFromCap(this)">Delete Kiosk</button>`;
-    }
-    return `<div class="cap-row"><div class="cap-kind ${group}">${c.kind}</div><code class="cap-id">${c.objectId}</code>${metas.length?`<div class="cap-metas">${metas.map(m=>`<span class="cap-meta">${m}</span>`).join('')}</div>`:''}${status?`<div class="cap-status-row">${status}${action}</div>`:''}</div>`;
-  }).join('');
-}
-// Find the KioskOwnerCap / PersonalKioskCap objectId for a given kioskId, then
-// delete the (empty) Kiosk with a real wallet signature. IRREVERSIBLE.
-async function deleteKioskFromCap(btn){
-  const kioskId=btn?.dataset.kioskId;
-  if(!kioskId)return;
-  const cap=walletCaps.find(c=>(c.kind==='KioskOwnerCap'||c.kind==='PersonalKioskCap')&&c.kioskId===kioskId);
-  if(!cap){window.alert('KioskOwnerCap for this Kiosk was not found in the connected wallet.');return;}
-  const ok=window.confirm('Delete this empty Kiosk? This destroys the Kiosk and its KioskOwnerCap permanently. It cannot be undone.');
-  if(!ok)return;
-  const connection=window.theArchiveWallet?.getConnection?.();
-  const client=window.theArchiveWallet?.dAppKit?.getClient?.('mainnet');
-  if(!connection?.address||!client){window.alert('Connect a wallet first.');return;}
-  try{
-    btn.disabled=true;
-    const result=await window.theArchiveTx.deleteKiosk({
-      client,
-      dAppKit:window.theArchiveWallet.dAppKit,
-      kioskId,
-      kioskOwnerCapId:cap.objectId,
-      kioskCapKind:cap.kind==='PersonalKioskCap'?'personal-kiosk-cap':'',
-      sender:connection.address,
-    });
-    showToast(`Kiosk deleted. TX: ${String(result?.digest||'').slice(0,12)}…`);
-    // refresh the capability inventory
-    const refreshed=await window.theArchiveTx.fetchOwnedObjects(client,connection.address);
-    if(Array.isArray(refreshed?.caps)&&refreshed.caps.length)persistWalletCaps(connection.address,refreshed.caps);
-    renderCapsList();
-  }catch(err){
-    btn.disabled=false;
-    const text=String(err?.message||err||'');
-    window.alert(`Could not delete Kiosk.\n\n${text}`);
-  }
-}
-function updateCapCount(){
-  const el=document.getElementById('capCount');
-  if(el)el.textContent=String(walletCaps.length);
-}
-function showWalletCaps(){
-  updateCapCount();
-  const modal=document.getElementById('capsModal');
-  const sub=document.getElementById('capsScannedAt');
-  if(!modal)return;
-  // reset filter to All each open
-  capFilter='all';
-  document.querySelectorAll('#capsFilter .filter-tab').forEach(t=>t.classList.toggle('selected',t.dataset.kind==='all'));
-  renderCapsList();
-  if(sub){
-    try{
-      const stored=JSON.parse(localStorage.getItem('thearchive:wallet-caps')||'{}');
-      sub.textContent=stored?.scannedAt?`Last scanned: ${new Date(stored.scannedAt).toLocaleString()}`:'';
-    }catch(_){sub.textContent='';}
-  }
-  modal.hidden=false;
-}
-function hideWalletCaps(){
-  const modal=document.getElementById('capsModal');
-  if(modal)modal.hidden=true;
 }
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
@@ -2197,10 +2039,6 @@ function loadWizardObjects(){
     fetchArchivedArtifactIds(),
   ]).then(([rpcObjects,indexed,archivedIds])=>{
     wizardScanIncomplete=Boolean(rpcObjects?.scanIncomplete);
-    // Persist the wallet's full capability inventory (KioskOwnerCap,
-    // PersonalKioskCap, TransferPolicyCap, TransferPolicy, Kiosk, UpgradeCap) so
-    // it survives reloads and is readable by other flows.
-    persistWalletCaps(connection.address,Array.isArray(rpcObjects?.caps)?rpcObjects.caps:[]);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
@@ -2467,7 +2305,6 @@ async function completeArchive(){
     let kioskOwnerCapId=selectedCardForArchive?.dataset.kioskOwnerCapId||selectedModel?.kioskOwnerCapId||undefined;
     if(selectedModel?.kiosk||selectedModel?.ownershipStatus==='Locked in Kiosk'||selectedModel?.ownerObjectId){
       const refreshed=await txApi.fetchOwnedObjects(client,connection.address);
-      if(Array.isArray(refreshed?.caps)&&refreshed.caps.length)persistWalletCaps(connection.address,refreshed.caps);
       const kioskMatch=refreshed.find(object=>object.objectId===selectedObjectId&&object.kioskId&&object.kioskOwnerCapId);
       kioskId=kioskMatch?.kioskId||kioskId;
       kioskOwnerCapId=kioskMatch?.kioskOwnerCapId||kioskOwnerCapId;
