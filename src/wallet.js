@@ -209,9 +209,9 @@ function renderConnectionState() {
     walletButton.setAttribute('aria-label', `Wallet reconnecting: ${lastConnection.walletName}`);
     walletDisconnectButton.hidden = false;
     walletDisconnectTopButton.hidden = false;
-    walletStatus.textContent = `Reconnecting ${lastConnection.walletName} on Sui Mainnet…`;
+    walletStatus.textContent = `Wallet ${lastConnection.walletName} on Sui Mainnet…`;
   } else {
-    walletButton.textContent = reconnecting ? 'Reconnecting…' : 'Connect Wallet';
+    walletButton.textContent = reconnecting ? 'Wallet…' : 'Connect Wallet';
     walletButton.title = '';
     walletButton.setAttribute('aria-label', 'Connect Sui wallet');
     walletDisconnectButton.hidden = true;
