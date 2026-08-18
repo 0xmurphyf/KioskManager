@@ -1450,57 +1450,6 @@ function objectCollection(o){
 }
 function openObjectCollection(key){wizardCollection=key;renderFilteredObjects()}
 function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
-async function takeKioskItemToWallet(link){
-  const connection=window.theArchiveWallet?.getConnection?.();
-  const txApi=window.theArchiveTx;
-  if(!connection?.address){showToast('Connect the Kiosk owner wallet first');return;}
-  if(!txApi?.takeKioskItemToWallet){showToast('Kiosk transfer API is unavailable. Reload the page and try again.');return;}
-  const objectId=link?.dataset.objectId||'';
-  const typeArgument=link?.dataset.type||'';
-  let kioskId=link?.dataset.kioskId||'';
-  let kioskOwnerCapId=link?.dataset.kioskOwnerCapId||'';
-  const kioskCapKind=link?.dataset.kioskCapKind||'';
-  link.classList.add('is-loading');
-  try{
-    const client=window.theArchiveWallet.dAppKit.getClient('mainnet');
-    // The first scan can finish before the KioskOwnerCap association is
-    // available (especially when the indexer result wins the merge). Re-read
-    // Mainnet at the point of action instead of asking the user to copy IDs.
-    if(!kioskId||!kioskOwnerCapId){
-      const discovered=await txApi.fetchOwnedObjects(client,connection.address);
-      const match=discovered.find(object=>
-        object?.objectId===objectId && object.kioskId && object.kioskOwnerCapId
-      );
-      if(match){
-        kioskId=match.kioskId;
-        kioskOwnerCapId=match.kioskOwnerCapId;
-        link.dataset.kioskId=kioskId;
-        link.dataset.kioskOwnerCapId=kioskOwnerCapId;
-        if(match.kioskCapKind)link.dataset.kioskCapKind=match.kioskCapKind;
-      }
-    }
-    const missing=[
-      ['item',objectId],
-      ['type',typeArgument],
-      ['Kiosk ID',kioskId],
-      ['KioskOwnerCap',kioskOwnerCapId],
-      ['target wallet',connection.address],
-      ['wallet client',client],
-    ].filter(([,value])=>!value).map(([label])=>label);
-    if(missing.length)throw new Error(`Could not auto-read ${missing.join(', ')} from the connected Mainnet wallet. Refresh the wallet objects and try again.`);
-    const result=await txApi.takeKioskItemToWallet({client,dAppKit:window.theArchiveWallet.dAppKit,objectId,typeArgument,kioskId,kioskOwnerCapId,kioskCapKind,targetAddress:connection.address});
-    showToast(`Kiosk item is now wallet-owned. TX: ${String(result?.digest||'').slice(0,12)}…`);
-    wizardObjectsLoaded=false;
-    await loadWizardObjects();
-  }catch(error){
-    const text=String(error?.message||error);
-    if(/eitemlocked|item.?locked|transfer.?policy/i.test(text))window.alert('This Kiosk item is locked by a TransferPolicy. Unlock or delist it first, then try again.');
-    else window.alert(`Could not take this Kiosk item out.\n\n${text}`);
-  }finally{
-    link.classList.remove('is-loading');
-  }
-}
-window.takeKioskItemToWallet=takeKioskItemToWallet;
 function appendObjectCard(grid,obj,focused=false){
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
@@ -1537,8 +1486,8 @@ function appendObjectCard(grid,obj,focused=false){
   if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
   else if(locked)extra+=`<div class="object-state-warning"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED TAKE OUT FIRST</a></div>`;
-  else if(inKiosk&&personalKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" data-object-id="${escapeHtml(obj.objectId)}" data-type="${escapeHtml(obj.type)}" data-kiosk-id="${escapeHtml(obj.kioskId||'')}" data-kiosk-owner-cap-id="${escapeHtml(obj.kioskOwnerCapId||'')}" data-kiosk-cap-kind="personal-kiosk-cap" onclick="event.stopPropagation();takeKioskItemToWallet(this);return false;">◆ PERSONAL KIOSK · TAKE OUT TO WALLET</a></div>`;
-  else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" data-object-id="${escapeHtml(obj.objectId)}" data-type="${escapeHtml(obj.type)}" data-kiosk-id="${escapeHtml(obj.kioskId||'')}" data-kiosk-owner-cap-id="${escapeHtml(obj.kioskOwnerCapId||'')}" onclick="event.stopPropagation();takeKioskItemToWallet(this);return false;">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
+  else if(inKiosk&&personalKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ PERSONAL KIOSK · TAKE OUT TO WALLET</a></div>`;
+  else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(specialOwnership)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ LISTED / OBJECT CONTROLLED</a></div>`;
   if(obj.isCoin){
     const fullSUI = obj.balance!==undefined ? Number(obj.balance)/1e9 : 0;
@@ -1678,7 +1627,33 @@ async function nextStep(){
     }
     const scanNoStore=Boolean(selectedModel?.noStore||selectedCard.dataset.noStore==='1');
     if(scanNoStore){
-      window.alert('This object cannot be archived because its Move type does not have the store ability.');
+      window.alert('This object cannot be archived because its Move type does not have the store ability (NO STORE).');
+      return;
+    }
+    const scanInKiosk=Boolean(
+      selectedCard.dataset.kioskId||
+      selectedCard.dataset.kioskOwnerCapId||
+      selectedCard.dataset.inKiosk==='1'||
+      selectedModel?.kioskId||
+      selectedModel?.kioskOwnerCapId||
+      selectedModel?.kiosk||
+      selectedModel?.ownerObjectId||
+      selectedModel?.ownershipStatus==='Locked in Kiosk'
+    );
+    if(scanInKiosk){
+      window.alert('This object lives in a Kiosk and cannot be archived from here. Take it out to your wallet first via https://kiosk.voxxinc.xyz, then archive it.');
+      return;
+    }
+    const scanSpecial=Boolean(
+      selectedCard.dataset.specialOwnership==='1'||
+      selectedModel?.ownerObjectId||
+      selectedModel?.objectStatus==='ObjectOwned'||
+      selectedModel?.ownershipStatus==='ObjectOwned'||
+      selectedModel?.ownershipStatus==='Special'||
+      selectedModel?.ownershipStatus==='Listed'
+    );
+    if(scanSpecial){
+      window.alert('This object has special/listed ownership and cannot be archived from here. Resolve its ownership first, then try again.');
       return;
     }
     const isKioskItem=Boolean(
@@ -1727,7 +1702,9 @@ function selectObject(el){
   selectedObjectType=el.dataset.type||null;
   selectedGasPayment=null;
   setConfirmObject();
-  objectNext.disabled=!selectedObjectId;
+  const blockedForArchive=el.dataset.noStore==='1'||el.dataset.kioskId||el.dataset.kioskOwnerCapId||el.dataset.inKiosk==='1'||el.dataset.specialOwnership==='1';
+  objectNext.disabled=!selectedObjectId||!!blockedForArchive;
+  if(blockedForArchive)showToast('This object cannot be archived from here — take it out of its Kiosk / resolve ownership first.');
 }
 // Render the object being archived into the two confirmation cells: Object Name
 // and Object ID (with the Coin partial-amount sub-line). This is the "potential
