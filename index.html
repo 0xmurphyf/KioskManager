@@ -1659,21 +1659,6 @@ function renderStep(){
     void refreshArchiveCost();
   }
 }
-async function resolveSeparateGasPayment(client,selectedId){
-  const candidates=wizardObjects.filter(o=>isSuiCoin(o)&&o.objectId!==selectedId);
-  for(const candidate of candidates){
-    try{
-      const live=await window.theArchiveTx.fetchObjectById(client,candidate.objectId);
-      if(live?.version===undefined||!live.digest)continue;
-      const balance=live.balance??candidate.balance??0n;
-      if(BigInt(balance)<20_000_000n)continue;
-      return {objectId:live.objectId,version:live.version,digest:live.digest};
-    }catch(error){
-      console.debug('[gas-payment] candidate unavailable',candidate.objectId,error);
-    }
-  }
-  return null;
-}
 async function nextStep(){
   if(currentStep===1){
     const selectedCard=document.querySelector('[data-step="1"] .option.selected');
@@ -1689,11 +1674,6 @@ async function nextStep(){
     const txApi=window.theArchiveTx;
     if(!txApi){
       window.alert('Archive transaction API is not available. Reload the page and try again.');
-      return;
-    }
-    selectedGasPayment=await resolveSeparateGasPayment(window.theArchiveWallet.dAppKit.getClient('mainnet'),selectedObjectId);
-    if(!selectedGasPayment){
-      window.alert('A separate confirmed SUI Coin is required for gas. Keep another SUI Coin besides the object you want to archive, then try again.');
       return;
     }
     const scanNoStore=Boolean(selectedModel?.noStore||selectedCard.dataset.noStore==='1');
