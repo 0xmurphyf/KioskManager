@@ -660,7 +660,7 @@ export async function fetchOwnedObjects(client, address) {
   }
 
   // Attach the fetched balance to each coin; non-coin objects pass through.
-  // SUI is no longer special-cased — it is just another coin type with a balance.
+  // SUI falls back to the official Sui mark when no on-chain icon is available.
   const coinResults = await Promise.all(coins.map(async (o) => {
     let imageUrl=o.imageUrl;
     if(!imageUrl && getCoinMetadata){
@@ -673,6 +673,9 @@ export async function fetchOwnedObjects(client, address) {
         console.debug('[owned-objects] coin metadata unavailable', o.type, error);
       }
     }
+    // Official Sui mark as the guaranteed fallback for SUI coins so the card
+    // never shows a broken/empty image or a bare text glyph.
+    if(!imageUrl && /::coin::Coin<[^>]*::sui::SUI\s*>/i.test(o.type)) imageUrl=SUI_COIN_ICON_URL;
     return {
       ...o,
       blocked: denyListedSuffixes.has(coinTypeSuffix(o.type)),

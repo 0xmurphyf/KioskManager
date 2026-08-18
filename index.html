@@ -871,6 +871,12 @@ function fallbackObjectImage(event){
 }
 function fallbackCoinImage(event){
   const image=event.currentTarget;
+  // SUI coins fall back to the official Sui mark rather than a text glyph.
+  if(/::coin::Coin<[^>]*::sui::SUI\s*>/i.test(String(image.dataset?.type||''))){
+    image.onerror=null;
+    image.src='/archive-assets/sui-coin.svg';
+    return;
+  }
   const label=image.closest('.option')?.querySelector('strong')?.textContent?.slice(0,6)||'COIN';
   const fallback=document.createElement('div');
   fallback.className='coin-glyph';
