@@ -122,7 +122,7 @@ async function graphqlFetch(query, variables) {
 // transiently on the free public endpoints (429 rate-limit, 5xx, network blip,
 // gRPC hiccup). Retries on thrown errors and on HTTP 429/5xx; does NOT retry on
 // 4xx other than 429 (those are permanent client errors).
-async function withRetry(fn, { attempts = 4, baseMs = 500, maxMs = 8000 } = {}) {
+async function withRetry(fn, { attempts = 4, baseMs = 500, maxMs = 8000, retryDeterministic = false } = {}) {
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -134,7 +134,20 @@ async function withRetry(fn, { attempts = 4, baseMs = 500, maxMs = 8000 } = {}) 
         /failed to fetch|network|timeout|abort|econnreset|etimedout|429|rate.?limit|5[0-9]{2}|grpc|unavailable|deadline|too many requests/i.test(message);
       const status = Number(error?.status || error?.response?.status || 0);
       const statusTransient = status === 429 || (status >= 500 && status < 600);
-      if (!isTransient && !statusTransient) throw error;
+      // Deterministic client errors (bad arg types, missing fields) won't heal
+      // on retry. When retryDeterministic is false we surface them immediately so
+      // the user sees the real cause instead of waiting through dead retries.
+      const isDeterministic = /commandargumenterror|type mismatch|argument|missing|not found|invalid|unknown object|abort/i.test(message);
+      if (!isTransient && !statusTransient) {
+        if (isDeterministic && !retryDeterministic) throw error;
+        // Non-transient but non-deterministic (e.g. an unexpected shape): still
+        // retry once in case it was a transient serialization glitch.
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, Math.min(maxMs, baseMs) + Math.floor(Math.random() * 200)));
+          continue;
+        }
+        throw error;
+      }
       if (attempt + 1 < attempts) {
         const delay = Math.min(maxMs, baseMs * 2 ** attempt) + Math.floor(Math.random() * 250);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -414,15 +427,42 @@ export async function fetchObjectById(client, objectId) {
 
 export async function preflightArchiveTransaction({ client, sender, ...params }) {
   if (!client || !sender) throw new Error('Mainnet client or sender is unavailable');
+  // Resolve the real Kiosk cap type from chain so the archive PTB uses the
+  // correct take path (standard vs PersonalKioskCap). Without this, a
+  // PersonalKioskCap passed to standard kiosk::take aborts with
+  // CommandArgumentError TypeMismatch at arg_idx 1.
+  if (params.kioskId && params.kioskOwnerCapId && client) {
+    let resolvedKind = kioskCapabilityKind(
+      params.kioskCapKind === 'personal-kiosk-cap' ? '0x0::personal_kiosk::PersonalKioskCap' : ''
+    );
+    if (!resolvedKind) {
+      try {
+        const capObj = await fetchObjectById(client, params.kioskOwnerCapId);
+        const capType = capObj?.object?.type || capObj?.data?.type || capObj?.type || '';
+        resolvedKind = kioskCapabilityKind(capType);
+      } catch {
+        // fall back to the dataset hint below
+      }
+    }
+    if (!resolvedKind) {
+      resolvedKind = kioskCapabilityKind(
+        params.kioskCapKind === 'personal-kiosk-cap'
+          ? '0x0::personal_kiosk::PersonalKioskCap'
+          : '0x0::kiosk::KioskOwnerCap'
+      );
+    }
+    params.kioskCapKind = resolvedKind;
+  }
   const tx = buildArchiveTransaction(params);
   tx.setSender(sender);
   tx.setGasBudget(100_000_000);
   // Free public endpoints intermittently fail tx.build (gRPC object reads) and
-  // simulate; retry both so a transient blip doesn't surface as "Could not verify".
-  const bytes = await withRetry(() => tx.build({ client }), { attempts: 4, baseMs: 500, maxMs: 8000 });
+  // simulate; retry both (including deterministic errors) so a transient
+  // serialization/resolve glitch gets a few attempts before we surface the cause.
+  const bytes = await withRetry(() => tx.build({ client }), { attempts: 3, baseMs: 400, maxMs: 2000, retryDeterministic: true });
   const simulate = client.core?.simulateTransaction?.bind(client.core) || client.simulateTransaction?.bind(client);
   if (!simulate) return { success: true, unavailable: true, message: 'Simulation API unavailable; transaction build passed.' };
-  const result = await withRetry(() => simulate({ transaction: bytes, include: { effects: true } }), { attempts: 4, baseMs: 500, maxMs: 8000 });
+  const result = await withRetry(() => simulate({ transaction: bytes, include: { effects: true } }), { attempts: 3, baseMs: 400, maxMs: 2000, retryDeterministic: true });
   const status = result?.effects?.status || result?.Transaction?.status || result?.transaction?.effects?.status;
   const success = status?.success === true || status?.status === 'success' || result?.effects?.status === 'success';
   return { success, unavailable: false, message: status?.error || (success ? 'Preflight passed.' : 'Mainnet simulation did not pass.'), result };
@@ -704,6 +744,7 @@ export function buildArchiveTransaction({
   amount,
   kioskId,
   kioskOwnerCapId,
+  kioskCapKind = '',
   gasPayment,
 }) {
   const tx = new Transaction();
@@ -740,15 +781,36 @@ export function buildArchiveTransaction({
     // item into the transaction using the wallet's KioskOwnerCap, then pass
     // the returned object into archive_forever. The contract still remains
     // the final authority for the archive call.
-    artifactArg = tx.moveCall({
-      target: '0x2::kiosk::take',
-      typeArguments: [typeArgument],
-      arguments: [
-        tx.object(kioskId),
-        tx.object(kioskOwnerCapId),
-        tx.pure.id(objectId),
-      ],
-    });
+    // A PersonalKioskCap wraps the KioskOwnerCap behind an Option, so standard
+    // kiosk::take cannot read through it. Passing the raw PersonalKioskCap to
+    // kiosk::take aborts with CommandArgumentError TypeMismatch at arg_idx 1 —
+    // expose the inner cap via borrow_val first, exactly like the take-out flow.
+    const isPersonal = kioskCapKind === 'personal-kiosk-cap';
+    if (isPersonal) {
+      const [cap, borrow] = tx.moveCall({
+        target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::borrow_val`,
+        arguments: [tx.object(kioskOwnerCapId)],
+      });
+      artifactArg = tx.moveCall({
+        target: '0x2::kiosk::take',
+        typeArguments: [typeArgument],
+        arguments: [tx.object(kioskId), cap, tx.pure.id(objectId)],
+      });
+      tx.moveCall({
+        target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::return_val`,
+        arguments: [tx.object(kioskOwnerCapId), cap, borrow],
+      });
+    } else {
+      artifactArg = tx.moveCall({
+        target: '0x2::kiosk::take',
+        typeArguments: [typeArgument],
+        arguments: [
+          tx.object(kioskId),
+          tx.object(kioskOwnerCapId),
+          tx.pure.id(objectId),
+        ],
+      });
+    }
   } else if (amount !== undefined && amount !== null && typeArgument && typeArgument.includes('::coin::Coin<')) {
     const [coinType] = typeArgument.split('::Coin<');
     const fullCoinType = `${coinType}::Coin<${typeArgument.split('::Coin<')[1]}`;
@@ -930,8 +992,31 @@ export async function archiveObject({
   amount,
   kioskId,
   kioskOwnerCapId,
+  kioskCapKind = '',
   gasPayment,
 }) {
+  // Resolve the real capability type from chain state instead of trusting the
+  // possibly-stale frontend dataset. A PersonalKioskCap passed to standard
+  // kiosk::take aborts with CommandArgumentError TypeMismatch at arg_idx 1.
+  let resolvedKind = kioskCapabilityKind(
+    kioskCapKind === 'personal-kiosk-cap' ? '0x0::personal_kiosk::PersonalKioskCap' : ''
+  );
+  if (!resolvedKind && kioskOwnerCapId && client) {
+    try {
+      const capObj = await fetchObjectById(client, kioskOwnerCapId);
+      const capType = capObj?.object?.type || capObj?.data?.type || capObj?.type || '';
+      resolvedKind = kioskCapabilityKind(capType);
+    } catch {
+      // fall back to the dataset hint below
+    }
+  }
+  if (!resolvedKind) {
+    resolvedKind = kioskCapabilityKind(
+      kioskCapKind === 'personal-kiosk-cap'
+        ? '0x0::personal_kiosk::PersonalKioskCap'
+        : '0x0::kiosk::KioskOwnerCap'
+    );
+  }
   const tx = buildArchiveTransaction({
     objectId,
     typeArgument,
@@ -944,6 +1029,7 @@ export async function archiveObject({
     amount,
     kioskId,
     kioskOwnerCapId,
+    kioskCapKind: resolvedKind,
     gasPayment,
   });
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
