@@ -408,6 +408,11 @@ body.wallet-open{overflow:hidden}
 .cap-metas{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:2px}
 .cap-meta{font-size:clamp(9px,.35vw + .25vh,11px);color:var(--dim)}
 .cap-meta code{color:var(--paper);font-family:"Courier New",monospace}
+.cap-status-row{display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap}
+.cap-status{font:700 10px "Courier New",monospace;letter-spacing:.08em;color:var(--dim)}
+.cap-status.deletable{color:#7fbf6a}
+.cap-delete{background:transparent;border:1px solid #b86b5d;color:#ffd1c5;padding:6px 12px;font:11px "Courier New",monospace;letter-spacing:.06em;cursor:pointer}
+.cap-delete:hover{background:#3a1b18}
 </style>
 </head>
 <body>
@@ -1620,10 +1625,57 @@ function renderCapsList(){
     if(c.kioskId)metas.push(`Kiosk: <code>${c.kioskId}</code>`);
     if(c.policyId)metas.push(`Policy: <code>${c.policyId}</code>`);
     if(c.packageId)metas.push(`Package: <code>${c.packageId}</code>`);
-    // innerCapId is part of the Personal cap's own structure and is not shown
-    // separately — it would only duplicate information already implied by the cap.
-    return `<div class="cap-row"><div class="cap-kind ${group}">${c.kind}</div><code class="cap-id">${c.objectId}</code>${metas.length?`<div class="cap-metas">${metas.map(m=>`<span class="cap-meta">${m}</span>`).join('')}</div>`:''}</div>`;
+    // Kiosk object: surface emptiness so the user can spot deletable Kiosks.
+    let status='';
+    if(c.kind==='Kiosk'){
+      if(c.deletable){
+        status='<span class="cap-status deletable">EMPTY · DELETABLE</span>';
+      }else{
+        const items=c.kioskItemCount??'?';
+        const profits=c.kioskProfits??'0';
+        status=`<span class="cap-status">${items} item(s) · profits ${profits}</span>`;
+      }
+    }
+    // Delete button only on empty Kiosk rows.
+    let action='';
+    if(c.kind==='Kiosk' && c.deletable){
+      action=`<button class="btn cap-delete" type="button" data-kiosk-id="${c.kioskId}" onclick="deleteKioskFromCap(this)">Delete Kiosk</button>`;
+    }
+    return `<div class="cap-row"><div class="cap-kind ${group}">${c.kind}</div><code class="cap-id">${c.objectId}</code>${metas.length?`<div class="cap-metas">${metas.map(m=>`<span class="cap-meta">${m}</span>`).join('')}</div>`:''}${status?`<div class="cap-status-row">${status}${action}</div>`:''}</div>`;
   }).join('');
+}
+// Find the KioskOwnerCap / PersonalKioskCap objectId for a given kioskId, then
+// delete the (empty) Kiosk with a real wallet signature. IRREVERSIBLE.
+async function deleteKioskFromCap(btn){
+  const kioskId=btn?.dataset.kioskId;
+  if(!kioskId)return;
+  const cap=walletCaps.find(c=>(c.kind==='KioskOwnerCap'||c.kind==='PersonalKioskCap')&&c.kioskId===kioskId);
+  if(!cap){window.alert('KioskOwnerCap for this Kiosk was not found in the connected wallet.');return;}
+  const ok=window.confirm('Delete this empty Kiosk? This destroys the Kiosk and its KioskOwnerCap permanently. It cannot be undone.');
+  if(!ok)return;
+  const connection=window.theArchiveWallet?.getConnection?.();
+  const client=window.theArchiveWallet?.dAppKit?.getClient?.('mainnet');
+  if(!connection?.address||!client){window.alert('Connect a wallet first.');return;}
+  try{
+    btn.disabled=true;
+    const result=await window.theArchiveTx.deleteKiosk({
+      client,
+      dAppKit:window.theArchiveWallet.dAppKit,
+      kioskId,
+      kioskOwnerCapId:cap.objectId,
+      kioskCapKind:cap.kind==='PersonalKioskCap'?'personal-kiosk-cap':'',
+      sender:connection.address,
+    });
+    showToast(`Kiosk deleted. TX: ${String(result?.digest||'').slice(0,12)}…`);
+    // refresh the capability inventory
+    const refreshed=await window.theArchiveTx.fetchOwnedObjects(client,connection.address);
+    if(Array.isArray(refreshed?.caps)&&refreshed.caps.length)persistWalletCaps(connection.address,refreshed.caps);
+    renderCapsList();
+  }catch(err){
+    btn.disabled=false;
+    const text=String(err?.message||err||'');
+    window.alert(`Could not delete Kiosk.\n\n${text}`);
+  }
 }
 function updateCapCount(){
   const el=document.getElementById('capCount');

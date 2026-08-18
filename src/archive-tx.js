@@ -93,7 +93,7 @@ function collectCap(data) {
   if (!match) return null;
   const json = data?.json || data?.content?.json || data?.content?.fields || data?.content || {};
   const ref = kioskCapabilityReference(json) || kioskCapabilityReference(data);
-  return {
+  const cap = {
     kind: match.kind,
     objectId: data?.objectId || data?.data?.objectId,
     type,
@@ -102,6 +102,16 @@ function collectCap(data) {
     packageId: match.ref === 'package' ? (json?.package || null) : null,
     innerCapId: match.ref === 'kiosk' ? (ref?.innerCapId || null) : null,
   };
+  // For the Kiosk object itself, read item_count / profits so the UI can flag
+  // empty Kiosks that are safe to delete (Sui requires empty + 0 profits).
+  if (match.kind === 'Kiosk') {
+    const itemCount = Number(json?.item_count ?? json?.fields?.item_count ?? -1);
+    const profits = BigInt(json?.profits ?? json?.fields?.profits ?? '0');
+    cap.kioskItemCount = itemCount;
+    cap.kioskProfits = profits.toString();
+    cap.deletable = itemCount === 0 && profits === 0n;
+  }
+  return cap;
 }
 
 async function graphqlFetch(query, variables) {
@@ -978,6 +988,94 @@ export async function takeKioskItemToWallet({
   return result;
 }
 
+// Delete an empty Kiosk. Sui's `0x2::kiosk::delete` requires the Kiosk to be
+// empty (no items) and have zero profits balance, otherwise it aborts. This is
+// IRREVERSIBLE — the Kiosk object and its KioskOwnerCap are destroyed. We
+// pre-check the live item_count / profits and refuse to build if not empty.
+export async function deleteKiosk({ client, dAppKit, kioskId, kioskOwnerCapId, kioskCapKind = '', sender }) {
+  const missing = [
+    ['Kiosk ID', kioskId],
+    ['KioskOwnerCap', kioskOwnerCapId],
+    ['wallet client', dAppKit],
+    ['sender', sender],
+  ].filter(([, value]) => !value).map(([label]) => label);
+  if (missing.length) throw new Error(`Kiosk delete is missing: ${missing.join(', ')}`);
+
+  // Live emptiness check — never delete a Kiosk that still holds items/profits.
+  // We read the raw object (describeObject flattens away item_count/profits),
+  // via the same client interface used elsewhere in this module.
+  if (client && kioskId) {
+    try {
+      const getObject = client.core?.getObject?.bind(client.core) || client.getObject?.bind(client);
+      const raw = await getObject({ objectId: kioskId, include: client.core ? { json: true } : { content: true } });
+      const object = raw?.object ?? raw?.data ?? raw;
+      const content = object?.content ?? object?.data?.content ?? {};
+      const json = content.json ?? content.fields ?? {};
+      const k = json.fields ?? json;
+      const itemCount = Number(k?.item_count ?? -1);
+      const profits = BigInt(k?.profits ?? '0');
+      if (itemCount !== 0 || profits !== 0n) {
+        throw new Error(
+          `This Kiosk is not empty (items: ${itemCount}, profits: ${profits.toString()}). ` +
+          `Take or withdraw everything, then delete.`
+        );
+      }
+    } catch (error) {
+      if (/not empty|items:|profits:/i.test(String(error?.message || ''))) throw error;
+      // otherwise fall through to the build (the chain will enforce emptiness)
+      console.debug('[kiosk] could not pre-check emptiness before delete', error);
+    }
+  }
+
+  // Resolve the real capability type (same reasoning as takeKioskItemToWallet).
+  let resolvedKind = kioskCapabilityKind(
+    kioskCapKind === 'personal-kiosk-cap' ? '0x0::personal_kiosk::PersonalKioskCap' : ''
+  );
+  if (!resolvedKind && kioskOwnerCapId && client) {
+    try {
+      const capObj = await fetchObjectById(client, kioskOwnerCapId);
+      const capType = capObj?.object?.type || capObj?.data?.type || capObj?.type || '';
+      resolvedKind = kioskCapabilityKind(capType);
+    } catch {
+      // fall back to the dataset hint below
+    }
+  }
+  if (!resolvedKind) {
+    resolvedKind = kioskCapabilityKind(
+      kioskCapKind === 'personal-kiosk-cap'
+        ? '0x0::personal_kiosk::PersonalKioskCap'
+        : '0x0::kiosk::KioskOwnerCap'
+    );
+  }
+  const isPersonal = resolvedKind === 'personal-kiosk-cap';
+  const tx = new Transaction();
+  if (isPersonal) {
+    // personal_kiosk exposes no delete; wrap the standard kiosk::delete with
+    // borrow_val / return_val, exactly like the take-out flow.
+    const [cap, borrow] = tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::borrow_val`,
+      arguments: [tx.object(kioskOwnerCapId)],
+    });
+    tx.moveCall({
+      target: '0x2::kiosk::delete',
+      arguments: [tx.object(kioskId), cap],
+    });
+    tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::return_val`,
+      arguments: [tx.object(kioskOwnerCapId), cap, borrow],
+    });
+  } else {
+    tx.moveCall({
+      target: '0x2::kiosk::delete',
+      arguments: [tx.object(kioskId), tx.object(kioskOwnerCapId)],
+    });
+  }
+  tx.setSender(sender);
+  tx.setGasBudget(100_000_000);
+  const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+  return result;
+}
+
 export async function archiveObject({
   client,
   dAppKit,
@@ -1046,6 +1144,7 @@ window.theArchiveTx = {
   buildArchiveTransaction,
   archiveObject,
   takeKioskItemToWallet,
+  deleteKiosk,
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
