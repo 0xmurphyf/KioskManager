@@ -313,9 +313,15 @@ body.wallet-open{overflow:hidden}
 .visitor-entry small{display:block;margin-top:6px;color:var(--dim);font:10px "Courier New",monospace}
 @media (min-width:600px) and (max-width:900px){
   .object-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .kiosk-group-body{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 @media (max-width:599px){
   .object-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .kiosk-group-body{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 0 0}
+  .kiosk-group-body .option>strong{font-size:10px;line-height:1.15}
+  .kiosk-group-body .option>p{font-size:8px}
+  .kiosk-group-body .object-status{font-size:7px;min-height:16px}
+  .kiosk-group-body .status-pill{font-size:6px;padding:2px 4px}
   .object-grid .option>strong{font-size:10px;line-height:1.15}
   .object-grid .option>p{font-size:8px}
   .object-grid .object-status{font-size:7px;min-height:16px}
