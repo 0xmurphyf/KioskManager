@@ -418,6 +418,7 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="lt5" onclick="setObjectFilter('lt5',this)">Holding &lt;5</button>
           <button class="filter-tab" data-kind="gt5" onclick="setObjectFilter('gt5',this)">Holding &gt;5</button>
           <button class="filter-tab" data-kind="empty" onclick="setObjectFilter('empty',this)">Empty Kiosk</button>
+          <button class="filter-tab" data-kind="locked" onclick="setObjectFilter('locked',this)">Locked</button>
         </div>
         <span class="kiosk-count" id="kioskCount"></span>
       </div>
@@ -1058,8 +1059,10 @@ function shortKioskId(id){
 // Group objects under collapsible Kiosk / Wallet headers. The first layer
 // only shows the group headers; clicking a header expands its items. Scanning
 // logic is untouched — we only read already-computed `kioskId` / `locked`.
-function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet, hasCap, objects }){
-  if(!objects || !objects.length) return;
+function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet, hasCap, lockedOnly, objects }){
+  let renderObjects=objects;
+  if(lockedOnly)renderObjects=objects.filter(o=>o.locked);
+  if(!renderObjects || !renderObjects.length) return;
   const wrap=document.createElement('div');
   wrap.className=`kiosk-group${locked?' is-locked':''}${isWallet?' wallet-direct-group':''}`;
   const header=document.createElement('div');
@@ -1073,7 +1076,7 @@ function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet
   const body=document.createElement('div');
   body.className='kiosk-group-body';
   body.style.display='none';
-  for(const obj of objects) appendObjectCard(body,obj);
+  for(const obj of renderObjects) appendObjectCard(body,obj);
   const toggle=()=>{
     const open=body.style.display!=='none';
     body.style.display=open?'none':'';
@@ -1110,12 +1113,30 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
       if(wizardFilter==='lt5' && realSize>=5)continue;
       if(wizardFilter==='gt5' && realSize<=5)continue;
       if(wizardFilter==='empty' && realSize!==0)continue;
+      const lockedOnly=wizardFilter==='locked';
+      if(lockedOnly){
+        const lockedCount=group.objects.filter(o=>o.locked && !o.isKioskPlaceholder).length;
+        if(lockedCount===0)continue; // skip groups with no locked items
+      }
       const capInfo=group.capOwner?` · cap ${shortKioskId(group.capOwner)}`:'';
+      // Lock status. Per-item `locked` comes from the GraphQL kiosk::is_locked
+      // check, which only runs on the browser gRPC path. When that scan was
+      // incomplete (gRPC blocked), the flag is NOT authoritative — show "lock?"
+      // rather than a misleading "unlocked".
+      let lockInfo='';
+      if(wizardScanIncomplete){
+        if(group.locked)lockInfo=' · 🔒 locked?';
+        else lockInfo=' · ⚠ lock?';
+      } else if(group.locked){
+        const lockedCount=group.objects.filter(o=>o.locked && !o.isKioskPlaceholder).length;
+        lockInfo=` · 🔒 ${lockedCount} locked`;
+      }
       appendCollapsibleGroup(grid,{
         title:`▣ Kiosk ${shortKioskId(group.id)}${capInfo}`,
-        count:`${realSize} item${realSize===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
+        count:`${realSize} item${realSize===1?'':'s'}${lockInfo}`,
         locked:group.locked,
         isWallet:false,
+        lockedOnly,
         hasCap:capKioskIds.has(group.id),
         objects:group.objects,
       });
