@@ -139,6 +139,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .filter-tabs{display:flex;gap:8px}
 .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
+.kiosk-count{margin-left:auto;align-self:center;font:11px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
@@ -394,9 +395,10 @@ body.wallet-open{overflow:hidden}
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
         <div class="filter-tabs" id="objectFilter">
           <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
-          <button class="filter-tab" data-kind="nft" onclick="setObjectFilter('nft',this)">NFT</button>
-          <button class="filter-tab" data-kind="coin" onclick="setObjectFilter('coin',this)">Coin</button>
+          <button class="filter-tab" data-kind="lt5" onclick="setObjectFilter('lt5',this)">Holding &lt;5</button>
+          <button class="filter-tab" data-kind="gt5" onclick="setObjectFilter('gt5',this)">Holding &gt;5</button>
         </div>
+        <span class="kiosk-count" id="kioskCount"></span>
       </div>
       <div class="manual-object-controls">
         <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
@@ -939,9 +941,7 @@ async function refreshArchiveCost(){
   if(total)total.textContent=`≈ ${(Number(liveFee+FIXED_ARCHIVE_GAS_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
-  if(wizardObjects.filter(o=>!isSuiCoin(o)).length<=1)return;
   wizardFilter=kind;
-  wizardCollection=null;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
   el.classList.add('selected');
   renderFilteredObjects();
@@ -1040,11 +1040,13 @@ function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet
   wrap.appendChild(body);
   grid.appendChild(wrap);
 }
-function appendKioskGroups(grid, kioskObjects, walletObjects){
+function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
+  const totalKiosks=new Set();
   if(kioskObjects && kioskObjects.length){
     const byKiosk=new Map();
     for(const obj of kioskObjects){
       const id=obj.kioskId||obj.indexer?.kioskId||'unknown';
+      totalKiosks.add(id);
       const group=byKiosk.get(id)||{id,objects:[],locked:false,capOwner:obj.kioskCapOwner||''};
       group.objects.push(obj);
       if(obj.locked)group.locked=true;
@@ -1052,17 +1054,22 @@ function appendKioskGroups(grid, kioskObjects, walletObjects){
       byKiosk.set(id,group);
     }
     for(const group of byKiosk.values()){
+      const size=group.objects.length;
+      // Group-size filters: only apply when not "all".
+      if(wizardFilter==='lt5' && size>=5)continue;
+      if(wizardFilter==='gt5' && size<=5)continue;
       const capInfo=group.capOwner?` · cap ${shortKioskId(group.capOwner)}`:'';
       appendCollapsibleGroup(grid,{
         title:`▣ Kiosk ${shortKioskId(group.id)}${capInfo}`,
-        count:`${group.objects.length} item${group.objects.length===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
+        count:`${size} item${size===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
         locked:group.locked,
         isWallet:false,
         objects:group.objects,
       });
     }
   }
-  if(walletObjects && walletObjects.length){
+  // Wallet group is only meaningful under "all" (it is not a Kiosk holding).
+  if(wizardFilter==='all' && walletObjects && walletObjects.length){
     appendCollapsibleGroup(grid,{
       title:'👛 Wallet (not in a Kiosk)',
       count:`${walletObjects.length} item${walletObjects.length===1?'':'s'}`,
@@ -1071,20 +1078,17 @@ function appendKioskGroups(grid, kioskObjects, walletObjects){
       objects:walletObjects,
     });
   }
+  if(kioskCountEl)kioskCountEl.textContent=totalKiosks.size?`📦 ${totalKiosks.size} Kiosk${totalKiosks.size===1?'':'s'}`:'';
 }
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
   const filterTabs=document.getElementById('objectFilter');
-  if(filterTabs){
-    const showFilters=wizardObjects.filter(o=>!isSuiCoin(o)).length>1;
-    filterTabs.style.display=showFilters?'flex':'none';
-    if(!showFilters)wizardFilter='all';
-  }
+  if(filterTabs)filterTabs.style.display='flex';
+  const kioskCountEl=document.getElementById('kioskCount');
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
   const list=wizardObjects.filter(o=>o.objectId).filter(o=>{
     const kind=objectKind(o);
-    if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     const collection=kind==='nft'?objectCollection(o):null;
     if(q){
       const label=(o.name||o.type.split('::').pop()).toLowerCase();
@@ -1116,7 +1120,7 @@ function renderFilteredObjects(){
   const otherObjects=list.filter(o=>o.objectId!==wizardFocusedObjectId);
   const kioskObjects=otherObjects.filter(o=>o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId);
   const walletObjects=otherObjects.filter(o=>!(o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId));
-  appendKioskGroups(grid,kioskObjects,walletObjects);
+  appendKioskGroups(grid,kioskObjects,walletObjects,kioskCountEl);
 }
 
 async function startWizard(){
