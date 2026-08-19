@@ -133,9 +133,9 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:14px;margin-top:16px}
 .object-controls{display:flex;flex-direction:column;gap:12px;align-items:stretch;margin-top:18px}
 .object-controls input[type=text]{flex:1;min-width:180px;width:100%}
-.manual-object-controls{display:flex;flex-direction:column;gap:10px;align-items:stretch;margin-top:12px;padding:12px;border:1px dashed var(--line);background:#0e0e0b}
+.manual-object-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:0;padding:12px;border:1px dashed var(--line);background:#0e0e0b}
 .manual-object-controls input{flex:1;min-width:220px;width:100%}
-.manual-object-controls .btn{width:100%}
+.manual-object-controls .muted{font-size:10px;flex-basis:100%}
 .filter-tabs{display:flex;gap:8px;flex-wrap:wrap}
 .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
@@ -421,6 +421,10 @@ body.wallet-open{overflow:hidden}
       <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
+        <div class="manual-object-controls">
+          <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
+          <button class="btn" type="button" id="loadObjectByIdBtn" onclick="loadObjectById()">Add Object ID</button>
+        </div>
         <div class="filter-tabs" id="objectFilter">
           <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
           <button class="filter-tab" data-kind="lt5" onclick="setObjectFilter('lt5',this)">Holding &lt;5</button>
@@ -429,10 +433,6 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="locked" onclick="setObjectFilter('locked',this)">Locked</button>
         </div>
         <div class="kiosk-count-row"><span class="kiosk-count" id="kioskCount"></span></div>
-      </div>
-      <div class="manual-object-controls">
-        <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
-        <button class="btn" type="button" id="loadObjectByIdBtn" onclick="loadObjectById()">Add Object ID</button>
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
