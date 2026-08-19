@@ -615,6 +615,34 @@ export async function fetchOwnedObjects(client, address) {
     }
   }
 
+  // Surface empty Kiosks: a wallet may hold a KioskOwnerCap whose Kiosk has
+  // zero items. Those caps are real holdings but produce no items above, so
+  // without this they silently vanish from the UI. Emit a placeholder per
+  // kioskId that no item was enumerated for, so the UI can show
+  // "▣ Kiosk xxx · 0 items" and the total-cap count stays accurate.
+  const kioskIdsWithItems = new Set(
+    [...kioskItemContext.values()].map((v) => v?.kioskId).filter(Boolean),
+  );
+  for (const kioskId of kioskIds) {
+    if (!kioskId || kioskIdsWithItems.has(kioskId)) continue;
+    const capInfo = kioskCapByKiosk.get(kioskId) || {};
+    const placeholder = {
+      objectId: kioskId,
+      type: '0x2::kiosk::Kiosk',
+      name: `Kiosk ${kioskId.slice(0, 8)}…${kioskId.slice(-4)}`,
+      kioskItemCount: 0,
+      isKioskPlaceholder: true,
+    };
+    kioskItemContext.set(kioskId, {
+      kioskId,
+      kioskOwnerCapId: capInfo.capObjectId || '',
+      kioskCapKind: capInfo.kind || '',
+      kioskInnerCapId: capInfo.innerCapId || '',
+      kioskCapOwner: capInfo.capOwner || '',
+      empty: true,
+    });
+    collected.push(placeholder);
+  }
   // Record every capability object owned by this wallet (KioskOwnerCap,
   // PersonalKioskCap, TransferPolicyCap, TransferPolicy, Kiosk, UpgradeCap),
   // independent of whether it is attached to an enumerated Kiosk. This gives the

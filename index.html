@@ -171,6 +171,8 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .kiosk-group-title{font:11px "Courier New",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);flex:1}
 .kiosk-group-count{font:10px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
 .kiosk-group-body{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:14px;margin-top:0;padding:14px 0 0;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px}
+.is-empty-kiosk{opacity:.6;border-style:dashed}
+.is-empty-kiosk .object-thumb{font-size:32px;color:var(--dim)}
 .object-thumb{flex:0 0 112px;width:100%;height:112px;aspect-ratio:1/1;display:grid;place-items:center;background:transparent;color:var(--accent);margin-bottom:14px;border-radius:8px;overflow:hidden}
 .object-thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .object-grid .coin-amount{margin-top:auto;min-height:76px;overflow:hidden;font-size:9px}
@@ -960,6 +962,18 @@ function objectCollection(o){
 function openObjectCollection(key){wizardCollection=key;renderFilteredObjects()}
 function closeObjectCollection(){wizardCollection=null;renderFilteredObjects()}
 function appendObjectCard(grid,obj,focused=false){
+  // Empty Kiosk placeholder: real cap, zero items. Show it (so the user sees
+  // the holding) but it is not archivable, so render non-selectable.
+  if(obj.isKioskPlaceholder){
+    const card=document.createElement('div');
+    card.className='option is-kiosk is-empty-kiosk';
+    card.dataset.objectId=obj.objectId;
+    card.dataset.kioskId=obj.objectId;
+    card.dataset.emptyKiosk='1';
+    card.innerHTML=`<div class="object-thumb">▣</div><strong>${escapeHtml(obj.name||'Empty Kiosk')}</strong><p>0 items · empty Kiosk</p><div class="object-status"><span class="status-pill status-blocked">EMPTY KIOSK</span></div>`;
+    grid.appendChild(card);
+    return card;
+  }
   const label=obj.name||obj.type.split('::').pop();
   const kind=obj.isCoin?'COIN':'OBJ';
   const inKiosk=Boolean(obj.inKiosk||obj.kiosk||obj.kioskId||obj.kioskOwnerCapId||obj.indexer?.kioskId);
