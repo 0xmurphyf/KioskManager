@@ -1383,13 +1383,15 @@ function loadWizardObjects(){
   grid.innerHTML='<div class="chain-empty loading">Loading your Mainnet objects…</div>';
   const client=window.theArchiveWallet.dAppKit.getClient("mainnet");
   Promise.all([
-    window.theArchiveTx.fetchOwnedObjects(client,connection.address),
+    window.theArchiveTx.fetchOwnedObjects(client,connection.address)
+      .catch(error=>({ objects: [], scanIncomplete: true, rpcError: String(error?.message||error||'') })),
     fetch(`/api/owned-objects?address=${encodeURIComponent(connection.address)}`)
       .then(response=>response.ok?response.json():null)
       .catch(()=>null),
     fetchArchivedArtifactIds(),
-  ]).then(([rpcObjects,indexed,archivedIds])=>{
-    wizardScanIncomplete=Boolean(rpcObjects?.scanIncomplete);
+  ]).then(([rpcResult,indexed,archivedIds])=>{
+    const rpcObjects = Array.isArray(rpcResult) ? rpcResult : (rpcResult?.objects||[]);
+    wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
       const existing=byId.get(object.objectId);
