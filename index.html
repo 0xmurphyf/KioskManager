@@ -1047,7 +1047,6 @@ function renderFilteredObjects(){
     const kind=objectKind(o);
     if(wizardFilter!=='all' && kind!==wizardFilter)return false;
     const collection=kind==='nft'?objectCollection(o):null;
-    if(wizardCollection && (!collection || collection.key!==wizardCollection))return false;
     if(q){
       const label=(o.name||o.type.split('::').pop()).toLowerCase();
       const objectId=(o.objectId||'').toLowerCase();
@@ -1071,36 +1070,11 @@ function renderFilteredObjects(){
     notice.textContent='Scan incomplete. Showing objects found so far; enter an Object ID above to add an object that is missing.';
     grid.appendChild(notice);
   }
-  if(wizardCollection){
-    const back=document.createElement('button');
-    back.type='button';
-    back.className='collection-back';
-    back.textContent='← All collections';
-    back.onclick=closeObjectCollection;
-    grid.appendChild(back);
-  }
   const focusedObject=wizardFocusedObjectId?list.find(o=>o.objectId===wizardFocusedObjectId):null;
   if(focusedObject)appendObjectCard(grid,focusedObject,true);
-  const nfts=list.filter(o=>objectKind(o)==='nft' && o.objectId!==wizardFocusedObjectId);
-  if(!wizardCollection && nfts.length){
-    const groups=new Map();
-    for(const obj of nfts){
-      const collection=objectCollection(obj);
-      const group=groups.get(collection.key)||{...collection,objects:[]};
-      group.objects.push(obj);groups.set(collection.key,group);
-    }
-    for(const group of groups.values()){
-      const card=document.createElement('div');
-      card.className='option collection-card';
-      card.dataset.collectionKey=group.key;
-      card.onclick=()=>openObjectCollection(group.key);
-      const collectionImage=safeObjectDisplayImageUrl(group.cover);
-      card.innerHTML=`<div class="object-thumb">${collectionImage?`<img src="${escapeHtml(collectionImage)}" alt="" onerror="fallbackObjectImage(event)">`:'NFT'}</div><strong>${escapeHtml(group.title)}</strong><p>${group.objects.length} NFT${group.objects.length===1?'':'s'}</p><span class="muted">View collection →</span>`;
-      grid.appendChild(card);
-    }
-  }
-  const otherObjects=(wizardCollection?list:list.filter(o=>objectKind(o)!=='nft')).filter(o=>o.objectId!==wizardFocusedObjectId);
-  // Split into Kiosk-held (grouped by Kiosk) and wallet-direct objects.
+  // No more collection grouping — every selectable object (NFT or not) flows
+  // into Kiosk grouping (by kioskId) with a Wallet-direct section for the rest.
+  const otherObjects=list.filter(o=>o.objectId!==wizardFocusedObjectId);
   const kioskObjects=otherObjects.filter(o=>o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId);
   const walletObjects=otherObjects.filter(o=>!(o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId));
   appendKioskGroups(grid,kioskObjects);
@@ -1111,7 +1085,6 @@ function renderFilteredObjects(){
     grid.appendChild(sep);
   }
   for(const obj of walletObjects)appendObjectCard(grid,obj);
-  if(wizardCollection && !otherObjects.length && !focusedObject)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
 }
 
 async function startWizard(){
