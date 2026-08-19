@@ -399,6 +399,7 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab selected" data-kind="all" onclick="setObjectFilter('all',this)">All</button>
           <button class="filter-tab" data-kind="lt5" onclick="setObjectFilter('lt5',this)">Holding &lt;5</button>
           <button class="filter-tab" data-kind="gt5" onclick="setObjectFilter('gt5',this)">Holding &gt;5</button>
+          <button class="filter-tab" data-kind="empty" onclick="setObjectFilter('empty',this)">Empty Kiosk</button>
         </div>
         <span class="kiosk-count" id="kioskCount"></span>
       </div>
@@ -507,6 +508,7 @@ var wizardObjectsLoaded = false;
 var wizardObjects = [];
 var wizardScanIncomplete = false;
 var wizardFilter = 'all';
+var wizardCaps = [];
 var wizardCollection = null;
 var wizardFocusedObjectId = null;
 const memories=[
@@ -1068,14 +1070,17 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
       byKiosk.set(id,group);
     }
     for(const group of byKiosk.values()){
-      const size=group.objects.length;
-      // Group-size filters: only apply when not "all".
-      if(wizardFilter==='lt5' && size>=5)continue;
-      if(wizardFilter==='gt5' && size<=5)continue;
+      // "size" for filtering/counting excludes the empty-Kiosk placeholder
+      // (a real cap with zero items) so it is reported as 0, not 1.
+      const realSize=group.objects.filter(o=>!o.isKioskPlaceholder).length;
+      // Group-size / state filters: only apply when not "all".
+      if(wizardFilter==='lt5' && realSize>=5)continue;
+      if(wizardFilter==='gt5' && realSize<=5)continue;
+      if(wizardFilter==='empty' && realSize!==0)continue;
       const capInfo=group.capOwner?` · cap ${shortKioskId(group.capOwner)}`:'';
       appendCollapsibleGroup(grid,{
         title:`▣ Kiosk ${shortKioskId(group.id)}${capInfo}`,
-        count:`${size} item${size===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
+        count:`${realSize} item${realSize===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
         locked:group.locked,
         isWallet:false,
         objects:group.objects,
@@ -1092,7 +1097,18 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
       objects:walletObjects,
     });
   }
-  if(kioskCountEl)kioskCountEl.textContent=totalKiosks.size?`📦 ${totalKiosks.size} Kiosk${totalKiosks.size===1?'':'s'}`:'';
+  if(kioskCountEl){
+    // Break the total down by Kiosk cap kind (standard vs personal).
+    let standard=0, personal=0;
+    for(const cap of (window.wizardCaps||[])){
+      if(cap?.kind==='KioskOwnerCap')standard++;
+      else if(cap?.kind==='PersonalKioskCap')personal++;
+    }
+    const parts=[`📦 ${totalKiosks.size} Kiosk${totalKiosks.size===1?'':'s'}`];
+    if(standard)parts.push(`${standard} standard`);
+    if(personal)parts.push(`${personal} personal`);
+    kioskCountEl.textContent=parts.join(' · ');
+  }
 }
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
@@ -1480,6 +1496,10 @@ async function loadWizardObjects(){
     fetchArchivedArtifactIds(),
   ]).then(([rpcResult,indexed,archivedIds])=>{
     const rpcObjects = Array.isArray(rpcResult) ? rpcResult : (rpcResult?.objects||[]);
+    // Persist the wallet's Kiosk caps so the Kiosk-count badge can break down
+    // standard vs personal KioskOwnerCaps. `caps` is a non-enumerable prop on
+    // the array returned by fetchOwnedObjects.
+    wizardCaps = Array.isArray(rpcResult?.caps) ? rpcResult.caps : (Array.isArray(rpcObjects?.caps) ? rpcObjects.caps : []);
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
