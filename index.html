@@ -139,7 +139,10 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .filter-tabs{display:flex;gap:8px}
 .filter-tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:8px 14px;font:11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer}
 .filter-tab.selected{border-color:var(--paper);color:var(--paper)}
+.filter-tab.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .kiosk-count{margin-left:auto;align-self:center;font:11px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
+.kiosk-count-row{display:block;width:100%;margin-top:6px}
+.kiosk-count-row .kiosk-count{margin-left:0}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
@@ -425,7 +428,7 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="empty" onclick="setObjectFilter('empty',this)">Empty Kiosk</button>
           <button class="filter-tab" data-kind="locked" onclick="setObjectFilter('locked',this)">Locked</button>
         </div>
-        <span class="kiosk-count" id="kioskCount"></span>
+        <div class="kiosk-count-row"><span class="kiosk-count" id="kioskCount"></span></div>
       </div>
       <div class="manual-object-controls">
         <input type="text" id="manualObjectId" placeholder="Enter Object ID if you cannot find it below" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();loadObjectById()}">
@@ -978,10 +981,25 @@ async function refreshArchiveCost(){
   if(total)total.textContent=`≈ ${(Number(liveFee+FIXED_ARCHIVE_GAS_MIST)/1e9).toFixed(5)} SUI`;
 }
 function setObjectFilter(kind,el){
+  // Non-"all" filters require at least 3 scanned objects before they activate.
+  if(kind!=='all' && !filterTabsEnabled())return;
   wizardFilter=kind;
   document.querySelectorAll('#objectFilter .filter-tab').forEach(x=>x.classList.remove('selected'));
   el.classList.add('selected');
   renderFilteredObjects();
+}
+// Filter tabs (other than "All") activate only once at least 3 objects have
+// been scanned. This keeps size/state filters meaningful instead of empty.
+function filterTabsEnabled(){
+  return (window.wizardObjects||[]).filter(o=>o.objectId).length>=3;
+}
+function updateFilterTabState(){
+  const enabled=filterTabsEnabled();
+  document.querySelectorAll('#objectFilter .filter-tab').forEach(tab=>{
+    if(tab.dataset.kind==='all')return;
+    tab.classList.toggle('disabled',!enabled);
+    tab.disabled=!enabled;
+  });
 }
 function isSuiCoin(o){return /::coin::Coin<[^>]*::sui::SUI\s*>/i.test(String(o?.type||''))}
 function objectKind(o){return o.isCoin?'coin':(o.type.includes('NFT')||o.type.toLowerCase().includes('voxx')||o.indexer?.collection?'nft':'object')}
@@ -1213,6 +1231,7 @@ function renderFilteredObjects(){
   if(!grid)return;
   const filterTabs=document.getElementById('objectFilter');
   if(filterTabs)filterTabs.style.display='flex';
+  updateFilterTabState();
   const kioskCountEl=document.getElementById('kioskCount');
   const q=(document.getElementById('objectSearch')?.value||'').trim().toLowerCase();
   const list=wizardObjects.filter(o=>o.objectId).filter(o=>{
