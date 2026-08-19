@@ -39,7 +39,6 @@ header{
 nav{display:flex;gap:20px;align-items:center}
 nav button{background:none;border:0;color:var(--dim)}
 .wallet{border:1px solid var(--line)!important;padding:9px 13px!important;color:var(--paper)!important}
-.archive-direct{color:var(--paper)!important;padding:7px 0!important}
 .wallet-top-disconnect{border:1px solid var(--line)!important;padding:8px 10px!important;color:var(--dim)!important;font-size:18px;line-height:1}
 .wallet-top-disconnect:hover{color:var(--paper)!important;border-color:rgba(231,225,210,.42)!important}
 .addr-link{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);word-break:break-all}
@@ -300,8 +299,7 @@ body.wallet-open{overflow:hidden}
 
 @media(max-width:900px){
   nav{gap:9px}
-  nav button:not(.wallet):not(.archive-direct):not(.wallet-top-disconnect){display:none}
-  .archive-direct{font-size:11px}
+  nav button:not(.wallet):not(.wallet-top-disconnect){display:none}
   .wallet-top-disconnect{padding:8px!important}
   .archive-row{grid-template-columns:90px 1fr}
   .archive-row .hide-mobile{display:none}
@@ -318,47 +316,14 @@ body.wallet-open{overflow:hidden}
 </head>
 <body>
 <header>
-  <button class="brand" onclick="showView('home')">Kiosk Manager</button>
+  <button class="brand" onclick="startWizard()">Kiosk Manager</button>
   <nav>
-    <button class="archive-direct" type="button" onclick="startWizard()">Archive</button>
     <button class="wallet" id="walletBtn" type="button" aria-haspopup="dialog" aria-controls="walletDialog">Connect Wallet</button>
     <button class="wallet-top-disconnect" id="walletDisconnectTopBtn" type="button" hidden aria-label="Disconnect wallet" title="Disconnect wallet">×</button>
   </nav>
 </header>
 
 <main>
-<section id="home" class="view active">
-  <div class="hero">
-    <div>
-      <div class="eyebrow">THE GOOD OLD DAYS</div>
-      <h1>The<br>Archive</h1>
-      <div class="hero-lines">
-        <span>Some things should never be sold.</span>
-        <span>Some things should never be destroyed.</span>
-        <span>Some things should be left behind.</span>
-      </div>
-      <div class="actions">
-        <button class="btn primary" onclick="startWizard()">Archive an Object</button>
-      </div>
-    </div>
-  </div>
-
-  <section class="section">
-    <div class="section-head">
-      <div><div class="eyebrow">PUBLIC RECORD</div><h2>Recent Entries</h2></div>
-      <p>A quiet register of objects that no longer have owners.</p>
-    </div>
-    <div class="archive-list" id="recentList"></div>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <div><div class="eyebrow">PUBLIC ATTENTION</div><h2>Most Checked</h2></div>
-      <p>The memory that stays with visitors long after they leave.</p>
-    </div>
-    <div class="archive-list" id="mostCheckedList"></div>
-  </section>
-</section>
 
 <section id="detail" class="view">
   <div class="detail">
@@ -403,12 +368,12 @@ body.wallet-open{overflow:hidden}
         <div class="visitor-list" id="visitorList"></div>
       </div>
 
-      <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="showView('home')">Back to Home</button></div>
+      <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="startWizard()">Archive Another</button></div>
     </div>
   </div>
 </section>
 
-<section id="wizard" class="view">
+<section id="wizard" class="view active">
   <div class="wizard">
     <div class="eyebrow">ARCHIVE CEREMONY</div>
     <div class="progress" id="progress"></div>
@@ -1940,7 +1905,7 @@ function wireFinalImageUpload(){
     })();
   });
 }
-renderStep();
+startWizard();
 wireFinalImageUpload();
 </script>
 <script type="module" src="/src/wallet.js"></script>
