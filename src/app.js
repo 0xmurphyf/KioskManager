@@ -152,6 +152,6 @@ async function initializeArchives() {
   }
 }
 
-refreshButton.addEventListener('click', () => refreshChainArchives());
+refreshButton?.addEventListener('click', () => refreshChainArchives());
 window.refreshChainArchives = refreshChainArchives;
 void initializeArchives();
