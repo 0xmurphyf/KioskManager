@@ -1372,11 +1372,28 @@ async function enrichObjectStoreStatus(objects){
   await Promise.all(Array.from({length:Math.min(8,candidates.length)},worker));
   if(candidates.some(object=>object.noStore))renderFilteredObjects();
 }
-function loadWizardObjects(){
+async function loadWizardObjects(){
   const grid=document.getElementById("objectGrid");
   const connection=window.theArchiveWallet?.getConnection?.();
   if(!connection){
     grid.innerHTML='<div class="chain-empty">Connect a wallet first, then return here.</div>';
+    return;
+  }
+  // The Archive transaction module loads asynchronously (dynamic import).
+  // If it is not ready yet (e.g. wallet connected before modules finished
+  // loading), wait for it instead of dereferencing undefined.
+  if(!window.theArchiveTx){
+    try{
+      await window.theArchiveModuleLoader?.loadArchiveModules?.();
+    }catch(error){
+      console.error('Could not load archive modules',error);
+      const message=String(error?.message||error||'');
+      grid.innerHTML=`<div class="chain-empty scan-incomplete-notice">Archive tools could not load: ${message}</div>`;
+      return;
+    }
+  }
+  if(!window.theArchiveTx){
+    grid.innerHTML='<div class="chain-empty scan-incomplete-notice">Archive tools did not initialize. Reload and try again.</div>';
     return;
   }
   if(!window.theArchiveTx.isMainnetAccount(connection)){
