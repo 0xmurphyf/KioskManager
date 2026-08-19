@@ -392,7 +392,7 @@ body.wallet-open{overflow:hidden}
 </head>
 <body>
 <header>
-  <button class="brand" onclick="showView('home')">THE ARCHIVE</button>
+  <button class="brand" onclick="showView('home')">Kiosk Manager</button>
   <nav>
     <button class="explore" onclick="showView('archive')">Explore</button>
     <button onclick="showView('home');document.getElementById('whispers').scrollIntoView()">Whispers</button>
@@ -414,7 +414,7 @@ body.wallet-open{overflow:hidden}
         <span>Some things should be left behind.</span>
       </div>
       <div class="actions">
-        <button class="btn primary" onclick="showView('archive')">Enter The Archive</button>
+        <button class="btn primary" onclick="showView('archive')">Enter Kiosk Manager</button>
         <button class="btn" onclick="startWizard()">Archive an Object</button>
       </div>
     </div>
@@ -425,7 +425,7 @@ body.wallet-open{overflow:hidden}
       <div><div class="eyebrow">MUSEUM WHISPERS</div><h2>What Remains</h2></div>
       <p>Before the objects are revealed, their messages speak.</p>
     </div>
-    <div class="whisper-stage" id="whisperStage"><div class="silence-note" id="silenceNote">THE ARCHIVE IS LISTENING</div></div>
+    <div class="whisper-stage" id="whisperStage"><div class="silence-note" id="silenceNote">Kiosk Manager IS LISTENING</div></div>
   </section>
 
   <section class="section">
@@ -448,7 +448,7 @@ body.wallet-open{overflow:hidden}
 <section id="archive" class="view">
   <section class="section">
     <div class="section-head">
-      <div><div class="eyebrow">THE ARCHIVE</div><h2>All Entries</h2></div>
+      <div><div class="eyebrow">Kiosk Manager</div><h2>All Entries</h2></div>
       <p>Live immutable objects emitted by this archive contract on Sui Mainnet.</p>
     </div>
     <div class="chain-toolbar">
@@ -906,7 +906,7 @@ window.renderChainArchives=function(archives){
   initWhisperPool();
 }
 window.renderChainArchiveError=function(){
-  archiveList.innerHTML='<div class="chain-empty">The archive list is waiting for a Mainnet response. Use the refresh control to try again.</div>';
+  archiveList.innerHTML='<div class="chain-empty">Kiosk Manager list is waiting for a Mainnet response. Use the refresh control to try again.</div>';
 }
 function openChainArchive(archiveId){
   const archive=chainArchives.find(item=>item.archiveId===archiveId);
@@ -1343,7 +1343,7 @@ function seedWhispers(){
 
 function initWhisperPool(){
   clearTimeout(whisperPoolState.spawnTimer);
-  whisperStage.innerHTML='<div class="silence-note" id="silenceNote">THE ARCHIVE IS LISTENING</div>';
+  whisperStage.innerHTML='<div class="silence-note" id="silenceNote">Kiosk Manager IS LISTENING</div>';
   whisperPoolState.active=[];
   whisperPoolState.hotZones=[];
   whisperPoolState.lastPlacementCenter=null;
@@ -2004,7 +2004,7 @@ async function loadObjectById(){
   if(input)input.disabled=true;
   try{
     // Deliberately do not call an ownership API here. This is a public object
-    // lookup; the archive transaction/contract remains the final authority.
+    // lookup; Kiosk Manager transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
     let resolvedObject=object;
     try{
@@ -2263,7 +2263,7 @@ function explainArchiveError(error){
   if(error?.code===4001||/user rejected|user denied|rejected|cancelled|canceled/.test(text))return 'Transaction cancelled.';
   if(/0x2::kiosk::take|eitemlocked|item locked|transferpolicy.*lock|transfer policy.*lock/.test(text))return 'This Kiosk item is locked by its TransferPolicy and cannot be taken directly. Complete the collection purchase or transfer flow first.';
   if(/does not have the store ability|without store|no store|store ability/.test(text))return 'This object cannot be archived because its Move type does not have the store ability.';
-  if(/e_fee_too_low|memory_archive::.*abort code:\s*1|abort code:\s*1/.test(text)||/insufficient.*(sui|balance|payment)|balance.*(insufficient|low)/.test(text))return 'Insufficient SUI for the archive fee and gas. Check the current archive cost and wallet balance.';
+  if(/e_fee_too_low|memory_archive::.*abort code:\s*1|abort code:\s*1/.test(text)||/insufficient.*(sui|balance|payment)|balance.*(insufficient|low)/.test(text))return 'Insufficient SUI for Kiosk Manager fee and gas. Check the current archive cost and wallet balance.';
   if(/e_message_too_long|memory_archive::.*abort code:\s*2/.test(text))return 'Message is too long. The maximum size is 16,384 bytes.';
   if(/e_signature_too_long|memory_archive::.*abort code:\s*3/.test(text))return 'Signature is too long. The maximum size is 16,384 bytes.';
   if(/e_hero_uri_too_long|memory_archive::.*abort code:\s*4/.test(text))return 'Image URL is too long. The maximum size is 16,384 bytes.';
@@ -2271,7 +2271,7 @@ function explainArchiveError(error){
   if(/e_image_data_without_storage/.test(text))return 'An image URL or hash was supplied without selecting image storage.';
   if(/e_missing_image_uri/.test(text))return 'An image URL is required when image storage is enabled.';
   if(/e_invalid_hash_length|memory_archive::.*abort code:\s*8/.test(text))return 'This image source requires a valid 32-byte image hash. Original Image metadata hashes are copied as provided.';
-  if(/e_invalid_treasury/.test(text))return 'The archive policy has an invalid treasury address.';
+  if(/e_invalid_treasury/.test(text))return 'Kiosk Manager policy has an invalid treasury address.';
   if(/e_invalid_source_storage/.test(text))return 'The selected image source and storage type are incompatible.';
   if(/verificationordeserialization|vm verification|invalid package|package.*version/.test(text))return 'The transaction is incompatible with the deployed archive contract. Refresh the page and try again.';
   if(/failed to fetch|network request|network error|timeout/.test(text))return 'The network request failed. Check your connection and try again.';
