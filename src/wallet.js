@@ -4,7 +4,9 @@ import { SuiGrpcClient } from '@mysten/sui/grpc';
 // Default Mainnet gRPC endpoint. Override at build time with
 // VITE_MAINNET_RPC (e.g. a third-party RPC if the default is unreachable
 // from the visitor's network). Falls back to Mysten's public fullnode.
-const MAINNET_GRPC_URL = import.meta.env?.VITE_MAINNET_RPC || 'https://fullnode.mainnet.sui.io:443';
+// NOTE: do NOT append :443 — GrpcWebFetchTransport expects the bare https
+// origin (443 is implied) and an explicit port can break gRPC-web requests.
+const MAINNET_GRPC_URL = import.meta.env?.VITE_MAINNET_RPC || 'https://fullnode.mainnet.sui.io';
 const LAST_WALLET_KEY = 'the-archive:last-wallet';
 let lastConnection = null;
 
@@ -326,10 +328,11 @@ async function connectWallet(definition) {
     const message = String(error?.message ?? error).toLowerCase();
     const cancelled =
       error?.code === 4001 || message.includes('reject') || message.includes('cancel');
+    const detail = error?.message ?? String(error);
     walletStatus.textContent = cancelled
       ? `${definition.label} connection was cancelled.`
-      : `${definition.label} could not connect. Make sure Sui Mainnet is enabled in the wallet.`;
-    showToast(cancelled ? 'Wallet connection cancelled' : 'Wallet connection failed');
+      : `${definition.label} could not connect: ${detail}`;
+    showToast(cancelled ? 'Wallet connection cancelled' : `Wallet connection failed: ${detail}`);
   } finally {
     connectingWalletKey = null;
     renderConnectionState();
