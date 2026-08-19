@@ -180,6 +180,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .modal-close:hover{color:var(--paper)}
 .modal-body{padding:12px 16px;overflow:auto}
 .cap-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font:11px "Courier New",monospace}
+.cap-has{font-size:12px;line-height:1;flex:0 0 auto}
 .cap-kind{font-size:9px;text-transform:uppercase;letter-spacing:.1em;padding:2px 5px;border-radius:3px;flex:0 0 auto}
 .cap-kind-standard{background:rgba(58,110,165,.25);color:#7fb0e0}
 .cap-kind-personal{background:rgba(192,57,43,.25);color:#e08a7f}
@@ -1152,13 +1153,19 @@ function showCapList(kind, event){
   if(!kiosks.length){
     body.innerHTML='<div class="cap-list-empty">No caps of this type.</div>';
   } else {
+    // Kiosk IDs that were actually surfaced in the scan (have items, or are an
+    // empty-Kiosk placeholder). A cap whose kioskId is NOT in this set points to
+    // a Kiosk we could not find/load (e.g. gRPC blocked and no indexed item).
+    const surfaced=new Set((window.wizardObjects||[]).map(o=>o.kioskId||o.indexer?.kioskId).filter(Boolean));
     const rows=kiosks.map(k=>{
       const id=k.id||'';
       const short=shortKioskId(id);
       const kindLabel=k.is_personal?'personal':'standard';
-      // link to SuiScan for convenience
+      const hasKiosk=surfaced.has(id);
+      const statusIcon = hasKiosk ? '✅' : '❌';
+      const statusLabel = hasKiosk ? 'Kiosk found' : 'Kiosk not found';
       const url=`https://suiscan.xyz/mainnet/object/${encodeURIComponent(id)}`;
-      return `<div class="cap-row"><span class="cap-kind cap-kind-${kindLabel}">${kindLabel}</span><a class="cap-id" href="${url}" target="_blank" rel="noopener">${short}</a><span class="cap-full">${id}</span></div>`;
+      return `<div class="cap-row"><span class="cap-has" title="${statusLabel}">${statusIcon}</span><span class="cap-kind cap-kind-${kindLabel}">${kindLabel}</span><a class="cap-id" href="${url}" target="_blank" rel="noopener">${short}</a><span class="cap-full">${id}</span></div>`;
     }).join('');
     body.innerHTML=rows;
   }
