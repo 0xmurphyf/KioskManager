@@ -160,6 +160,12 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .object-status{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:18px;margin-top:4px;font-size:8px;white-space:nowrap;overflow:hidden}
 .object-status .muted{overflow:hidden;text-overflow:ellipsis}
 .status-pill{border:1px solid var(--line);border-radius:999px;padding:2px 5px;letter-spacing:.08em;font-size:7px;overflow:hidden;text-overflow:ellipsis}
+.kiosk-group-header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 4px;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);background:rgba(255,255,255,.02);border-radius:6px}
+.kiosk-group-header:first-child{margin-top:8px}
+.kiosk-group-header.is-locked{border-left-color:#c0392b}
+.kiosk-group-title{font:11px "Courier New",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--paper)}
+.kiosk-group-count{font:10px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
+.wallet-direct-header{border-left-color:#3a6ea5}
 .object-thumb{flex:0 0 112px;width:100%;height:112px;aspect-ratio:1/1;display:grid;place-items:center;background:transparent;color:var(--accent);margin-bottom:14px;border-radius:8px;overflow:hidden}
 .object-thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .object-grid .coin-amount{margin-top:auto;min-height:76px;overflow:hidden;font-size:9px}
@@ -998,6 +1004,35 @@ function appendObjectCard(grid,obj,focused=false){
   grid.appendChild(card);
   return card;
 }
+function shortKioskId(id){
+  if(!id)return '';
+  return id.length>14 ? `${id.slice(0,8)}…${id.slice(-4)}` : id;
+}
+// Group Kiosk-held objects under a Kiosk header so the user sees which
+// Kiosk each item belongs to (instead of one flat list). Scanning logic is
+// untouched — we only read the already-computed `kioskId` / `locked` fields.
+function appendKioskGroups(grid, kioskObjects){
+  if(!kioskObjects || !kioskObjects.length) return;
+  const byKiosk=new Map();
+  for(const obj of kioskObjects){
+    const id=obj.kioskId||obj.indexer?.kioskId||'unknown';
+    const group=byKiosk.get(id)||{id,objects:[],locked:false,capOwner:obj.kioskCapOwner||''};
+    group.objects.push(obj);
+    if(obj.locked)group.locked=true;
+    if(obj.kioskCapOwner&&!group.capOwner)group.capOwner=obj.kioskCapOwner;
+    byKiosk.set(id,group);
+  }
+  let idx=0;
+  for(const group of byKiosk.values()){
+    idx+=1;
+    const header=document.createElement('div');
+    header.className=`kiosk-group-header${group.locked?' is-locked':''}`;
+    const capInfo=group.capOwner?` · cap ${shortKioskId(group.capOwner)}`:'';
+    header.innerHTML=`<span class="kiosk-group-title">▣ Kiosk ${shortKioskId(group.id)}${capInfo}</span><span class="kiosk-group-count">${group.objects.length} item${group.objects.length===1?'':'s'}${group.locked?' · 🔒 locked':''}</span>`;
+    grid.appendChild(header);
+    for(const obj of group.objects) appendObjectCard(grid,obj);
+  }
+}
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
   if(!grid)return;
@@ -1065,7 +1100,17 @@ function renderFilteredObjects(){
     }
   }
   const otherObjects=(wizardCollection?list:list.filter(o=>objectKind(o)!=='nft')).filter(o=>o.objectId!==wizardFocusedObjectId);
-  for(const obj of otherObjects)appendObjectCard(grid,obj);
+  // Split into Kiosk-held (grouped by Kiosk) and wallet-direct objects.
+  const kioskObjects=otherObjects.filter(o=>o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId);
+  const walletObjects=otherObjects.filter(o=>!(o.kioskId||o.indexer?.kioskId||o.kiosk||o.kioskOwnerCapId));
+  appendKioskGroups(grid,kioskObjects);
+  if(kioskObjects.length && walletObjects.length){
+    const sep=document.createElement('div');
+    sep.className='kiosk-group-header wallet-direct-header';
+    sep.innerHTML='<span class="kiosk-group-title">👛 Wallet (not in a Kiosk)</span>';
+    grid.appendChild(sep);
+  }
+  for(const obj of walletObjects)appendObjectCard(grid,obj);
   if(wizardCollection && !otherObjects.length && !focusedObject)grid.innerHTML+='<div class="chain-empty">No NFTs found in this collection.</div>';
 }
 
