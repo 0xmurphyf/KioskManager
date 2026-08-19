@@ -1105,7 +1105,13 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
     // works even when the browser gRPC scan is blocked).
     const standard=window.wizardCaps?.standard||0;
     const personal=window.wizardCaps?.personal||0;
-    const parts=[`📦 ${totalKiosks.size} Kiosk${totalKiosks.size===1?'':'s'}`];
+    // Total = number of Kiosk caps held (standard+personal), NOT the count of
+    // Kiosks that happen to have an indexed item. The server kiosks list is the
+    // authoritative cap inventory; totalKiosks (distinct kioskIds with objects)
+    // undercounts because empty / un-indexed Kiosks don't produce objects.
+    const capTotal=standard+personal;
+    const total=capTotal>0?capTotal:totalKiosks.size;
+    const parts=[`📦 ${total} Kiosk${total===1?'':'s'}`];
     if(standard)parts.push(`${standard} standard`);
     if(personal)parts.push(`${personal} personal`);
     kioskCountEl.textContent=parts.join(' · ');
