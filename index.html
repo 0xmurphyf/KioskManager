@@ -1058,11 +1058,13 @@ function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet
 }
 function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
   const totalKiosks=new Set();
+  const kioskKindById=new Map(); // kioskId -> cap kind (standard/personal)
   if(kioskObjects && kioskObjects.length){
     const byKiosk=new Map();
     for(const obj of kioskObjects){
       const id=obj.kioskId||obj.indexer?.kioskId||'unknown';
       totalKiosks.add(id);
+      if(obj.kioskCapKind)kioskKindById.set(id,obj.kioskCapKind);
       const group=byKiosk.get(id)||{id,objects:[],locked:false,capOwner:obj.kioskCapOwner||''};
       group.objects.push(obj);
       if(obj.locked)group.locked=true;
@@ -1098,12 +1100,11 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
     });
   }
   if(kioskCountEl){
-    // Break the total down by Kiosk cap kind (standard vs personal).
-    let standard=0, personal=0;
-    for(const cap of (window.wizardCaps||[])){
-      if(cap?.kind==='KioskOwnerCap')standard++;
-      else if(cap?.kind==='PersonalKioskCap')personal++;
-    }
+    // Standard/personal breakdown comes from wizardCaps (computed in
+    // loadWizardObjects from the server /api/owned-objects kiosks list, which
+    // works even when the browser gRPC scan is blocked).
+    const standard=window.wizardCaps?.standard||0;
+    const personal=window.wizardCaps?.personal||0;
     const parts=[`📦 ${totalKiosks.size} Kiosk${totalKiosks.size===1?'':'s'}`];
     if(standard)parts.push(`${standard} standard`);
     if(personal)parts.push(`${personal} personal`);
@@ -1496,10 +1497,26 @@ async function loadWizardObjects(){
     fetchArchivedArtifactIds(),
   ]).then(([rpcResult,indexed,archivedIds])=>{
     const rpcObjects = Array.isArray(rpcResult) ? rpcResult : (rpcResult?.objects||[]);
-    // Persist the wallet's Kiosk caps so the Kiosk-count badge can break down
-    // standard vs personal KioskOwnerCaps. `caps` is a non-enumerable prop on
-    // the array returned by fetchOwnedObjects.
-    wizardCaps = Array.isArray(rpcResult?.caps) ? rpcResult.caps : (Array.isArray(rpcObjects?.caps) ? rpcObjects.caps : []);
+    // Compute the standard/personal Kiosk cap breakdown. Prefer the server
+    // /api/owned-objects result (indexed.kiosks carries is_personal), because
+    // that path works even when the browser gRPC scan is blocked. Fall back to
+    // the gRPC caps array when the server result is unavailable.
+    let standard=0, personal=0;
+    const serverKiosks = indexed?.kiosks || [];
+    if(serverKiosks.length){
+      for(const k of serverKiosks){
+        if(k?.is_personal)personal++;
+        else standard++;
+      }
+    } else {
+      const caps = Array.isArray(rpcResult?.caps) ? rpcResult.caps
+        : (Array.isArray(rpcObjects?.caps) ? rpcObjects.caps : []);
+      for(const cap of caps){
+        if(cap?.kind==='PersonalKioskCap'||cap?.kind==='personal-kiosk-cap')personal++;
+        else if(cap?.kind==='KioskOwnerCap'||cap?.kind==='standard-kiosk-owner-cap')standard++;
+      }
+    }
+    wizardCaps = { standard, personal };
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
