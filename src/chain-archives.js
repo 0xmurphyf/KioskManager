@@ -102,6 +102,27 @@ function valueOf(object, ...names) {
   return '';
 }
 
+// Bounded concurrency runner with a small delay between batches to avoid
+// hammering the public Mainnet GraphQL endpoint during a full rescan.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  let completed = 0;
+  async function worker() {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index], index);
+      completed += 1;
+      if (completed % limit === 0 && next < items.length) {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function parseEvent(event) {
   const eventJson = event.contents?.json;
   const raw = typeof eventJson === 'string' ? JSON.parse(eventJson) : eventJson;
@@ -133,12 +154,19 @@ async function enrichArchive(event) {
 export async function scanArchives() {
   const events = [];
   let cursor = null;
+  let pages = 0;
+  const MAX_PAGES = 500;
   do {
     const data = await graphql(EVENTS_QUERY, { cursor, eventType: EVENT_TYPE });
     events.push(...data.events.nodes.map(parseEvent));
     cursor = data.events.pageInfo.hasNextPage ? data.events.pageInfo.endCursor : null;
+    pages += 1;
+    if (pages >= MAX_PAGES) {
+      console.warn('[archive] scan hit the page cap; stopping to avoid an endless loop');
+      break;
+    }
   } while (cursor);
 
-  const archives = await Promise.all(events.map(enrichArchive));
+  const archives = await mapWithConcurrency(events, 10, enrichArchive);
   return archives.sort((a, b) => b.archivedAtMs - a.archivedAtMs);
 }

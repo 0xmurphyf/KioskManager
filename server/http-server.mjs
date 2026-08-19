@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
+import { lookup } from 'node:dns/promises';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -61,6 +63,25 @@ async function existingFile(path) {
   }
 }
 
+function encodeCursor(ms, id) {
+  return Buffer.from(`${ms}|${id}`, 'utf8').toString('base64url');
+}
+
+function decodeCursor(value) {
+  if (!value) return null;
+  try {
+    const decoded = Buffer.from(value, 'base64url').toString('utf8');
+    const sep = decoded.lastIndexOf('|');
+    if (sep < 0) return null;
+    const ms = Number(decoded.slice(0, sep));
+    const id = decoded.slice(sep + 1);
+    if (!Number.isFinite(ms) || !id) return null;
+    return { ms, id };
+  } catch {
+    return null;
+  }
+}
+
 function resolveImageTarget(target) {
   const raw = String(target || '').trim();
   if (/^https?:\/\//i.test(raw)) return raw;
@@ -79,12 +100,63 @@ function resolveImageTarget(target) {
   throw new Error('Only http(s), ipfs://, and walrus:// image URLs are supported');
 }
 
-async function hashRemoteImage(target, signal, maxBytes) {
-  const resolvedTarget=resolveImageTarget(target);
+// Reject requests that would reach private/loopback/link-local addresses
+// (including cloud metadata endpoints like 169.254.169.254). Guards against
+// SSRF via user-supplied image URLs.
+// NOTE: DNS resolution happens at check time; a DNS-rebinding TOCTOU between
+// this check and the actual fetch is a residual risk. The fetch has no pinned
+// IP, so treat this as best-effort hardening, not a full rebinding fix.
+function ipIsPrivate(ip) {
+  const version = isIP(ip);
+  if (version === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata (169.254.169.254)
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    return false;
+  }
+  if (version === 6) {
+    const lower = ip.toLowerCase().replace(/^\[|\]$/g, '');
+    if (lower === '::1' || lower === '::') return true;
+    if (lower.startsWith('fe80')) return true; // link-local
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // unique local
+    if (lower.startsWith('::ffff:')) return ipIsPrivate(lower.slice('::ffff:'.length));
+    return false;
+  }
+  return false;
+}
+
+async function assertSafeImageUrl(target) {
+  const resolved = resolveImageTarget(target);
   let parsed;
-  try { parsed = new URL(resolvedTarget); } catch { throw new Error('Image URL is invalid'); }
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Image gateway URL is invalid');
-  if (/^(localhost|127\.|0\.0\.0\.0$|::1$)/i.test(parsed.hostname)) throw new Error('Private image hosts are not allowed');
+  try {
+    parsed = new URL(resolved);
+  } catch {
+    throw new Error('Image URL is invalid');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Image gateway URL is invalid');
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host)) {
+    if (ipIsPrivate(host)) throw new Error('Private image hosts are not allowed');
+    return parsed;
+  }
+  let addresses = [];
+  try {
+    addresses = await lookup(host, { all: true });
+  } catch {
+    addresses = [];
+  }
+  if (addresses.some((entry) => ipIsPrivate(entry.address))) {
+    throw new Error('Private image hosts are not allowed');
+  }
+  return parsed;
+}
+
+async function hashRemoteImage(target, signal, maxBytes) {
+  const parsed = await assertSafeImageUrl(target);
   const response = await fetch(parsed, { signal, redirect: 'follow' });
   if (!response.ok || !response.body) throw new Error(`Image fetch failed with HTTP ${response.status}`);
   const hash = createHash('sha256');
@@ -230,6 +302,25 @@ export function createArchiveHttpServer({
     }
 
     if (url.pathname === '/api/archives') {
+      const limit = Number(url.searchParams.get('limit')) || 0;
+      if (limit > 0) {
+        const cursor = decodeCursor(url.searchParams.get('cursor') || '');
+        const rows = store.listArchivesPage(limit, cursor);
+        const archives = rows.map((row) => JSON.parse(row.payload_json));
+        const last = archives[archives.length - 1];
+        const nextCursor =
+          archives.length === limit && last
+            ? encodeCursor(Number(last.archivedAtMs) || 0, last.archiveId)
+            : null;
+        json(res, 200, {
+          archives,
+          generatedAt: store.getMeta('generatedAt'),
+          packageId,
+          eventType,
+          nextCursor,
+        });
+        return;
+      }
       json(res, 200, {
         archives: store.listArchives(),
         generatedAt: store.getMeta('generatedAt'),

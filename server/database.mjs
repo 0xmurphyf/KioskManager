@@ -37,6 +37,12 @@ export class ArchiveStore {
     this.selectArchives = this.db.prepare(
       'SELECT payload_json FROM archives ORDER BY archived_at_ms DESC, archive_id ASC',
     );
+    this.selectArchivesPage = this.db.prepare(`
+      SELECT payload_json FROM archives
+      WHERE archived_at_ms < ?1 OR (archived_at_ms = ?1 AND archive_id > ?2)
+      ORDER BY archived_at_ms DESC, archive_id ASC
+      LIMIT ?3
+    `);
     this.insertArchive = this.db.prepare(`
       INSERT INTO archives (
         archive_id, archived_at_ms, transaction_digest, payload_json, created_at, updated_at
@@ -90,6 +96,12 @@ export class ArchiveStore {
 
   listArchives() {
     return this.selectArchives.all().map((row) => JSON.parse(row.payload_json));
+  }
+
+  listArchivesPage(limit, cursor = null) {
+    const ms = cursor ? Number(cursor.ms) : Number.MAX_SAFE_INTEGER;
+    const id = cursor ? String(cursor.id) : '';
+    return this.selectArchivesPage.all(ms, id, limit);
   }
 
   countArchives() {
