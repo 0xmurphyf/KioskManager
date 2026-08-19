@@ -375,12 +375,10 @@ body.wallet-open{overflow:hidden}
 
 <section id="wizard" class="view active">
   <div class="wizard">
-    <div class="eyebrow">ARCHIVE CEREMONY</div>
     <div class="progress" id="progress"></div>
 
     <div class="step active" data-step="1">
       <h2>Choose an object</h2>
-      <p>Select an object currently under your full control to permanently freeze.<br><strong>Once frozen, it will be removed from your ownership and can never be recovered.</strong></p>
       <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="refreshWizardObjects()">Scan and Refresh</button></div>
       <div class="object-controls">
         <input type="text" id="objectSearch" placeholder="Search by name or object ID…" oninput="renderFilteredObjects()">
@@ -1517,6 +1515,13 @@ async function loadObjectById(){
 // Re-fetch the wallet's objects on demand (Refresh button), bypassing the
 // "already loaded" short-circuit used by the normal step navigation.
 function refreshWizardObjects(){
+  const connection=window.theArchiveWallet?.getConnection?.();
+  if(!connection){
+    const grid=document.getElementById("objectGrid");
+    if(grid)grid.innerHTML='<div class="chain-empty">Connect a wallet first, then return here.</div>';
+    showToast('Connect a Sui wallet first');
+    return;
+  }
   wizardObjectsLoaded=false;
   loadWizardObjects();
 }
