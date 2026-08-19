@@ -143,6 +143,10 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .kiosk-count{margin-left:auto;align-self:center;font:11px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
 .kiosk-count-row{display:block;width:100%;margin-top:6px}
 .kiosk-count-row .kiosk-count{margin-left:0}
+.selected-ids{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.02);display:grid;gap:6px}
+.selected-ids.hidden,.selected-ids[hidden]{display:none}
+.selected-ids .sel-id-row{display:flex;align-items:baseline;gap:8px;font:11px "Courier New",monospace;letter-spacing:.04em;color:var(--dim)}
+.selected-ids .sel-id-label{color:var(--accent);text-transform:uppercase;letter-spacing:.1em;min-width:58px;flex:0 0 auto}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
@@ -433,6 +437,7 @@ body.wallet-open{overflow:hidden}
           <button class="filter-tab" data-kind="locked" onclick="setObjectFilter('locked',this)">Locked</button>
         </div>
         <div class="kiosk-count-row"><span class="kiosk-count" id="kioskCount"></span></div>
+        <div class="selected-ids" id="selectedObjectIds" hidden></div>
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
@@ -937,6 +942,7 @@ function handleWalletChanged(connection){
   wizardScanIncomplete=false;
   selectedObjectId=null;
   selectedObjectType=null;
+  clearSelectedIds();
   selectedGasPayment=null;
   wizardFocusedObjectId=null;
   wizardCollection=null;
@@ -1389,8 +1395,35 @@ function selectObject(el){
   selectedObjectId=el.dataset.objectId||null;
   selectedObjectType=el.dataset.type||null;
   selectedGasPayment=null;
+  renderSelectedIds(el);
   setConfirmObject();
   objectNext.disabled=!selectedObjectId;
+}
+function renderSelectedIds(card){
+  const box=document.getElementById('selectedObjectIds');
+  if(!box) return;
+  if(!card || !card.dataset.objectId){
+    box.hidden=true;
+    box.innerHTML='';
+    return;
+  }
+  const rows=[];
+  const itemId=card.dataset.objectId||'';
+  const kioskId=card.dataset.kioskId||'';
+  const capId=card.dataset.kioskOwnerCapId||'';
+  if(itemId) rows.push(['Item ID', suiscanLink(itemId, itemId.slice(0,10)+'…'+itemId.slice(-4))]);
+  if(kioskId) rows.push(['Kiosk ID', suiscanLink(kioskId, kioskId.slice(0,10)+'…'+kioskId.slice(-4))]);
+  else rows.push(['Kiosk ID','— (wallet-direct)']);
+  if(capId) rows.push(['Cap ID', suiscanLink(capId, capId.slice(0,10)+'…'+capId.slice(-4))]);
+  else rows.push(['Cap ID','— (none)']);
+  box.innerHTML=rows.map(([label,val])=>`<div class="sel-id-row"><span class="sel-id-label">${label}</span><span class="sel-id-val">${val}</span></div>`).join('');
+  box.hidden=false;
+}
+function clearSelectedIds(){
+  const box=document.getElementById('selectedObjectIds');
+  if(!box) return;
+  box.hidden=true;
+  box.innerHTML='';
 }
 // Render the object being archived into the two confirmation cells: Object Name
 // and Object ID (with the Coin partial-amount sub-line). This is the "potential
