@@ -533,32 +533,6 @@ body.wallet-open{overflow:hidden}
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
     </div>
 
-    <div class="step" data-step="2">
-      <h2>Choose the cover</h2>
-      <p>The image reference cannot be edited after archiving.</p>
-      <div class="storage-grid">
-        <button class="option selected" data-label="Original Image" onclick="selectOption(this,2)">Original Image</button>
-        <button class="option" data-label="Online Image" onclick="selectOption(this,2)">Online Image</button>
-        <button class="option" data-label="Upload Image" onclick="selectOption(this,2)">Upload Image</button>
-        <button class="option" data-label="Memory vials" onclick="selectOption(this,2)">Memory vials</button>
-      </div>
-      <div class="cover-link" id="coverLinkSection" hidden>
-        <input type="url" id="finalImageUrl" placeholder="https://example.com/image.jpg" autocomplete="off">
-        <button class="btn" type="button" id="useFinalImageUrlBtn">Use link</button>
-        <button class="btn" type="button" id="clearFinalImageUrlBtn" hidden>Clear</button>
-      </div>
-      <div class="hero-preview" id="stepImagePreview"></div>
-      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
-    </div>
-
-    <div class="step" data-step="3">
-      <h2>Leave a message</h2>
-      <p>This message becomes part of the permanent record.</p>
-      <div class="field"><label>Message</label><textarea></textarea></div>
-      <div class="field"><label>Signature</label><input type="text" value=""></div>
-      <div class="step-footer"><button class="btn" onclick="prevStep()">Back</button><button class="btn primary" onclick="nextStep()">Continue</button></div>
-    </div>
-
     <div class="step" data-step="5">
       <h2>Final confirmation</h2>
       <div class="warning">Once archived, this object is permanently sealed. It cannot be transferred, sold, edited, or recovered.<br>No administrator can return it.</div>
@@ -1591,7 +1565,7 @@ async function startWizard(){
 }
 function renderStep(){
   document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",+s.dataset.step===currentStep));
-  const steps=[1,2,3,5,7];
+  const steps=[1,5,7];
   const pos=steps.indexOf(currentStep);
   progress.innerHTML="";
   for(let i=0;i<steps.length;i++){const x=document.createElement("i");if(pos>=0 && i<=pos)x.className="on";progress.appendChild(x)}
@@ -1599,7 +1573,6 @@ function renderStep(){
   const objectNextBtn=document.getElementById("objectNext");
   if(objectNextBtn)objectNextBtn.disabled=!selectedObjectId;
 
-  if(currentStep===2) renderStepImagePreview();
   if(currentStep===5){
     if(confirmText)confirmText.value="";
     if(typeof validateConfirm==='function')validateConfirm();
@@ -1676,22 +1649,11 @@ async function nextStep(){
       return;
     }
   }
-  if(currentStep===2){
-    const label=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
-    if(label==="Online Image" && !onlineImageContractUrl){
-      showToast("Enter and load an Online Image link first");
-      return;
-    }
-    if(label==="Upload Image" && !uploadedFinalImageBlob){
-      showToast("Upload an image first");
-      return;
-    }
-  }
   currentStep++;
-  if(currentStep===4)currentStep++;
+  while(currentStep===2||currentStep===3||currentStep===4||currentStep===6)currentStep++;
   renderStep();
 }
-function prevStep(){currentStep--; if(currentStep===4)currentStep--; renderStep()}
+function prevStep(){currentStep--; while(currentStep===2||currentStep===3||currentStep===4||currentStep===6)currentStep--; renderStep()}
 function selectObject(el){
   document.querySelectorAll('[data-step="1"] .option').forEach(x=>x.classList.remove("selected"));
   el.classList.add("selected");
@@ -1791,35 +1753,18 @@ function renderStepImagePreview(){
 function validateConfirm(){archiveBtn.disabled=confirmText.value.trim().toUpperCase()!=="ARCHIVE"}
 function populateConfirmSummary(){
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value||"—";};
-  const msgEl=document.querySelector('[data-step="3"] textarea');
-  const sigEl=document.querySelector('[data-step="3"] input');
-  const hero=document.querySelector('[data-step="2"] .option.selected');
-  set('confirmMessageCell', capFirst(msgEl?msgEl.value.trim():""));
-  set('confirmSignatureCell', capFirst(sigEl?sigEl.value.trim():""));
-  const heroSource=hero?.dataset.label==='Online Image' ? 'Online' : hero?.dataset.label==='Upload Image' ? 'Uploaded' : hero?.dataset.label==='Memory vials' ? 'Memory vials' : 'Original';
-  set('confirmHeroCell',heroSource);
+  set('confirmMessageCell', '—');
+  set('confirmSignatureCell', '—');
+  set('confirmHeroCell', 'Original');
   const preview=document.getElementById('confirmHeroPreview');
   if(!preview)return;
-  const heroLabel=hero?hero.dataset.label:'';
   const objectImage=document.querySelector('[data-step="1"] .option.selected')?.dataset.image||'';
-  if(heroLabel==='Online Image' && onlineImageUrl){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(onlineImageUrl)}" alt="Online cover preview">`;
-  }else if(heroLabel==='Upload Image' && uploadedFinalImageSource==='local' && uploadedFinalImage){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(uploadedFinalImage)}" alt="Uploaded cover preview">`;
-  }else if(heroLabel==='Memory vials'){
-    preview.hidden=false;
-    preview.innerHTML=`<img src="${escapeHtml(CONTRACT_HERO_URL)}" alt="Memory vials cover preview">`;
-  }else if(heroLabel==='Original Image' && objectImage){
+  if(objectImage){
     preview.hidden=false;
     preview.innerHTML=`<img src="${escapeHtml(objectImage)}" alt="Original object image">`;
-  }else if(heroLabel==='Original Image'){
+  }else{
     preview.hidden=false;
     preview.innerHTML='<div class="chain-empty">No Image Found</div>';
-  }else{
-    preview.hidden=true;
-    preview.innerHTML='';
   }
 }
 // Default hero used when "Online Image" is chosen (no original image available).
@@ -2104,9 +2049,9 @@ async function completeArchive(){
     if(suiBalance<requiredBalance){
       throw new Error(`Insufficient SUI. Need at least ${suiAmount(requiredBalance)} including estimated gas; wallet has ${suiAmount(suiBalance)}`);
     }
-    const message=document.querySelector('[data-step="3"] textarea')?.value||"";
-    const signature=document.querySelector('[data-step="3"] input')?.value||"";
-    const heroChoice=document.querySelector('[data-step="2"] .option.selected')?.dataset.label||"";
+    const message="";
+    const signature="";
+    const heroChoice="Original Image";
     // The selected image is stored externally: original object URI, verified online URL,
     // or the TheArchive server upload URL. No decentralized-storage upload is used.
     const objectImage=(document.querySelector('[data-step="1"] .option.selected')?.dataset.image||"").trim();
