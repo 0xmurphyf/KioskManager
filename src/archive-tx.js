@@ -519,20 +519,38 @@ export async function fetchOwnedObjects(client, address) {
       const ownedKiosks = collected
         .map((c) => (c?.data ?? c))
         .filter((d) => /::kiosk::Kiosk(?:<|$)/.test(d?.type || d?.objectType || ''));
-      const kioskIds = new Set(ownedKiosks.map((kiosk) => kiosk?.objectId).filter(Boolean));
+      // Resolve each cap's kioskId from its content when available (gRPC scans
+      // frequently omit the cap's `for` field, so this is best-effort only).
+      const capByKioskId = new Map();
       for (const cap of caps) {
         const capData=cap.data;
         const content = capData?.json || capData?.content?.json || capData?.content?.fields || capData?.content || {};
         const reference=kioskCapabilityReference(content) || kioskCapabilityReference(capData);
         if (reference?.kioskId) {
-          kioskIds.add(reference.kioskId);
-          kioskCapByKiosk.set(reference.kioskId, {
+          capByKioskId.set(reference.kioskId, {
             kind:cap.kind,
             capObjectId:capData?.objectId||'',
             innerCapId:reference.innerCapId||'',
             capOwner:address,
           });
         }
+      }
+      // Bridge every Kiosk object the wallet owns. The Kiosk object's own
+      // `objectId` is always reliable (it comes straight from listOwnedObjects),
+      // unlike the cap's `for` field which gRPC often drops. This guarantees
+      // each kiosk's items get a cap id even when the cap content is missing.
+      const kioskIds = new Set(ownedKiosks.map((kiosk) => kiosk?.objectId).filter(Boolean));
+      for (const kiosk of ownedKiosks) {
+        const kioskId = kiosk?.objectId;
+        if (!kioskId) continue;
+        const existing = capByKioskId.get(kioskId);
+        kioskCapByKiosk.set(kioskId, existing || { kind:'', capObjectId:'', innerCapId:'', capOwner:address });
+      }
+      // Also keep any cap-derived kioskId that was not already covered by an
+      // owned Kiosk object (e.g. a cap whose Kiosk wasn't returned by the scan).
+      for (const [kioskId, capInfo] of capByKioskId) {
+        if (!kioskCapByKiosk.has(kioskId)) kioskCapByKiosk.set(kioskId, capInfo);
+        kioskIds.add(kioskId);
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
       const scanKiosk = async (kioskId) => {

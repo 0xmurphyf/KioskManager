@@ -1410,7 +1410,15 @@ function renderSelectedIds(card){
   const rows=[];
   const itemId=card.dataset.objectId||'';
   const kioskId=card.dataset.kioskId||'';
-  const capId=card.dataset.kioskOwnerCapId||'';
+  let capId=card.dataset.kioskOwnerCapId||'';
+  // B fallback: when the selected item has no cap id (gRPC scans can drop the
+  // cap's `for` field), borrow the cap id from a sibling object in the same
+  // Kiosk — every item in a Kiosk shares one KioskOwnerCap.
+  if(!capId && kioskId && Array.isArray(window.wizardObjects)){
+    for(const o of window.wizardObjects){
+      if(o && o.kioskId===kioskId && o.kioskOwnerCapId){ capId=o.kioskOwnerCapId; break; }
+    }
+  }
   if(itemId) rows.push(['Item ID', suiscanLink(itemId, itemId.slice(0,10)+'…'+itemId.slice(-4))]);
   if(kioskId) rows.push(['Kiosk ID', suiscanLink(kioskId, kioskId.slice(0,10)+'…'+kioskId.slice(-4))]);
   else rows.push(['Kiosk ID','— (wallet-direct)']);
