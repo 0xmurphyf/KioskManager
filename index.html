@@ -170,6 +170,23 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .kiosk-group-toggle{font-size:11px;color:var(--accent);width:12px;text-align:center}
 .kiosk-group-title{font:11px "Courier New",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);flex:1}
 .kiosk-group-count{font:10px "Courier New",monospace;letter-spacing:.08em;color:var(--dim);white-space:nowrap}
+.cap-indicator{font-size:12px;line-height:1;margin-left:2px}
+.kiosk-count .cap-chip{color:var(--paper);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:4px;padding:1px 5px;cursor:pointer;text-decoration:none}
+.kiosk-count .cap-chip:hover{background:rgba(255,255,255,.14);border-color:var(--accent)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:200}
+.modal-box{background:#14110d;border:1px solid var(--line);border-radius:10px;max-width:560px;width:90%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);font:12px "Courier New",monospace;letter-spacing:.08em;color:var(--paper)}
+.modal-close{background:transparent;border:0;color:var(--dim);font-size:14px;cursor:pointer}
+.modal-close:hover{color:var(--paper)}
+.modal-body{padding:12px 16px;overflow:auto}
+.cap-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font:11px "Courier New",monospace}
+.cap-kind{font-size:9px;text-transform:uppercase;letter-spacing:.1em;padding:2px 5px;border-radius:3px;flex:0 0 auto}
+.cap-kind-standard{background:rgba(58,110,165,.25);color:#7fb0e0}
+.cap-kind-personal{background:rgba(192,57,43,.25);color:#e08a7f}
+.cap-id{color:var(--accent);text-decoration:none;flex:0 0 auto}
+.cap-id:hover{text-decoration:underline}
+.cap-full{color:var(--dim);word-break:break-all;font-size:9px}
+.cap-list-empty{color:var(--dim);font:11px "Courier New",monospace;padding:8px 0}
 .kiosk-group-body{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:14px;margin-top:0;padding:14px 0 0;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px}
 .is-empty-kiosk{opacity:.6;border-style:dashed}
 .is-empty-kiosk .object-thumb{font-size:32px;color:var(--dim)}
@@ -1031,7 +1048,7 @@ function shortKioskId(id){
 // Group objects under collapsible Kiosk / Wallet headers. The first layer
 // only shows the group headers; clicking a header expands its items. Scanning
 // logic is untouched — we only read already-computed `kioskId` / `locked`.
-function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet, objects }){
+function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet, hasCap, objects }){
   if(!objects || !objects.length) return;
   const wrap=document.createElement('div');
   wrap.className=`kiosk-group${locked?' is-locked':''}${isWallet?' wallet-direct-group':''}`;
@@ -1039,7 +1056,10 @@ function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet
   header.className='kiosk-group-header';
   header.setAttribute('role','button');
   header.setAttribute('tabindex','0');
-  header.innerHTML=`<span class="kiosk-group-toggle">▸</span><span class="kiosk-group-title">${title}</span><span class="kiosk-group-count">${count}</span>`;
+  // Cap indicator: 🔑 when this Kiosk has a KioskOwnerCap / PersonalKioskCap,
+  // ⚠️ when it is surfaced but no cap is known (e.g. orphaned / indexed only).
+  const capIcon = hasCap===true ? '🔑' : (hasCap===false && !isWallet ? '⚠️' : '');
+  header.innerHTML=`<span class="kiosk-group-toggle">▸</span><span class="kiosk-group-title">${title}</span>${capIcon?`<span class="cap-indicator" title="${hasCap?'Has Kiosk cap':'No Kiosk cap found'}">${capIcon}</span>`:''}<span class="kiosk-group-count">${count}</span>`;
   const body=document.createElement('div');
   body.className='kiosk-group-body';
   body.style.display='none';
@@ -1058,13 +1078,14 @@ function appendCollapsibleGroup(grid, { title, subtitle, count, locked, isWallet
 }
 function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
   const totalKiosks=new Set();
-  const kioskKindById=new Map(); // kioskId -> cap kind (standard/personal)
+  // Kiosk IDs that have a real KioskOwnerCap / PersonalKioskCap (from the
+  // server kiosks list). Used to show a cap indicator on each Kiosk header.
+  const capKioskIds=new Set((window.wizardCaps?.kiosks||[]).map(k=>k.id).filter(Boolean));
   if(kioskObjects && kioskObjects.length){
     const byKiosk=new Map();
     for(const obj of kioskObjects){
       const id=obj.kioskId||obj.indexer?.kioskId||'unknown';
       totalKiosks.add(id);
-      if(obj.kioskCapKind)kioskKindById.set(id,obj.kioskCapKind);
       const group=byKiosk.get(id)||{id,objects:[],locked:false,capOwner:obj.kioskCapOwner||''};
       group.objects.push(obj);
       if(obj.locked)group.locked=true;
@@ -1085,6 +1106,7 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
         count:`${realSize} item${realSize===1?'':'s'}${group.locked?' · 🔒 locked':''}`,
         locked:group.locked,
         isWallet:false,
+        hasCap:capKioskIds.has(group.id),
         objects:group.objects,
       });
     }
@@ -1096,6 +1118,7 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
       count:`${walletObjects.length} item${walletObjects.length===1?'':'s'}`,
       locked:false,
       isWallet:true,
+      hasCap:false,
       objects:walletObjects,
     });
   }
@@ -1112,10 +1135,38 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
     const capTotal=standard+personal;
     const total=capTotal>0?capTotal:totalKiosks.size;
     const parts=[`📦 ${total} Kiosk${total===1?'':'s'}`];
-    if(standard)parts.push(`${standard} standard`);
-    if(personal)parts.push(`${personal} personal`);
-    kioskCountEl.textContent=parts.join(' · ');
+    // Each count is a clickable chip that opens the cap list filtered by kind.
+    if(standard)parts.push(`<span class="cap-chip" data-cap-kind="standard" onclick="showCapList('standard',event)">${standard} standard</span>`);
+    if(personal)parts.push(`<span class="cap-chip" data-cap-kind="personal" onclick="showCapList('personal',event)">${personal} personal</span>`);
+    kioskCountEl.innerHTML=parts.join(' · ');
   }
+}
+function showCapList(kind, event){
+  if(event)event.stopPropagation();
+  const modal=document.getElementById('capListModal');
+  const title=document.getElementById('capListTitle');
+  const body=document.getElementById('capListBody');
+  if(!modal||!body)return;
+  const kiosks=(window.wizardCaps?.kiosks||[]).filter(k=>kind==='personal'?k.is_personal:!k.is_personal);
+  title.textContent = kind==='personal' ? `Personal Kiosk caps (${kiosks.length})` : `Standard Kiosk caps (${kiosks.length})`;
+  if(!kiosks.length){
+    body.innerHTML='<div class="cap-list-empty">No caps of this type.</div>';
+  } else {
+    const rows=kiosks.map(k=>{
+      const id=k.id||'';
+      const short=shortKioskId(id);
+      const kindLabel=k.is_personal?'personal':'standard';
+      // link to SuiScan for convenience
+      const url=`https://suiscan.xyz/mainnet/object/${encodeURIComponent(id)}`;
+      return `<div class="cap-row"><span class="cap-kind cap-kind-${kindLabel}">${kindLabel}</span><a class="cap-id" href="${url}" target="_blank" rel="noopener">${short}</a><span class="cap-full">${id}</span></div>`;
+    }).join('');
+    body.innerHTML=rows;
+  }
+  modal.style.display='flex';
+}
+function hideCapList(){
+  const modal=document.getElementById('capListModal');
+  if(modal)modal.style.display='none';
 }
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
@@ -1522,7 +1573,7 @@ async function loadWizardObjects(){
         else if(cap?.kind==='KioskOwnerCap'||cap?.kind==='standard-kiosk-owner-cap')standard++;
       }
     }
-    wizardCaps = { standard, personal };
+    wizardCaps = { standard, personal, kiosks: serverKiosks };
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
@@ -2049,5 +2100,11 @@ wireFinalImageUpload();
 </script>
 <script type="module" src="/src/wallet.js"></script>
 <script type="module" src="/src/app.js"></script>
+<div class="modal-overlay" id="capListModal" style="display:none" onclick="if(event.target===this)hideCapList()">
+  <div class="modal-box">
+    <div class="modal-head"><span id="capListTitle">Kiosk caps</span><button class="modal-close" onclick="hideCapList()">✕</button></div>
+    <div class="modal-body" id="capListBody"></div>
+  </div>
+</div>
 </body>
 </html>
