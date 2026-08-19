@@ -480,6 +480,21 @@ body.wallet-open{overflow:hidden}
 </div>
 
 <script>
+// Hoisted wizard state — declared with `var` at the very top so that
+// handleWalletChanged (which can be invoked by wallet.js's connection
+// subscription during module init, before this script's later lines run)
+// never hits a TDZ on these bindings.
+var lastWizardWalletAddress = null;
+var currentStep = 1;
+var selectedObjectId = null;
+var selectedObjectType = null;
+var selectedGasPayment = null;
+var wizardObjectsLoaded = false;
+var wizardObjects = [];
+var wizardScanIncomplete = false;
+var wizardFilter = 'all';
+var wizardCollection = null;
+var wizardFocusedObjectId = null;
 const memories=[
 {id:"000421",code:"240715•421",title:"VOXX File #0042",quote:"This was the last thing I thought I would keep forever.",by:"Murphy",address:"0x9ab4...c12d",signature:"The world changed faster than I did.",date:"14 Jul 2026 · 14:32 UTC",relative:"1 day ago",age:"Memory age: 1 day",type:"0xabc::voxx::Voxx",kind:"nft"},
 {id:"000420",code:"240714•420",title:"Genesis Access Pass",quote:"Proof that I was there before the doors closed.",by:"0x7c2a...91fe",address:"0x7c2a...91fe",signature:"I kept the receipt, not the access.",date:"13 Jul 2026 · 21:08 UTC",relative:"2 days ago",age:"Memory age: 2 days",type:"0xdef::access::GenesisPass",kind:"badge"},
@@ -861,17 +876,6 @@ async function fetchArchiveIdForArtifact(sender, artifactId) {
 }
 recentList.innerHTML='<div class="chain-empty loading">Loading the public on-chain record…</div>';
 
-let currentStep=1;
-let selectedObjectId=null;
-let selectedObjectType=null;
-let selectedGasPayment=null;
-let wizardObjectsLoaded=false;
-let wizardObjects=[];
-let wizardScanIncomplete=false;
-let wizardFilter='all';
-let wizardCollection=null;
-let wizardFocusedObjectId=null;
-let lastWizardWalletAddress=null;
 function handleWalletChanged(connection){
   const address=String(connection?.address||'').toLowerCase();
   if(!address || address===lastWizardWalletAddress)return;
