@@ -73,34 +73,6 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .section-head h2{font-size:clamp(30px,3.2vw,40px);margin:0}
 .section-head p{max-width:540px;color:var(--dim);line-height:1.7}
 
-.whisper-stage{
-  position:relative;min-height:88vh;height:min(94vh,980px);overflow:hidden;container-type:size;
-  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-  background:
-    radial-gradient(circle at 50% 50%,rgba(255,255,255,.018),transparent 42%)
-}
-.whisper{
-  position:absolute;max-width:min(520px,88cqw);background:none;border:0;color:var(--paper);
-  text-align:center;padding:0;opacity:0;filter:blur(12px);
-  transform:translateY(28px) scale(.955);
-  transition:opacity .9s ease, filter .9s ease, transform .9s ease;
-  will-change:opacity,filter,transform;
-}
-.whisper.visible{
-  opacity:1;
-  filter:blur(0);
-  transform:translateY(0) scale(1);
-}
-.whisper.leaving{
-  opacity:0;
-  filter:blur(12px);
-  transform:translateY(-26px) scale(.96);
-}
-.whisper:hover{filter:blur(0)!important;opacity:1!important;transform:scale(1.03)!important}
-.whisper q{font-family:Georgia,serif;font-size:clamp(14px,2.2cqw,22px);line-height:1.4;quotes:"“" "”"}
-.whisper-meta{margin-top:14px;color:var(--dim);font:11px "Courier New",monospace;letter-spacing:.08em;text-align:center}
-
-
 .archive-list{border-top:1px solid var(--line)}
 .chain-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:-8px 0 20px}
 .chain-source{font:11px "Courier New",monospace;letter-spacing:.12em;color:var(--dim);line-height:1.7}
@@ -274,32 +246,6 @@ textarea{min-height:140px}
 body.wallet-open{overflow:hidden}
 
 
-/* v7 experiential details */
-.whisper.kind-nft{animation:driftNFT 18s ease-in-out infinite}
-.whisper.kind-coin{animation:driftCoin 10s ease-in-out infinite}
-.whisper.kind-badge{animation:driftBadge 24s ease-in-out infinite}
-.whisper.kind-game{animation:driftGame 15s ease-in-out infinite}
-@keyframes driftNFT{0%,100%{margin-left:0;margin-top:0}50%{margin-left:4px;margin-top:-3px}}
-@keyframes driftCoin{0%,100%{margin-left:0}50%{margin-left:3px}}
-@keyframes driftBadge{0%,100%{margin-top:0}50%{margin-top:-1px}}
-@keyframes driftGame{0%,100%{margin-left:0;margin-top:0}50%{margin-left:-3px;margin-top:2px}}
-
-.memory-mask{display:inline}
-.memory-mask .hidden-word{
-  display:inline-block;
-  filter:blur(5px);
-  opacity:.25;
-  transition:filter .45s ease,opacity .45s ease
-}
-.whisper.visible .memory-mask .hidden-word{filter:blur(0);opacity:1}
-
-.silence-note{
-  position:absolute;inset:0;display:grid;place-items:center;
-  color:rgba(231,225,210,.28);font:11px "Courier New",monospace;letter-spacing:.18em;
-  opacity:0;transition:opacity 1s ease;pointer-events:none
-}
-.silence-note.show{opacity:1}
-
 .detail-transition{
   position:fixed;inset:0;background:rgba(10,10,8,.96);z-index:80;
   display:grid;place-items:center;opacity:0;pointer-events:none;
@@ -358,23 +304,9 @@ body.wallet-open{overflow:hidden}
 
 @media(max-width:900px){
   nav{gap:9px}
-  nav button:not(.wallet):not(.archive-direct):not(.explore):not(.wallet-top-disconnect){display:none}
+  nav button:not(.wallet):not(.archive-direct):not(.wallet-top-disconnect){display:none}
   .archive-direct{font-size:11px}
   .wallet-top-disconnect{padding:8px!important}
-  .whisper-stage{
-    min-height:86vh;height:86vh;
-    padding:30px 0;
-    overflow:hidden;
-  }
-  .whisper{
-    max-width:82vw;
-    width:82vw;
-    text-align:center;
-  }
-  .whisper q{
-    font-size:clamp(14px,4.2vw,19px);
-    line-height:1.42;
-  }
   .archive-row{grid-template-columns:90px 1fr}
   .archive-row .hide-mobile{display:none}
   .chain-toolbar{align-items:flex-start;flex-direction:column}
@@ -392,8 +324,6 @@ body.wallet-open{overflow:hidden}
 <header>
   <button class="brand" onclick="showView('home')">Kiosk Manager</button>
   <nav>
-    <button class="explore" onclick="showView('archive')">Explore</button>
-    <button onclick="showView('home');document.getElementById('whispers').scrollIntoView()">Whispers</button>
     <button class="archive-direct" type="button" onclick="startWizard()">Archive</button>
     <button class="wallet" id="walletBtn" type="button" aria-haspopup="dialog" aria-controls="walletDialog">Connect Wallet</button>
     <button class="wallet-top-disconnect" id="walletDisconnectTopBtn" type="button" hidden aria-label="Disconnect wallet" title="Disconnect wallet">×</button>
@@ -412,19 +342,10 @@ body.wallet-open{overflow:hidden}
         <span>Some things should be left behind.</span>
       </div>
       <div class="actions">
-        <button class="btn primary" onclick="showView('archive')">Enter Kiosk Manager</button>
-        <button class="btn" onclick="startWizard()">Archive an Object</button>
+        <button class="btn primary" onclick="startWizard()">Archive an Object</button>
       </div>
     </div>
   </div>
-
-  <section class="section" id="whispers">
-    <div class="section-head">
-      <div><div class="eyebrow">MUSEUM WHISPERS</div><h2>What Remains</h2></div>
-      <p>Before the objects are revealed, their messages speak.</p>
-    </div>
-    <div class="whisper-stage" id="whisperStage"><div class="silence-note" id="silenceNote">Kiosk Manager IS LISTENING</div></div>
-  </section>
 
   <section class="section">
     <div class="section-head">
@@ -440,21 +361,6 @@ body.wallet-open{overflow:hidden}
       <p>The memory that stays with visitors long after they leave.</p>
     </div>
     <div class="archive-list" id="mostCheckedList"></div>
-  </section>
-</section>
-
-<section id="archive" class="view">
-  <section class="section">
-    <div class="section-head">
-      <div><div class="eyebrow">Kiosk Manager</div><h2>All Entries</h2></div>
-      <p>Live immutable objects emitted by this archive contract on Sui Mainnet.</p>
-    </div>
-    <div class="chain-toolbar">
-      <div class="chain-source"><strong>LIVE INDEX · SUI MAINNET</strong></div>
-      <button class="btn" id="scanArchivesBtn" type="button">Refresh on-chain data</button>
-    </div>
-    <div class="scan-status loading" id="archiveScanStatus">Preparing on-chain scanner…</div>
-    <div class="archive-list" id="archiveList"></div>
   </section>
 </section>
 
@@ -501,7 +407,7 @@ body.wallet-open{overflow:hidden}
         <div class="visitor-list" id="visitorList"></div>
       </div>
 
-      <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="showView('archive')">Back to Archive</button></div>
+      <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="showView('home')">Back to Home</button></div>
     </div>
   </div>
 </section>
@@ -690,11 +596,6 @@ function openDetail(i){
     },2000);
   },350);
 }
-function createWhisperNode(){
-  const el=document.createElement("button");
-  el.className="whisper";
-  return el;
-}
 function row(m,i){
   return `<button class="archive-row" onclick="openDetail(${i})">
     <span class="archive-id">ARCHIVE•${m.code}</span>
@@ -872,13 +773,11 @@ function renderMostCheckedArtifact(archives){
 let chainArchives=[];
 window.renderChainArchives=function(archives){
   chainArchives=archives;
-  archiveList.innerHTML=archives.length?renderLiveChainArchiveRows(archives):'<div class="chain-empty">No immutable archive objects have been indexed for this contract yet.</div>';
   recentList.innerHTML=archives.length?renderLiveChainArchiveRows(archives.slice(0,3)):"";
   renderMostCheckedArtifact(archives);
-  initWhisperPool();
 }
-window.renderChainArchiveError=function(){
-  archiveList.innerHTML='<div class="chain-empty">Kiosk Manager list is waiting for a Mainnet response. Use the refresh control to try again.</div>';
+function renderChainArchiveError(){
+  recentList.innerHTML='<div class="chain-empty">Kiosk Manager list is waiting for a Mainnet response. Use the refresh control to try again.</div>';
 }
 function openChainArchive(archiveId){
   const archive=chainArchives.find(item=>item.archiveId===archiveId);
@@ -1001,342 +900,7 @@ async function fetchArchiveIdForArtifact(sender, artifactId) {
   }
   return null;
 }
-const whisperPoolState={
-  active:[],
-  hotZones:[],
-  targetDensity:.80,
-  minDensity:.68,
-  maxDensity:.90,
-  lastPlacementCenter:null,
-  spawnTimer:null
-};
-
-function randomBetween(min,max){return Math.random()*(max-min)+min}
-
-function boxesOverlap(a,b,padX=0,padY=0){
-  return !(
-    a.right + padX < b.left ||
-    a.left > b.right + padX ||
-    a.bottom + padY < b.top ||
-    a.top > b.bottom + padY
-  );
-}
-
-function getStageRect(){
-  return whisperStage.getBoundingClientRect();
-}
-
-function getActiveBoxes(){
-  const stageRect=getStageRect();
-  return whisperPoolState.active
-    .filter(x=>x.phase!=="leaving")
-    .map(({el})=>{
-      const r=el.getBoundingClientRect();
-      return {
-        left:r.left-stageRect.left,
-        right:r.right-stageRect.left,
-        top:r.top-stageRect.top,
-        bottom:r.bottom-stageRect.top
-      };
-    });
-}
-
-function cleanupHotZones(){
-  const now=Date.now();
-  whisperPoolState.hotZones=whisperPoolState.hotZones.filter(z=>z.expiresAt>now);
-}
-
-function currentDensity(){
-  const stage=getStageRect();
-  if(stage.width<=0 || stage.height<=0)return 0;
-
-  const occupied=getActiveBoxes().reduce((sum,b)=>{
-    return sum + Math.max(0,b.right-b.left)*Math.max(0,b.bottom-b.top);
-  },0);
-
-  return Math.min(1,occupied/(stage.width*stage.height));
-}
-
-function createWhisperNode(){
-  const el=document.createElement("button");
-  el.className="whisper";
-  return el;
-}
-
-function measureWhisper(el){
-  const stageRect=getStageRect();
-
-  el.style.visibility="hidden";
-  el.style.opacity="0";
-  el.style.left="0px";
-  el.style.top="0px";
-  el.style.width=window.innerWidth<=900
-    ? Math.min(stageRect.width*.72, 460)+"px"
-    : Math.min(stageRect.width*randomBetween(.22,.32), 500)+"px";
-
-  whisperStage.appendChild(el);
-
-  const rect=el.getBoundingClientRect();
-  const fontSize=parseFloat(getComputedStyle(el.querySelector("q")).fontSize)||16;
-
-  return {
-    width:rect.width,
-    height:rect.height,
-    fontSize,
-    stageWidth:stageRect.width,
-    stageHeight:stageRect.height
-  };
-}
-
-function findFreePosition(metrics){
-  cleanupHotZones();
-
-  const active=getActiveBoxes();
-  const marginX=metrics.fontSize*2;
-  const marginY=metrics.fontSize*2;
-  const ownSize=Math.max(metrics.width,metrics.height);
-
-  const minLeft=marginX;
-  const maxLeft=Math.max(minLeft,metrics.stageWidth-metrics.width-marginX);
-  const minTop=marginY;
-  const maxTop=Math.max(minTop,metrics.stageHeight-metrics.height-marginY);
-
-  const levels=[2,1.6,1.25,0];
-
-  for(const separationMultiplier of levels){
-    const candidates=[];
-
-    for(let i=0;i<160;i++){
-      const left=randomBetween(minLeft,maxLeft);
-      const top=randomBetween(minTop,maxTop);
-      const box={
-        left,
-        right:left+metrics.width,
-        top,
-        bottom:top+metrics.height
-      };
-
-      if(active.some(a=>boxesOverlap(box,a,marginX,marginY)))continue;
-      if(whisperPoolState.hotZones.some(z=>boxesOverlap(box,z,marginX*.5,marginY*.5)))continue;
-
-      const center={
-        x:left+metrics.width/2,
-        y:top+metrics.height/2
-      };
-
-      if(separationMultiplier>0 && whisperPoolState.lastPlacementCenter){
-        const d=Math.hypot(
-          center.x-whisperPoolState.lastPlacementCenter.x,
-          center.y-whisperPoolState.lastPlacementCenter.y
-        );
-        if(d<ownSize*separationMultiplier)continue;
-      }
-
-      candidates.push({left,top,center,box});
-    }
-
-    if(candidates.length){
-      return candidates[Math.floor(Math.random()*candidates.length)];
-    }
-  }
-
-  return null;
-}
-
-function maskQuote(text){
-  const words=text.split(" ");
-  return words.map((word,index)=>{
-    const hide=index>0 && index%4===0;
-    const safeWord=escapeHtml(word);
-    return hide?`<span class="hidden-word">${safeWord}</span>`:safeWord;
-  }).join(" ");
-}
-
-function pickMemoryIndex(){
-  if(!chainArchives.length)return null;
-  const used=new Set(
-    whisperPoolState.active
-      .filter(x=>x.phase!=="leaving")
-      .map(x=>x.memoryIndex)
-  );
-  let candidates=chainArchives.map((_,i)=>i).filter(i=>!used.has(i));
-  if(!candidates.length)candidates=chainArchives.map((_,i)=>i);
-  return candidates[Math.floor(Math.random()*candidates.length)];
-}
-
-function scheduleChild(entry){
-  const delay=randomBetween(1600,3000);
-
-  entry.childTimer=setTimeout(()=>{
-    if(entry.phase!=="visible")return;
-
-    const density=currentDensity();
-
-    if(density<whisperPoolState.targetDensity){
-      const success=mountWhisper(pickMemoryIndex());
-      if(!success && density<whisperPoolState.minDensity){
-        setTimeout(()=>mountWhisper(pickMemoryIndex()),700);
-      }
-    }
-  },delay);
-}
-
-function mountWhisper(memoryIndex){
-  if(currentDensity()>=whisperPoolState.maxDensity)return false;
-
-  const m=chainArchives[memoryIndex];
-  if(!m)return false;
-  const el=createWhisperNode();
-  el.classList.add(`kind-${archiveImageUrl(m)?"nft":"coin"}`);
-  const sig=capFirst(m.content?.sealer_signature && m.content.sealer_signature.trim()!=="" ? m.content.sealer_signature.trim() : "anonymous");
-  el.innerHTML=`<q class="memory-mask">${maskQuote(archiveMessage(m))}</q><div class="whisper-meta">BY ${escapeHtml(sig.slice(0,42))} · ${relativeTime(m.archivedAtMs)}</div>`;
-  el.onclick=()=>openChainArchive(m.archiveId);
-
-  const metrics=measureWhisper(el);
-  const pos=findFreePosition(metrics);
-
-  if(!pos){
-    el.remove();
-    whisperPoolState.lastPlacementCenter=null;
-    return false;
-  }
-
-  el.style.left=pos.left+"px";
-  el.style.top=pos.top+"px";
-  el.style.visibility="visible";
-  el.style.opacity="";
-
-  whisperPoolState.lastPlacementCenter=pos.center;
-
-  const now=Date.now();
-  const entry={
-    el,
-    memoryIndex,
-    phase:"entering",
-    createdAt:now,
-    visibleAt:now+900,
-    minRemoveAt:now+900+2000,
-    preferredRemoveAt:now+randomBetween(6500,11000),
-    childTimer:null
-  };
-  whisperPoolState.active.push(entry);
-
-  requestAnimationFrame(()=>{
-    void el.offsetWidth;
-    requestAnimationFrame(()=>{
-      el.classList.add("visible");
-      entry.phase="visible";
-      scheduleChild(entry);
-      scheduleRemoval(entry);
-    });
-  });
-
-  return true;
-}
-
-function scheduleRemoval(entry){
-  const wait=Math.max(0,entry.preferredRemoveAt-Date.now());
-
-  setTimeout(()=>{
-    if(entry.phase!=="visible")return;
-
-    const density=currentDensity();
-    if(Date.now()<entry.minRemoveAt){
-      scheduleRemoval(entry);
-      return;
-    }
-
-    // If density is already low, extend the life a little.
-    if(density<whisperPoolState.minDensity && Math.random()<.7){
-      entry.preferredRemoveAt=Date.now()+randomBetween(1200,2400);
-      scheduleRemoval(entry);
-      return;
-    }
-
-    removeWhisper(entry);
-  },wait);
-}
-
-function removeWhisper(entry){
-  if(!entry || entry.phase==="leaving")return false;
-  if(Date.now()<entry.minRemoveAt)return false;
-
-  entry.phase="leaving";
-  clearTimeout(entry.childTimer);
-
-  const r=entry.el.getBoundingClientRect();
-  const stage=getStageRect();
-
-  whisperPoolState.hotZones.push({
-    left:r.left-stage.left,
-    right:r.right-stage.left,
-    top:r.top-stage.top,
-    bottom:r.bottom-stage.top,
-    expiresAt:Date.now()+randomBetween(3500,6500)
-  });
-
-  entry.el.classList.remove("visible");
-  entry.el.classList.add("leaving");
-
-  setTimeout(()=>{
-    entry.el.remove();
-    whisperPoolState.active=whisperPoolState.active.filter(x=>x!==entry);
-
-    // Keep the engine alive without forcing a fixed count.
-    if(currentDensity()<whisperPoolState.minDensity){
-      const silence=Math.random()<.18;
-      if(silence){
-        document.getElementById("silenceNote").classList.add("show");
-        setTimeout(()=>{
-          document.getElementById("silenceNote").classList.remove("show");
-          mountWhisper(pickMemoryIndex());
-        },randomBetween(2800,4800));
-      }else{
-        setTimeout(()=>mountWhisper(pickMemoryIndex()),randomBetween(500,1100));
-      }
-    }
-  },950);
-
-  return true;
-}
-
-function seedWhispers(){
-  if(!chainArchives.length){
-    document.getElementById("silenceNote").classList.add("show");
-    return;
-  }
-  document.getElementById("silenceNote").classList.remove("show");
-  const initial=window.innerWidth<=900?1:2;
-
-  for(let i=0;i<initial;i++){
-    setTimeout(()=>mountWhisper(pickMemoryIndex()),i*700);
-  }
-}
-
-function initWhisperPool(){
-  clearTimeout(whisperPoolState.spawnTimer);
-  whisperStage.innerHTML='<div class="silence-note" id="silenceNote">Kiosk Manager IS LISTENING</div>';
-  whisperPoolState.active=[];
-  whisperPoolState.hotZones=[];
-  whisperPoolState.lastPlacementCenter=null;
-
-  seedWhispers();
-}
-
-let whisperResizeTimer;
-let lastWhisperViewportWidth=window.innerWidth;
-window.addEventListener("resize",()=>{
-  const widthDelta=Math.abs(window.innerWidth-lastWhisperViewportWidth);
-  if(widthDelta<80)return;
-
-  lastWhisperViewportWidth=window.innerWidth;
-  clearTimeout(whisperResizeTimer);
-  whisperResizeTimer=setTimeout(initWhisperPool,300);
-});
-
-initWhisperPool();
 recentList.innerHTML='<div class="chain-empty loading">Loading the public on-chain record…</div>';
-archiveList.innerHTML='<div class="chain-empty loading">Connecting to the Sui Mainnet index…</div>';
 
 let currentStep=1;
 let selectedObjectId=null;
