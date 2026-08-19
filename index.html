@@ -459,6 +459,15 @@ body.wallet-open{overflow:hidden}
     </div>
   </div>
 </section>
+
+<section id="capList" class="view">
+  <div class="wizard">
+    <div class="actions" style="justify-content:flex-start"><button class="btn" type="button" onclick="showView('wizard')">← Back to objects</button></div>
+    <h2 id="capListTitle">Kiosk caps</h2>
+    <div class="modal-body" id="capListBody"></div>
+  </div>
+</section>
+
 </main>
 
 <div class="detail-transition" id="detailTransition"><q id="transitionQuote"></q></div><div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1144,10 +1153,9 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
 }
 function showCapList(kind, event){
   if(event)event.stopPropagation();
-  const modal=document.getElementById('capListModal');
   const title=document.getElementById('capListTitle');
   const body=document.getElementById('capListBody');
-  if(!modal||!body)return;
+  if(!body)return;
   const kiosks=(window.wizardCaps?.kiosks||[]).filter(k=>kind==='personal'?k.is_personal:!k.is_personal);
   title.textContent = kind==='personal' ? `Personal Kiosk caps (${kiosks.length})` : `Standard Kiosk caps (${kiosks.length})`;
   if(!kiosks.length){
@@ -1169,11 +1177,10 @@ function showCapList(kind, event){
     }).join('');
     body.innerHTML=rows;
   }
-  modal.style.display='flex';
+  showView('capList');
 }
 function hideCapList(){
-  const modal=document.getElementById('capListModal');
-  if(modal)modal.style.display='none';
+  showView('wizard');
 }
 function renderFilteredObjects(){
   const grid=document.getElementById('objectGrid');
@@ -2107,11 +2114,5 @@ wireFinalImageUpload();
 </script>
 <script type="module" src="/src/wallet.js"></script>
 <script type="module" src="/src/app.js"></script>
-<div class="modal-overlay" id="capListModal" style="display:none" onclick="if(event.target===this)hideCapList()">
-  <div class="modal-box">
-    <div class="modal-head"><span id="capListTitle">Kiosk caps</span><button class="modal-close" onclick="hideCapList()">✕</button></div>
-    <div class="modal-body" id="capListBody"></div>
-  </div>
-</div>
 </body>
 </html>
