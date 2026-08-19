@@ -1,7 +1,10 @@
 import { createDAppKit } from '@mysten/dapp-kit-core';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 
-const MAINNET_GRPC_URL = 'https://fullnode.mainnet.sui.io:443';
+// Default Mainnet gRPC endpoint. Override at build time with
+// VITE_MAINNET_RPC (e.g. a third-party RPC if the default is unreachable
+// from the visitor's network). Falls back to Mysten's public fullnode.
+const MAINNET_GRPC_URL = import.meta.env?.VITE_MAINNET_RPC || 'https://fullnode.mainnet.sui.io:443';
 const LAST_WALLET_KEY = 'the-archive:last-wallet';
 let lastConnection = null;
 

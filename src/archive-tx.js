@@ -8,7 +8,7 @@
 import { Transaction } from '@mysten/sui/transactions';
 import { PACKAGE_ID } from './chain-archives.js';
 
-const GRAPHQL_ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
+const GRAPHQL_ENDPOINT = import.meta.env?.VITE_MAINNET_GRAPHQL || 'https://graphql.mainnet.sui.io/graphql';
 // Mainnet v5 runtime package. Keep chain-archives.js on the canonical/original
 // package ID for event type queries; transaction targets must use the published
 // package that actually contains the v5 metadata validation.
@@ -536,13 +536,14 @@ export async function fetchOwnedObjects(client, address) {
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
       const scanKiosk = async (kioskId) => {
-        let fieldCursor = null;
-        const lockedItems = new Set();
-        do {
-          const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
-          const conn = result?.object?.dynamicFields;
-          const nodes = conn?.nodes || [];
-          await mapWithConcurrency(nodes, 8, async (node) => {
+        try {
+          let fieldCursor = null;
+          const lockedItems = new Set();
+          do {
+            const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
+            const conn = result?.object?.dynamicFields;
+            const nodes = conn?.nodes || [];
+            await mapWithConcurrency(nodes, 8, async (node) => {
             const fieldType = node?.name?.type?.repr || '';
             if (/::kiosk::Lock(?:<|$)/.test(fieldType)) {
               const lockedId = objectIdValue(node?.name?.json);
@@ -587,11 +588,22 @@ export async function fetchOwnedObjects(client, address) {
                 seen.add(itemId);
               }
             } catch (objErr) {
-              throw new Error(`Kiosk item ${itemId} could not be loaded: ${objErr.message || objErr}`);
+              // A single kiosk item that cannot be read must not abort the
+              // entire scan. Mark incomplete and keep going so the rest of the
+              // wallet's objects (plain NFTs, coins) still surface.
+              scanIncomplete = true;
+              console.debug(`[owned-objects] skipped kiosk item ${itemId}:`, objErr);
             }
           });
           fieldCursor = conn?.pageInfo?.hasNextPage ? conn?.pageInfo?.endCursor : null;
         } while (fieldCursor);
+        } catch (kioskErr) {
+          // If a Kiosk's on-chain fields can't be read (GraphQL unreachable,
+          // etc.), skip that kiosk but keep every other object already in
+          // `collected`. The scan stays useful instead of failing entirely.
+          scanIncomplete = true;
+          console.debug(`[owned-objects] skipped kiosk ${kioskId}:`, kioskErr);
+        }
       };
       // Kiosks are independent; scan them concurrently while preserving every
       // page within each Kiosk. Any failed page rejects the full scan so the UI
