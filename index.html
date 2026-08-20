@@ -1438,7 +1438,7 @@ function renderSelectedIds(card){
   if(capId) rows.push(['Cap ID', suiscanLink(capId, capId.slice(0,10)+'…'+capId.slice(-4))]);
   else rows.push(['Cap ID','— (none)']);
   let takeBtn='';
-  if(kioskId && capId){
+  if(kioskId){
     const itemType=card.dataset.type||'';
     const kioskCapKind=card.dataset.kioskCapKind||'';
     box.dataset.takeItem=itemId;
@@ -1454,8 +1454,22 @@ function renderSelectedIds(card){
 async function doTake(){
   const box=document.getElementById('selectedObjectIds');
   if(!box) return;
-  const itemId=box.dataset.takeItem, kioskId=box.dataset.takeKiosk, capId=box.dataset.takeCap, itemType=box.dataset.takeType, kioskCapKind=box.dataset.takeKind;
-  if(!itemId||!kioskId||!capId||!itemType){ alert('Missing kiosk / cap / item info for take.'); return; }
+  const itemId=box.dataset.takeItem, kioskId=box.dataset.takeKiosk, itemType=box.dataset.takeType, kioskCapKind=box.dataset.takeKind;
+  if(!itemId||!kioskId||!itemType){ alert('Missing kiosk / item info for take.'); return; }
+  // Resolve a cap id: prefer the resolved per-kiosk cap, then the inventory
+  // maps, then any KioskOwnerCap the wallet owns (gRPC objectIds are reliable).
+  let capId=box.dataset.takeCap||'';
+  if(!capId && kioskId && Array.isArray(window.wizardCaps?.kiosks)){
+    const kc=window.wizardCaps.kiosks.find(k=>String(k.id).toLowerCase()===String(kioskId).toLowerCase());
+    if(kc && kc.capId) capId=kc.capId;
+  }
+  if(!capId && window.kioskCapById && window.kioskCapById.get(String(kioskId).toLowerCase())){
+    capId=window.kioskCapById.get(String(kioskId).toLowerCase());
+  }
+  if(!capId && Array.isArray(window.allKioskCapIds) && window.allKioskCapIds.length){
+    capId=window.allKioskCapIds[0];
+  }
+  if(!capId){ alert('No KioskOwnerCap found for this wallet. Cannot take without a cap object.'); return; }
   const btn=box.querySelector('.sel-take-btn');
   if(btn){ btn.disabled=true; btn.textContent='⏳ Signing…'; }
   try{
@@ -1736,6 +1750,15 @@ async function loadWizardObjects(){
         }
       }
     }
+    // Expose every KioskOwnerCap / PersonalKioskCap objectId the wallet owns.
+    // gRPC listOwnedObjects always returns these objects' objectIds (reliable),
+    // so this is a dependable fallback when the per-kiosk cap id isn't resolved.
+    const allCaps = (rpcResult?.caps && Array.isArray(rpcResult.caps)) ? rpcResult.caps
+      : (Array.isArray(rpcObjects?.caps) ? rpcObjects.caps : []);
+    window.allKioskCapIds = allCaps
+      .filter((c) => c && /KioskOwnerCap|PersonalKioskCap/.test(c.kind || c.type || ''))
+      .map((c) => c.objectId)
+      .filter(Boolean);
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
