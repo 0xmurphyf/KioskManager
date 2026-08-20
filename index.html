@@ -150,6 +150,7 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .selected-ids .sel-take-btn{margin-top:10px;width:100%;padding:9px 12px;background:var(--accent);color:#0a0a08;border:0;border-radius:6px;font:600 12px "Courier New",monospace;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}
 .selected-ids .sel-take-btn:hover{filter:brightness(1.12)}
 .selected-ids .sel-take-btn:disabled{opacity:.6;cursor:wait}
+.selected-ids .sel-take-warn{margin-top:10px;padding:9px 11px;border:1px solid #b9892f;border-radius:6px;background:rgba(185,137,47,.08);font:11px "Courier New",monospace;letter-spacing:.03em;color:#e6b35c;line-height:1.4}
 .cap-inventory{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.02);display:grid;gap:6px}
 .cap-inventory.hidden,.cap-inventory[hidden]{display:none}
 .cap-inventory .cap-inv-title{font:11px "Courier New",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
@@ -1122,12 +1123,14 @@ function appendObjectCard(grid,obj,focused=false){
   card.dataset.inKiosk=inKiosk?'1':'';
   card.dataset.specialOwnership=specialOwnership?'1':'';
   card.dataset.noStore=noStore?'1':'';
+  card.dataset.sharedKiosk=obj.sharedKiosk?'1':'';
   card.onclick=()=>selectObject(card);
   let stateLabel=obj.manual?'LOOKED UP BY ID':blocked?'BLOCKED':specialOwnership?'LISTED / OBJECT CONTROLLED':obj.kiosk?'KIOSK ITEM':'';
   if(obj.noStore)stateLabel='NO STORE';
   let extra=stateLabel?`<div class="object-status"><span class="status-pill ${(blocked||noStore)?'status-blocked':''}">${noStore?'⚠ NO STORE':blocked?'⛔ BLOCKED':locked?'🔒 LOCKED':escapeHtml(stateLabel)}</span></div>`:'';
   if(noStore)extra+=`<div class="object-state-warning">⚠ NO STORE CANNOT ARCHIVE</div>`;
   else if(blocked)extra+=`<div class="object-state-warning">⛔ BLOCKED BY SUI DENYLIST</div>`;
+  else if(obj.sharedKiosk)extra+=`<div class="object-state-warning">⚠ SHARED KIOSK · NO CAP · STANDARD TAKE UNAVAILABLE</div>`;
   else if(locked)extra+=`<div class="object-state-warning"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔒 LOCKED TAKE OUT FIRST</a></div>`;
   else if(inKiosk&&personalKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">◆ PERSONAL KIOSK · TAKE OUT TO WALLET</a></div>`;
   else if(inKiosk)extra+=`<div class="object-state-kiosk"><a href="https://kiosk.voxxinc.xyz" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▣ IN KIOSK · TAKE OUT TO WALLET</a></div>`;
@@ -1208,8 +1211,9 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
         const lockedCount=group.objects.filter(o=>o.locked && !o.isKioskPlaceholder).length;
         if(lockedCount===0)continue; // skip groups with no locked items
       }
+      const groupShared = group.objects.some(o=>o.sharedKiosk);
       const capIdFromMap = (window.kioskCapById && window.kioskCapById.get(String(group.id).toLowerCase())) || group.capOwner || '';
-      const capInfo=capIdFromMap?` · 🔑 ${shortKioskId(capIdFromMap)}`:'';
+      const capInfo = capIdFromMap ? ` · 🔑 ${shortKioskId(capIdFromMap)}` : (groupShared ? ' · ⚠ Shared (no cap)' : '');
       // Lock status. Per-item `locked` comes from the GraphQL kiosk::is_locked
       // check, which only runs on the browser gRPC path. When that scan was
       // incomplete (gRPC blocked), the flag is NOT authoritative — show "lock?"
@@ -1500,12 +1504,20 @@ function renderSelectedIds(card){
   if(kioskId){
     const itemType=card.dataset.type||'';
     const kioskCapKind=card.dataset.kioskCapKind||'';
-    box.dataset.takeItem=itemId;
-    box.dataset.takeKiosk=kioskId;
-    box.dataset.takeCap=capId;
-    box.dataset.takeType=itemType;
-    box.dataset.takeKind=kioskCapKind;
-    takeBtn='<button type="button" class="sel-take-btn" onclick="doTake()">⬆ Take out of Kiosk</button>';
+    const sharedKiosk=card.dataset.sharedKiosk==='1'||!capId;
+    if(sharedKiosk){
+      // Shared kiosk (or no resolvable cap): standard kiosk::take needs a
+      // KioskOwnerCap that does not exist on-chain, so offering Take would
+      // always abort. Surface the reason instead.
+      takeBtn='<div class="sel-take-warn">⚠ SHARED KIOSK / NO CAP — standard Take unavailable. Use the Call-Move panel for any custom contract logic.</div>';
+    } else {
+      box.dataset.takeItem=itemId;
+      box.dataset.takeKiosk=kioskId;
+      box.dataset.takeCap=capId;
+      box.dataset.takeType=itemType;
+      box.dataset.takeKind=kioskCapKind;
+      takeBtn='<button type="button" class="sel-take-btn" onclick="doTake()">⬆ Take out of Kiosk</button>';
+    }
   }
   box.innerHTML=rows.map(([label,val])=>`<div class="sel-id-row"><span class="sel-id-label">${label}</span><span class="sel-id-val">${val}</span></div>`).join('')+takeBtn;
   box.hidden=false;
@@ -1983,6 +1995,15 @@ async function loadObjectById(){
     // lookup; Kiosk Manager transaction/contract remains the final authority.
     const object=await window.theArchiveTx.fetchObjectById(client,objectId);
     let resolvedObject=object;
+    // A manually entered ID may be a Kiosk itself (shared or cap-owned). When it
+    // is a 0x2::kiosk::Kiosk, treat it as a kiosk holding: surface its items and
+    // flag Shared kiosks (no KioskOwnerCap) so the UI warns instead of offering
+    // an impossible Take via cap.
+    const isKioskType=/::kiosk::Kiosk(?:<|$)/.test(object.type||'');
+    if(isKioskType){
+      const shared=object.objectStatus==='Shared'||object.ownershipStatus==='Shared';
+      resolvedObject={...object,kiosk:true,inKiosk:true,kioskId:object.objectId,sharedKiosk:Boolean(shared),kioskOwnerCapId:'',kioskCapKind:'',kioskInnerCapId:'',kioskCapOwner:'',objectStatus:shared?'Shared Kiosk':'In Kiosk',ownershipStatus:shared?'Shared Kiosk':'In Kiosk'};
+    } else {
     try{
       // A manually entered ID may be a Kiosk child. Reuse the same Mainnet
       // Kiosk scan as the wallet object list so the transaction can take it
@@ -1992,6 +2013,7 @@ async function loadObjectById(){
       if(kioskMatch)resolvedObject={...object,...kioskMatch};
     }catch(kioskError){
       console.debug('[manual-object] kiosk context unavailable',kioskError);
+    }
     }
     Object.assign(object,resolvedObject);
     object.manual=true;

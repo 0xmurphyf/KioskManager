@@ -579,7 +579,14 @@ export async function fetchOwnedObjects(client, address) {
       for (const kiosk of ownedKiosks) {
         const kioskId = kiosk?.objectId;
         if (!kioskId) continue;
-        const capFromOwner = extractFirstAddress(kiosk?.owner);
+        // A Shared kiosk has NO KioskOwnerCap — it was published via
+        // transfer::share_object, so no capability object owns it. The
+        // standard kiosk::take / kiosk::delete paths (which require a cap) do
+        // not apply. We still enumerate its items (dynamic fields are
+        // readable) but leave the cap fields empty and flag it shared so the
+        // UI can warn instead of offering an impossible Take.
+        const isShared = Boolean(kiosk?.owner?.Shared || kiosk?.owner?.shared);
+        const capFromOwner = isShared ? '' : extractFirstAddress(kiosk?.owner);
         const existing = capByKioskId.get(kioskId);
         const capObjectId = capFromOwner || existing?.capObjectId || '';
         kioskCapByKiosk.set(kioskId, {
@@ -587,6 +594,7 @@ export async function fetchOwnedObjects(client, address) {
           capObjectId,
           innerCapId: existing?.innerCapId || '',
           capOwner: address,
+          sharedKiosk: Boolean(isShared),
         });
       }
       // Also keep any cap-derived kioskId that was not already covered by an
@@ -650,6 +658,7 @@ export async function fetchOwnedObjects(client, address) {
               kioskCapKind:kioskCapByKiosk.get(kioskId)?.kind||existingItemContext?.kioskCapKind||'',
               kioskInnerCapId:kioskCapByKiosk.get(kioskId)?.innerCapId||existingItemContext?.kioskInnerCapId||'',
               kioskCapOwner:kioskCapByKiosk.get(kioskId)?.capOwner||existingItemContext?.kioskCapOwner||'',
+              sharedKiosk:Boolean(kioskCapByKiosk.get(kioskId)?.sharedKiosk)||existingItemContext?.sharedKiosk||false,
               locked: Boolean(existingItemContext?.locked || lockedItems.has(itemId)),
             });
             try {
@@ -708,6 +717,7 @@ export async function fetchOwnedObjects(client, address) {
       name: `Kiosk ${kioskId.slice(0, 8)}…${kioskId.slice(-4)}`,
       kioskItemCount: 0,
       isKioskPlaceholder: true,
+      sharedKiosk: Boolean(capInfo.sharedKiosk),
     };
     kioskItemContext.set(kioskId, {
       kioskId,
@@ -715,6 +725,7 @@ export async function fetchOwnedObjects(client, address) {
       kioskCapKind: capInfo.kind || '',
       kioskInnerCapId: capInfo.innerCapId || '',
       kioskCapOwner: capInfo.capOwner || '',
+      sharedKiosk: Boolean(capInfo.sharedKiosk),
       empty: true,
     });
     collected.push(placeholder);
@@ -732,7 +743,7 @@ export async function fetchOwnedObjects(client, address) {
   const described = collected.map(describeObject).filter((o) => o.objectId && o.type !== 'Unknown object' && !/::kiosk::Kiosk(?:OwnerCap|Cap)(?:<|$)/.test(o.type) && !/::personal_kiosk::PersonalKioskCap(?:<|$)/.test(o.type)).map((object) => {
     const kiosk = typeof kioskItemContext === 'undefined' ? null : kioskItemContext.get(object.objectId);
     return kiosk
- ? { ...object, kiosk: true, inKiosk: true, locked: Boolean(kiosk.locked), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, kioskCapKind:kiosk.kioskCapKind||'', kioskInnerCapId:kiosk.kioskInnerCapId||'', kioskCapOwner:kiosk.kioskCapOwner||'', objectStatus: kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk', ownershipStatus: kiosk.kioskCapKind === 'personal-kiosk-cap' ? 'Personal Kiosk' : (kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk') }
+ ? { ...object, kiosk: true, inKiosk: true, locked: Boolean(kiosk.locked), sharedKiosk: Boolean(kiosk.sharedKiosk), kioskId: kiosk.kioskId, kioskOwnerCapId: kiosk.kioskOwnerCapId, kioskCapKind:kiosk.kioskCapKind||'', kioskInnerCapId:kiosk.kioskInnerCapId||'', kioskCapOwner:kiosk.kioskCapOwner||'', objectStatus: kiosk.locked ? 'Locked in Kiosk' : (kiosk.sharedKiosk ? 'Shared Kiosk' : 'In Kiosk'), ownershipStatus: kiosk.sharedKiosk ? 'Shared Kiosk' : (kiosk.kioskCapKind === 'personal-kiosk-cap' ? 'Personal Kiosk' : (kiosk.locked ? 'Locked in Kiosk' : 'In Kiosk')) }
       : { ...object, ownershipStatus: object.ownerAddress && object.ownerAddress.toLowerCase() === address.toLowerCase() ? 'Owned by connected wallet' : object.ownershipStatus };
   });
   const coins = described.filter((o) => o.isCoin);
