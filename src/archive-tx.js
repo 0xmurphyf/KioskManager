@@ -114,9 +114,17 @@ const CAP_PATTERNS = [
   { re: /::package::UpgradeCap(?:<|$)/, kind: 'UpgradeCap', ref: 'package' },
 ];
 function collectCap(data) {
-  const type = data?.type || data?.objectType || '';
+  const fields = data?.json?.fields || data?.content?.json?.fields || data?.content?.fields || data?.fields || {};
+  const type = data?.type || data?.objectType || fields?.type || data?.data?.type || data?.content?.type || '';
   const match = CAP_PATTERNS.find((p) => p.re.test(type));
-  if (!match) return null;
+  if (!match) {
+    // Debug: surface objects whose type we failed to classify, in case the
+    // gRPC shape nests `type` somewhere we don't read.
+    if (/cap|Cap|kiosk|Kiosk/i.test(JSON.stringify(data).slice(0, 400))) {
+      console.log('[collectCap-skip]', JSON.stringify(data).slice(0, 300));
+    }
+    return null;
+  }
   const json = data?.json || data?.content?.json || data?.content?.fields || data?.content || {};
   const ref = kioskCapabilityReference(json) || kioskCapabilityReference(data);
   const cap = {
