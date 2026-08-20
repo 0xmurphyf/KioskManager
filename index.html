@@ -150,6 +150,11 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .selected-ids .sel-take-btn{margin-top:10px;width:100%;padding:9px 12px;background:var(--accent);color:#0a0a08;border:0;border-radius:6px;font:600 12px "Courier New",monospace;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}
 .selected-ids .sel-take-btn:hover{filter:brightness(1.12)}
 .selected-ids .sel-take-btn:disabled{opacity:.6;cursor:wait}
+.cap-inventory{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.02);display:grid;gap:6px}
+.cap-inventory.hidden,.cap-inventory[hidden]{display:none}
+.cap-inventory .cap-inv-title{font:11px "Courier New",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.cap-inventory .cap-inv-row{display:flex;align-items:baseline;gap:8px;font:11px "Courier New",monospace;letter-spacing:.04em;color:var(--dim)}
+.cap-inventory .cap-inv-kind{color:var(--paper);text-transform:uppercase;letter-spacing:.08em;min-width:120px;flex:0 0 auto}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
@@ -441,6 +446,7 @@ body.wallet-open{overflow:hidden}
         </div>
         <div class="kiosk-count-row"><span class="kiosk-count" id="kioskCount"></span></div>
         <div class="selected-ids" id="selectedObjectIds" hidden></div>
+        <div class="cap-inventory" id="capInventory" hidden></div>
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
@@ -1491,6 +1497,22 @@ function clearSelectedIds(){
   box.hidden=true;
   box.innerHTML='';
 }
+// List the wallet's KioskOwnerCap / PersonalKioskCap objects so the user can
+// see their on-chain objectIds directly. Confirms caps ARE objects on Sui and
+// gives a reliable source for take operations.
+function renderCapInventory(){
+  const box=document.getElementById('capInventory');
+  if(!box) return;
+  const caps=Array.isArray(window.allKioskCaps)?window.allKioskCaps:[];
+  if(!caps.length){ box.hidden=true; box.innerHTML=''; return; }
+  const rows=caps.map((c)=>{
+    const id=c.objectId||'';
+    const kind=c.kind||c.type||'Cap';
+    return `<div class="cap-inv-row"><span class="cap-inv-kind">${kind}</span><span class="sel-id-val">${id?suiscanLink(id, id.slice(0,10)+'…'+id.slice(-4)):'—'}</span></div>`;
+  }).join('');
+  box.innerHTML=`<div class="cap-inv-title">🔑 Kiosk Caps (${caps.length})</div>${rows}`;
+  box.hidden=false;
+}
 // Render the object being archived into the two confirmation cells: Object Name
 // and Object ID (with the Coin partial-amount sub-line). This is the "potential
 // coin flow" the user reviews before signing.
@@ -1750,15 +1772,16 @@ async function loadWizardObjects(){
         }
       }
     }
-    // Expose every KioskOwnerCap / PersonalKioskCap objectId the wallet owns.
-    // gRPC listOwnedObjects always returns these objects' objectIds (reliable),
-    // so this is a dependable fallback when the per-kiosk cap id isn't resolved.
+    // Expose every KioskOwnerCap / PersonalKioskCap the wallet owns, as full
+    // objects (with objectId + kind). gRPC listOwnedObjects always returns
+    // these objects' objectIds, so this is a dependable inventory + fallback.
     const allCaps = (rpcResult?.caps && Array.isArray(rpcResult.caps)) ? rpcResult.caps
       : (Array.isArray(rpcObjects?.caps) ? rpcObjects.caps : []);
-    window.allKioskCapIds = allCaps
-      .filter((c) => c && /KioskOwnerCap|PersonalKioskCap/.test(c.kind || c.type || ''))
-      .map((c) => c.objectId)
-      .filter(Boolean);
+    const kioskCaps = allCaps.filter((c) => c && /KioskOwnerCap|PersonalKioskCap/.test(c.kind || c.type || ''));
+    window.allKioskCapIds = kioskCaps.map((c) => c.objectId).filter(Boolean);
+    window.allKioskCaps = kioskCaps;
+    console.log('[caps-debug] count=', kioskCaps.length, 'sample=', JSON.stringify(kioskCaps.slice(0,3)));
+    renderCapInventory();
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {
