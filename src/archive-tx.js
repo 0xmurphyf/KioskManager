@@ -61,6 +61,26 @@ function objectIdValue(value){
   if(!value||typeof value!=='object')return '';
   return objectIdValue(value.id||value.ID||value.address||value.objectId||value.object_id);
 }
+// Recursively find the first valid Sui object address (0x + 1..64 hex chars)
+// inside an arbitrary value. Used to extract the KioskOwnerCap objectId from
+// the Kiosk's GraphQL `owner` field, whose exact shape varies by deployment.
+function extractFirstAddress(value, seen){
+  if(!value) return '';
+  if(typeof value==='string'){
+    const m=value.match(/^0x[0-9a-fA-F]{1,64}$/);
+    return m?m[0]:'';
+  }
+  if(typeof value!=='object') return '';
+  if(Array.isArray(value)){
+    for(const v of value){ const r=extractFirstAddress(v,seen); if(r) return r; }
+    return '';
+  }
+  seen=seen||new Set();
+  for(const k of Object.keys(value)){
+    const r=extractFirstAddress(value[k],seen); if(r) return r;
+  }
+  return '';
+}
 
 function kioskCapabilityKind(type=''){
   if(/::kiosk::KioskOwnerCap(?:<|$)/.test(type))return 'standard-kiosk-owner-cap';
@@ -576,10 +596,11 @@ export async function fetchOwnedObjects(client, address) {
             const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
             // The Kiosk is owned by its KioskOwnerCap on-chain; the GraphQL
             // `owner` field yields the cap's objectId reliably (unlike the gRPC
-            // cap `for` field, which is frequently dropped). Use it as the
-            // authoritative cap id for this Kiosk.
+            // cap `for` field, which is frequently dropped). The exact shape of
+            // `owner` varies across Sui GraphQL deployments, so extract the
+            // first valid 0x address anywhere inside it.
             const ow = result?.object?.owner;
-            const capFromOwner = ow?.ObjectOwner?.owner?.address || ow?.ObjectOwner?.owner || ow?.owner?.address || ow?.owner || '';
+            const capFromOwner = extractFirstAddress(ow) || '';
             if (capFromOwner && !kioskCapByKiosk.has(kioskId)) {
               kioskCapByKiosk.set(kioskId, { kind: 'standard-kiosk-owner-cap', capObjectId: capFromOwner, innerCapId: '', capOwner: address });
             } else if (capFromOwner) {

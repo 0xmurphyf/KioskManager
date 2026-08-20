@@ -1147,7 +1147,8 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
         const lockedCount=group.objects.filter(o=>o.locked && !o.isKioskPlaceholder).length;
         if(lockedCount===0)continue; // skip groups with no locked items
       }
-      const capInfo=group.capOwner?` · cap ${shortKioskId(group.capOwner)}`:'';
+      const capIdFromMap = (window.kioskCapById && window.kioskCapById.get(String(group.id).toLowerCase())) || group.capOwner || '';
+      const capInfo=capIdFromMap?` · 🔑 ${shortKioskId(capIdFromMap)}`:'';
       // Lock status. Per-item `locked` comes from the GraphQL kiosk::is_locked
       // check, which only runs on the browser gRPC path. When that scan was
       // incomplete (gRPC blocked), the flag is NOT authoritative — show "lock?"
@@ -1683,14 +1684,16 @@ async function loadWizardObjects(){
       }
     }
     wizardCaps = { standard, personal, kiosks: serverKiosks };
-    // Attach the real KioskOwnerCap objectId to each kiosk. The GraphQL scan
-    // (fetchOwnedObjects) resolves the cap id from the Kiosk's on-chain owner,
-    // which is reliable even on the gRPC path where the cap's `for` field is
-    // dropped. Merge it into the kiosks list so the UI (cap list + selected
-    // object ids) can show and use the cap id.
+    // Build a reliable kioskId -> capId map from the GraphQL scan (kiosk's
+    // on-chain owner = KioskOwnerCap objectId). Exposed globally so the Kiosk
+    // group headers can render the cap id directly under each Kiosk ID.
     const rpcKioskCaps = (rpcResult?.kioskCaps && Array.isArray(rpcResult.kioskCaps)) ? rpcResult.kioskCaps
       : (Array.isArray(rpcObjects?.kioskCaps) ? rpcObjects.kioskCaps : []);
+    window.kioskCapById = new Map();
     if (rpcKioskCaps.length) {
+      for (const c of rpcKioskCaps) {
+        if (c && c.kioskId && c.capId) window.kioskCapById.set(String(c.kioskId).toLowerCase(), c.capId);
+      }
       const byKiosk = new Map(rpcKioskCaps.map((c) => [String(c.kioskId).toLowerCase(), c.capId]));
       for (const k of wizardCaps.kiosks) {
         if (!k.capId) {
