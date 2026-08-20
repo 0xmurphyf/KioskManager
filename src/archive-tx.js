@@ -23,6 +23,7 @@ const KIOSK_FIELDS_QUERY = `
       owner {
         __typename
         ... on AddressOwner { owner }
+        ... on ObjectOwner { owner }
         ... on ObjectOwner { owner { address } }
       }
       dynamicFields(first: 50, after: $cursor) {
@@ -600,6 +601,7 @@ export async function fetchOwnedObjects(client, address) {
             // `owner` varies across Sui GraphQL deployments, so extract the
             // first valid 0x address anywhere inside it.
             const ow = result?.object?.owner;
+            console.log('[cap-debug] kiosk', kioskId, 'owner=', JSON.stringify(ow), 'extracted=', extractFirstAddress(ow));
             const capFromOwner = extractFirstAddress(ow) || '';
             if (capFromOwner && !kioskCapByKiosk.has(kioskId)) {
               kioskCapByKiosk.set(kioskId, { kind: 'standard-kiosk-owner-cap', capObjectId: capFromOwner, innerCapId: '', capOwner: address });
