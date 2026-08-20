@@ -364,6 +364,25 @@ body.wallet-open{overflow:hidden}
   .wizard{padding:0}
   .step{padding:0}
 }
+.call-move-panel{margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:6px;background:rgba(231,225,210,.03);display:grid;gap:9px}
+.call-move-panel[hidden]{display:none}
+.call-move-head{font:600 13px "Courier New",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.call-move-hint{font-weight:400;font-size:10px;letter-spacing:.04em;text-transform:none;color:var(--dim);margin-left:6px}
+.call-move-row{display:grid;gap:4px}
+.call-move-row label{font:10px "Courier New",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.call-move-row input,.call-move-row textarea{background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:8px 9px;font:12px "Courier New",monospace;border-radius:4px;width:100%;box-sizing:border-box;resize:vertical}
+.call-move-row input:focus,.call-move-row textarea:focus{outline:none;border-color:var(--accent)}
+.call-move-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.call-move-actions .btn{padding:8px 12px;background:var(--accent);color:#0a0a08;border:0;border-radius:6px;font:600 11px "Courier New",monospace;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}
+.call-move-actions .btn:hover{filter:brightness(1.12)}
+.call-move-actions .btn:disabled{opacity:.6;cursor:wait}
+.call-move-status{font:11px "Courier New",monospace;color:var(--dim);word-break:break-all}
+.call-move-status.ok{color:#7fe0a0}
+.call-move-status.err{color:#ff8b8b}
+.call-move-help{font:10px "Courier New",monospace;color:var(--dim)}
+.call-move-help summary{cursor:pointer;letter-spacing:.08em;text-transform:uppercase}
+.call-move-help ul{margin:6px 0 0;padding-left:16px;display:grid;gap:3px}
+.call-move-help code{color:var(--paper)}
 </style>
 </head>
 <body>
@@ -447,6 +466,39 @@ body.wallet-open{overflow:hidden}
         <div class="kiosk-count-row"><span class="kiosk-count" id="kioskCount"></span></div>
         <div class="selected-ids" id="selectedObjectIds" hidden></div>
         <div class="cap-inventory" id="capInventory" hidden></div>
+        <div class="call-move-panel" id="callMovePanel" hidden>
+          <div class="call-move-head">⚡ Call Move <span class="call-move-hint">fire any entry function on Mainnet</span></div>
+          <div class="call-move-row">
+            <label>Target</label>
+            <input type="text" id="cmTarget" placeholder="0x…::module::function" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="call-move-row">
+            <label>Type args</label>
+            <input type="text" id="cmTypeArgs" placeholder="0x…::coin::Coin&lt;0x…::sui::SUI&gt;  (space-separated, optional)" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="call-move-row">
+            <label>Args (JSON array)</label>
+            <textarea id="cmArgs" rows="4" spellcheck="false" autocomplete="off" placeholder='["0xITEM_ID", {"$u64":"1"}, {"$address":"0xWALLET"}]'></textarea>
+          </div>
+          <div class="call-move-actions">
+            <button class="btn" type="button" id="cmExecBtn" onclick="executeCallMove()">Execute Move Call</button>
+            <button class="btn" type="button" id="cmFillBtn" onclick="fillCallMoveFromSelected()">Fill from selected object</button>
+            <span class="call-move-status" id="cmStatus"></span>
+          </div>
+          <details class="call-move-help">
+            <summary>Arg format help</summary>
+            <ul>
+              <li><code>"0xabc…"</code> → object reference (tx.object)</li>
+              <li><code>{"$u64":"123"}</code> / <code>{"$u8":"5"}</code> → integer</li>
+              <li><code>{"$bool":true}</code> → bool</li>
+              <li><code>{"$address":"0x…"}</code> → address</li>
+              <li><code>{"$string":"hi"}</code> → string</li>
+              <li><code>{"$pure":"0x…"}</code> → raw id/byte</li>
+              <li><code>{"$obj":"0x…"}</code> → explicit object</li>
+              <li><code>{"$vec":["0x…","0x…"]}</code> → vector&lt;address&gt;</li>
+            </ul>
+          </details>
+        </div>
       </div>
       <div class="object-grid" id="objectGrid"><div class="chain-empty">Connect a wallet to load your Mainnet objects.</div></div>
       <div class="step-footer"><button class="btn primary" id="objectNext" onclick="nextStep()" disabled>Continue</button></div>
@@ -1409,6 +1461,7 @@ function selectObject(el){
   selectedObjectType=el.dataset.type||null;
   selectedGasPayment=null;
   renderSelectedIds(el);
+  syncCallMovePanel(el);
   setConfirmObject();
   objectNext.disabled=!selectedObjectId;
 }
@@ -1456,6 +1509,70 @@ function renderSelectedIds(card){
   }
   box.innerHTML=rows.map(([label,val])=>`<div class="sel-id-row"><span class="sel-id-label">${label}</span><span class="sel-id-val">${val}</span></div>`).join('')+takeBtn;
   box.hidden=false;
+}
+// Show the Call-Move panel and seed it from the selected object so the user can
+// fire any Move call (e.g. kiosk::delete, transfer_policy ops) without retyping
+// the object / kiosk / cap ids. Mirrors the archive "scan -> click -> prefill"
+// UX for arbitrary Move entry functions.
+function syncCallMovePanel(card){
+  const panel=document.getElementById('callMovePanel');
+  if(!panel) return;
+  if(!card || !card.dataset.objectId){ panel.hidden=true; return; }
+  panel.hidden=false;
+  const itemId=card.dataset.objectId||'';
+  const argsBox=document.getElementById('cmArgs');
+  if(argsBox && !argsBox.value.trim()){
+    const arr=[];
+    if(itemId) arr.push(itemId);
+    if(card.dataset.kioskId) arr.push(card.dataset.kioskId);
+    if(card.dataset.kioskOwnerCapId) arr.push(card.dataset.kioskOwnerCapId);
+    argsBox.value=JSON.stringify(arr);
+  }
+}
+function fillCallMoveFromSelected(){
+  const card=document.querySelector('[data-step="1"] .option.selected');
+  const argsBox=document.getElementById('cmArgs');
+  if(!card || !card.dataset.objectId){ alert('Select an object first.'); return; }
+  if(!argsBox) return;
+  const arr=[];
+  if(card.dataset.objectId) arr.push(card.dataset.objectId);
+  if(card.dataset.kioskId) arr.push(card.dataset.kioskId);
+  if(card.dataset.kioskOwnerCapId) arr.push(card.dataset.kioskOwnerCapId);
+  argsBox.value=JSON.stringify(arr);
+  setCmStatus('Prefilled from selected object.', 'ok');
+}
+function setCmStatus(msg, kind){
+  const el=document.getElementById('cmStatus');
+  if(!el) return;
+  el.textContent=msg||'';
+  el.className='call-move-status'+(kind?(' '+kind):'');
+}
+async function executeCallMove(){
+  const target=document.getElementById('cmTarget')?.value?.trim();
+  const typeArgsRaw=document.getElementById('cmTypeArgs')?.value?.trim()||'';
+  const argsRaw=document.getElementById('cmArgs')?.value?.trim();
+  const btn=document.getElementById('cmExecBtn');
+  if(!target){ setCmStatus('Target is required.', 'err'); return; }
+  let args;
+  try{ args=JSON.parse(argsRaw||'[]'); }
+  catch(e){ setCmStatus('Args is not valid JSON: '+e.message, 'err'); return; }
+  if(!Array.isArray(args)){ setCmStatus('Args must be a JSON array.', 'err'); return; }
+  const typeArguments=typeArgsRaw.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+  const dAppKit=window.theArchiveWallet?.dAppKit;
+  const client=window.theArchiveWallet?.client;
+  if(!dAppKit){ setCmStatus('Wallet not connected.', 'err'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Signing…'; }
+  try{
+    setCmStatus('Building + signing PTB…');
+    const result=await window.theArchiveTx.callMove({ dAppKit, client, target, typeArguments, args });
+    const digest=result?.digest||result?.transaction?.digest||'';
+    setCmStatus('✅ Executed. Digest: '+(digest||'(see wallet)'), 'ok');
+  }catch(err){
+    console.error('[callMove] failed', err);
+    setCmStatus('❌ '+(err?.message||err), 'err');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Execute Move Call'; }
+  }
 }
 async function doTake(){
   const box=document.getElementById('selectedObjectIds');

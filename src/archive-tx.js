@@ -1119,6 +1119,65 @@ export async function takeFromKiosk({
   return result;
 }
 
+// Generic arbitrary Move caller. Builds a PTB with a single `moveCall` (or
+// several when `calls` is provided) and signs via the connected dAppKit wallet
+// on Mainnet. Used by the Call-Move panel so a power user can fire any
+// entry function against any object/package they control (e.g. kiosk::delete,
+// transfer_policy ops, custom contract calls). Arguments are resolved from the
+// panel's JSON: a bare string that looks like an object id becomes
+// `tx.object(id)`; otherwise use one of the tagged shapes below.
+//   "0xabc…"                 -> tx.object("0xabc…")           (object reference)
+//   { "$u64": "123" }        -> tx.pure.u64("123")
+//   { "$u8": "5" }           -> tx.pure.u8("5")
+//   { "$bool": true }        -> tx.pure.bool(true)
+//   { "$address": "0x…" }    -> tx.pure.address("0x…")
+//   { "$string": "hello" }   -> tx.pure.string("hello")
+//   { "$pure": "0x…" }       -> tx.pure.id("0x…")             (raw id/byte)
+//   { "$vec": ["0x…","0x…"] }-> tx.pure.vector('address', [...])  (address vec)
+//   { "$obj": "0x…" }        -> tx.object("0x…")             (explicit object)
+export async function callMove({
+  dAppKit,
+  client,
+  target,
+  typeArguments = [],
+  args = [],
+  gasBudget = 50_000_000,
+}) {
+  if (!dAppKit) throw new Error('Wallet not connected');
+  if (!target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(target)) {
+    throw new Error('Target must be "package::module::function"');
+  }
+  const tx = new Transaction();
+  const resolveArg = (raw) => {
+    if (raw && typeof raw === 'object') {
+      if ('$u64' in raw) return tx.pure.u64(String(raw.$u64));
+      if ('$u8' in raw) return tx.pure.u8(String(raw.$u8));
+      if ('$bool' in raw) return tx.pure.bool(Boolean(raw.$bool));
+      if ('$address' in raw) return tx.pure.address(raw.$address);
+      if ('$string' in raw) return tx.pure.string(String(raw.$string));
+      if ('$pure' in raw) return tx.pure.id(String(raw.$pure));
+      if ('$obj' in raw) return tx.object(raw.$obj);
+      if ('$vec' in raw && Array.isArray(raw.$vec)) {
+        return tx.pure.vector('address', raw.$vec.map((v) => String(v)));
+      }
+      throw new Error('Unrecognized argument shape: ' + JSON.stringify(raw));
+    }
+    if (typeof raw === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(raw.trim())) {
+      return tx.object(raw.trim());
+    }
+    // Plain string literal (not an object id) -> pure string by default.
+    return tx.pure.string(String(raw));
+  };
+  const resolvedArgs = (args || []).map(resolveArg);
+  tx.moveCall({ target, typeArguments: typeArguments || [], arguments: resolvedArgs });
+  if (client) {
+    try { tx.setSender(client.core?.currentAddress?.() || client.currentAddress?.() || ''); } catch { /* sender optional */ }
+  }
+  tx.setGasBudget(Number(gasBudget) || 50_000_000);
+  const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+  return result;
+}
+
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
   PACKAGE_ID,
@@ -1129,6 +1188,7 @@ window.theArchiveTx = {
   buildArchiveTransaction,
   archiveObject,
   takeFromKiosk,
+  callMove,
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
