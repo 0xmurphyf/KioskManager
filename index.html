@@ -1212,8 +1212,12 @@ function appendKioskGroups(grid, kioskObjects, walletObjects, kioskCountEl){
         if(lockedCount===0)continue; // skip groups with no locked items
       }
       const groupShared = group.objects.some(o=>o.sharedKiosk);
-      const capIdFromMap = (window.kioskCapById && window.kioskCapById.get(String(group.id).toLowerCase())) || group.capOwner || '';
-      const capInfo = capIdFromMap ? ` · 🔑 ${shortKioskId(capIdFromMap)}` : (groupShared ? ' · ⚠ Shared (no cap)' : '');
+      // A Shared kiosk has no KioskOwnerCap on-chain (transfer::share_object).
+      // Even if the server-side cap map returns a (stale/proximity) cap id for
+      // it, never show the 🔑 indicator — it would be misleading and the Take
+      // flow cannot use it. Always surface the Shared warning instead.
+      const capIdFromMap = groupShared ? '' : ((window.kioskCapById && window.kioskCapById.get(String(group.id).toLowerCase())) || group.capOwner || '');
+      const capInfo = groupShared ? ' · ⚠ Shared (no cap)' : (capIdFromMap ? ` · 🔑 ${shortKioskId(capIdFromMap)}` : '');
       // Lock status. Per-item `locked` comes from the GraphQL kiosk::is_locked
       // check, which only runs on the browser gRPC path. When that scan was
       // incomplete (gRPC blocked), the flag is NOT authoritative — show "lock?"
