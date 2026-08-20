@@ -570,7 +570,7 @@ export async function fetchOwnedObjects(client, address) {
       for (const kiosk of ownedKiosks) {
         const kioskId = kiosk?.objectId;
         if (!kioskId) continue;
-        const capFromOwner = ownerObjectIdOf(kiosk?.owner);
+        const capFromOwner = extractFirstAddress(kiosk?.owner);
         const existing = capByKioskId.get(kioskId);
         const capObjectId = capFromOwner || existing?.capObjectId || '';
         kioskCapByKiosk.set(kioskId, {
