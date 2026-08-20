@@ -537,14 +537,23 @@ export async function fetchOwnedObjects(client, address) {
       }
       // Bridge every Kiosk object the wallet owns. The Kiosk object's own
       // `objectId` is always reliable (it comes straight from listOwnedObjects),
-      // unlike the cap's `for` field which gRPC often drops. This guarantees
-      // each kiosk's items get a cap id even when the cap content is missing.
+      // unlike the cap's `for` field which gRPC often drops. Even better: the
+      // Kiosk is owned by its KioskOwnerCap on-chain, so the Kiosk object's
+      // `owner` field yields the cap's objectId directly — no cap content
+      // parsing required. This guarantees each kiosk's items get a real cap id.
       const kioskIds = new Set(ownedKiosks.map((kiosk) => kiosk?.objectId).filter(Boolean));
       for (const kiosk of ownedKiosks) {
         const kioskId = kiosk?.objectId;
         if (!kioskId) continue;
+        const capFromOwner = ownerObjectIdOf(kiosk?.owner);
         const existing = capByKioskId.get(kioskId);
-        kioskCapByKiosk.set(kioskId, existing || { kind:'', capObjectId:'', innerCapId:'', capOwner:address });
+        const capObjectId = capFromOwner || existing?.capObjectId || '';
+        kioskCapByKiosk.set(kioskId, {
+          kind: existing?.kind || (capFromOwner ? 'standard-kiosk-owner-cap' : ''),
+          capObjectId,
+          innerCapId: existing?.innerCapId || '',
+          capOwner: address,
+        });
       }
       // Also keep any cap-derived kioskId that was not already covered by an
       // owned Kiosk object (e.g. a cap whose Kiosk wasn't returned by the scan).
