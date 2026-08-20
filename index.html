@@ -147,6 +147,9 @@ h1{font-size:clamp(52px,8vw,112px);line-height:.87;margin:24px 0 46px;letter-spa
 .selected-ids.hidden,.selected-ids[hidden]{display:none}
 .selected-ids .sel-id-row{display:flex;align-items:baseline;gap:8px;font:11px "Courier New",monospace;letter-spacing:.04em;color:var(--dim)}
 .selected-ids .sel-id-label{color:var(--accent);text-transform:uppercase;letter-spacing:.1em;min-width:58px;flex:0 0 auto}
+.selected-ids .sel-take-btn{margin-top:10px;width:100%;padding:9px 12px;background:var(--accent);color:#0a0a08;border:0;border-radius:6px;font:600 12px "Courier New",monospace;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}
+.selected-ids .sel-take-btn:hover{filter:brightness(1.12)}
+.selected-ids .sel-take-btn:disabled{opacity:.6;cursor:wait}
 .coin-amount{margin-top:12px;text-align:left;font:11px "Courier New",monospace;color:var(--dim);display:flex;flex-direction:column;gap:4px}
 .coin-amount input{margin-top:2px;background:#0f0f0d;border:1px solid var(--line);color:var(--paper);padding:7px 9px;font-family:inherit}
 .storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
@@ -1434,8 +1437,39 @@ function renderSelectedIds(card){
   else rows.push(['Kiosk ID','— (wallet-direct)']);
   if(capId) rows.push(['Cap ID', suiscanLink(capId, capId.slice(0,10)+'…'+capId.slice(-4))]);
   else rows.push(['Cap ID','— (none)']);
-  box.innerHTML=rows.map(([label,val])=>`<div class="sel-id-row"><span class="sel-id-label">${label}</span><span class="sel-id-val">${val}</span></div>`).join('');
+  let takeBtn='';
+  if(kioskId && capId){
+    const itemType=card.dataset.type||'';
+    const kioskCapKind=card.dataset.kioskCapKind||'';
+    box.dataset.takeItem=itemId;
+    box.dataset.takeKiosk=kioskId;
+    box.dataset.takeCap=capId;
+    box.dataset.takeType=itemType;
+    box.dataset.takeKind=kioskCapKind;
+    takeBtn='<button type="button" class="sel-take-btn" onclick="doTake()">⬆ Take out of Kiosk</button>';
+  }
+  box.innerHTML=rows.map(([label,val])=>`<div class="sel-id-row"><span class="sel-id-label">${label}</span><span class="sel-id-val">${val}</span></div>`).join('')+takeBtn;
   box.hidden=false;
+}
+async function doTake(){
+  const box=document.getElementById('selectedObjectIds');
+  if(!box) return;
+  const itemId=box.dataset.takeItem, kioskId=box.dataset.takeKiosk, capId=box.dataset.takeCap, itemType=box.dataset.takeType, kioskCapKind=box.dataset.takeKind;
+  if(!itemId||!kioskId||!capId||!itemType){ alert('Missing kiosk / cap / item info for take.'); return; }
+  const btn=box.querySelector('.sel-take-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Signing…'; }
+  try{
+    const dAppKit=window.theArchiveWallet?.dAppKit;
+    if(!dAppKit) throw new Error('Wallet not connected');
+    await window.theArchiveTx.takeFromKiosk({ dAppKit, kioskId, capId, itemId, itemType, kioskCapKind });
+    alert('✅ Taken out of Kiosk. The object should now appear in your wallet.');
+    if(window.theArchiveWallet?.getConnection?.()) void loadWizardObjects();
+  }catch(err){
+    console.error('[take] failed', err);
+    alert('Take failed: '+(err?.message||err));
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='⬆ Take out of Kiosk'; }
+  }
 }
 function clearSelectedIds(){
   const box=document.getElementById('selectedObjectIds');

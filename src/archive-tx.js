@@ -1068,6 +1068,49 @@ export async function archiveObject({
   return result;
 }
 
+// Take an item out of a Kiosk into the connected wallet via 0x2::kiosk::take.
+// Mirrors the take-out path used by the archive flow, but without archiving:
+// the object is simply moved to the wallet. Standard KioskOwnerCap uses
+// kiosk::take directly; PersonalKioskCap must borrow_val / return_val around it.
+export async function takeFromKiosk({
+  client,
+  dAppKit,
+  kioskId,
+  capId,
+  itemId,
+  itemType,
+  kioskCapKind,
+}) {
+  if (!dAppKit || !kioskId || !capId || !itemId || !itemType) {
+    throw new Error('Missing kiosk / cap / item info needed to take the object out.');
+  }
+  const tx = new Transaction();
+  const isPersonal = kioskCapKind === 'personal-kiosk-cap';
+  if (isPersonal) {
+    const [cap, borrow] = tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::borrow_val`,
+      arguments: [tx.object(capId)],
+    });
+    tx.moveCall({
+      target: '0x2::kiosk::take',
+      typeArguments: [itemType],
+      arguments: [tx.object(kioskId), cap, tx.pure.id(itemId)],
+    });
+    tx.moveCall({
+      target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::return_val`,
+      arguments: [tx.object(capId), cap, borrow],
+    });
+  } else {
+    tx.moveCall({
+      target: '0x2::kiosk::take',
+      typeArguments: [itemType],
+      arguments: [tx.object(kioskId), tx.object(capId), tx.pure.id(itemId)],
+    });
+  }
+  const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+  return result;
+}
+
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
   PACKAGE_ID,
@@ -1077,6 +1120,7 @@ window.theArchiveTx = {
   preflightArchiveTransaction,
   buildArchiveTransaction,
   archiveObject,
+  takeFromKiosk,
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
