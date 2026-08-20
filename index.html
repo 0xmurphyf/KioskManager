@@ -1223,7 +1223,10 @@ function showCapList(kind, event){
       const statusIcon = hasKiosk ? '✅' : '❌';
       const statusLabel = hasKiosk ? 'Kiosk found' : 'Kiosk not found';
       const url=`https://suiscan.xyz/mainnet/object/${encodeURIComponent(id)}`;
-      return `<div class="cap-row"><span class="cap-has" title="${statusLabel}">${statusIcon}</span><span class="cap-kind cap-kind-${kindLabel}">${kindLabel}</span><a class="cap-id" href="${url}" target="_blank" rel="noopener">${short}</a><span class="cap-full">${id}</span></div>`;
+      const capId=k.capId||'';
+      const capUrl=capId?`https://suiscan.xyz/mainnet/object/${encodeURIComponent(capId)}`:'';
+      const capCell=capId?`<a class="cap-id" href="${capUrl}" target="_blank" rel="noopener" title="KioskOwnerCap">🔑 ${shortKioskId(capId)}</a>`:`<span class="cap-full">🔑 —</span>`;
+      return `<div class="cap-row"><span class="cap-has" title="${statusLabel}">${statusIcon}</span><span class="cap-kind cap-kind-${kindLabel}">${kindLabel}</span><a class="cap-id" href="${url}" target="_blank" rel="noopener">${short}</a><span class="cap-full">${id}</span>${capCell}</div>`;
     }).join('');
     body.innerHTML=rows;
   }
@@ -1418,6 +1421,12 @@ function renderSelectedIds(card){
     for(const o of window.wizardObjects){
       if(o && o.kioskId===kioskId && o.kioskOwnerCapId){ capId=o.kioskOwnerCapId; break; }
     }
+  }
+  // B2: authoritative cap id from the kiosks inventory (resolved from the
+  // Kiosk's on-chain owner via GraphQL — reliable even on the gRPC path).
+  if(!capId && kioskId && Array.isArray(window.wizardCaps?.kiosks)){
+    const kc=window.wizardCaps.kiosks.find(k=>String(k.id).toLowerCase()===String(kioskId).toLowerCase());
+    if(kc && kc.capId) capId=kc.capId;
   }
   if(itemId) rows.push(['Item ID', suiscanLink(itemId, itemId.slice(0,10)+'…'+itemId.slice(-4))]);
   if(kioskId) rows.push(['Kiosk ID', suiscanLink(kioskId, kioskId.slice(0,10)+'…'+kioskId.slice(-4))]);
@@ -1674,6 +1683,22 @@ async function loadWizardObjects(){
       }
     }
     wizardCaps = { standard, personal, kiosks: serverKiosks };
+    // Attach the real KioskOwnerCap objectId to each kiosk. The GraphQL scan
+    // (fetchOwnedObjects) resolves the cap id from the Kiosk's on-chain owner,
+    // which is reliable even on the gRPC path where the cap's `for` field is
+    // dropped. Merge it into the kiosks list so the UI (cap list + selected
+    // object ids) can show and use the cap id.
+    const rpcKioskCaps = (rpcResult?.kioskCaps && Array.isArray(rpcResult.kioskCaps)) ? rpcResult.kioskCaps
+      : (Array.isArray(rpcObjects?.kioskCaps) ? rpcObjects.kioskCaps : []);
+    if (rpcKioskCaps.length) {
+      const byKiosk = new Map(rpcKioskCaps.map((c) => [String(c.kioskId).toLowerCase(), c.capId]));
+      for (const k of wizardCaps.kiosks) {
+        if (!k.capId) {
+          const cid = byKiosk.get(String(k.id).toLowerCase());
+          if (cid) k.capId = cid;
+        }
+      }
+    }
     wizardScanIncomplete=Boolean(rpcResult?.scanIncomplete);
     const byId=new Map((rpcObjects||[]).map(object=>[object.objectId,object]));
     for(const object of indexed?.objects||[]) {

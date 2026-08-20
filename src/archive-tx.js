@@ -20,6 +20,11 @@ const EVENT_PACKAGE_ID = '0x681b894c304cf148494cf2f1ab792e918cd83e510cb7fe2e912b
 const KIOSK_FIELDS_QUERY = `
   query KioskFields($id: SuiAddress!, $cursor: String) {
     object(address: $id) {
+      owner {
+        __typename
+        ... on AddressOwner { owner }
+        ... on ObjectOwner { owner { address } }
+      }
       dynamicFields(first: 50, after: $cursor) {
         nodes {
           name { type { repr } json }
@@ -562,13 +567,26 @@ export async function fetchOwnedObjects(client, address) {
         kioskIds.add(kioskId);
       }
       const seen = new Set(collected.map((c) => (c?.data ?? c)?.objectId));
+      const kioskCaps = [];
       const scanKiosk = async (kioskId) => {
         try {
           let fieldCursor = null;
           const lockedItems = new Set();
           do {
             const result = await retryScanRequest(() => graphqlFetch(KIOSK_FIELDS_QUERY, { id: kioskId, cursor: fieldCursor }));
-            const conn = result?.object?.dynamicFields;
+            // The Kiosk is owned by its KioskOwnerCap on-chain; the GraphQL
+            // `owner` field yields the cap's objectId reliably (unlike the gRPC
+            // cap `for` field, which is frequently dropped). Use it as the
+            // authoritative cap id for this Kiosk.
+            const ow = result?.object?.owner;
+            const capFromOwner = ow?.ObjectOwner?.owner?.address || ow?.ObjectOwner?.owner || ow?.owner?.address || ow?.owner || '';
+            if (capFromOwner && !kioskCapByKiosk.has(kioskId)) {
+              kioskCapByKiosk.set(kioskId, { kind: 'standard-kiosk-owner-cap', capObjectId: capFromOwner, innerCapId: '', capOwner: address });
+            } else if (capFromOwner) {
+              const prev = kioskCapByKiosk.get(kioskId);
+              kioskCapByKiosk.set(kioskId, { ...prev, capObjectId: prev.capObjectId || capFromOwner });
+            }
+            if (capFromOwner) kioskCaps.push({ kioskId, capId: capFromOwner });
             const nodes = conn?.nodes || [];
             await mapWithConcurrency(nodes, 8, async (node) => {
             const fieldType = node?.name?.type?.repr || '';
@@ -754,6 +772,7 @@ export async function fetchOwnedObjects(client, address) {
   const finalObjects=[...new Map([...coinResults, ...nonCoins].filter((o) => o.objectId).map((o) => [o.objectId, o])).values()];
   Object.defineProperty(finalObjects, 'scanIncomplete', { value: scanIncomplete, enumerable: false });
   Object.defineProperty(finalObjects, 'caps', { value: caps, enumerable: false });
+  Object.defineProperty(finalObjects, 'kioskCaps', { value: kioskCaps, enumerable: false });
   return finalObjects;
 }
 
