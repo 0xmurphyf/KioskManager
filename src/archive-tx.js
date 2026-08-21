@@ -1207,37 +1207,64 @@ export async function takeFromKiosk({
   return result;
 }
 
-// Generic arbitrary Move caller. Builds a PTB with a single `moveCall` (or
-// several when `calls` is provided) and signs via the connected dAppKit wallet
-// on Mainnet. Used by the Call-Move panel so a power user can fire any
-// entry function against any object/package they control (e.g. kiosk::delete,
-// transfer_policy ops, custom contract calls). Arguments are resolved from the
-// panel's JSON: a bare string that looks like an object id becomes
-// `tx.object(id)`; otherwise use one of the tagged shapes below.
-//   "0xabc…"                 -> tx.object("0xabc…")           (object reference)
+// Generic arbitrary Move caller. Builds a PTB from one or more `moveCall`
+// steps and signs via the connected dAppKit wallet on Mainnet. Used by the
+// Call-Move panel so a power user can fire any entry function chain, e.g. to
+// extract a locked Kiosk item via list_with_purchase_cap -> purchase_with_cap
+// (purchase_with_cap removes the kiosk::Lock field, unlike kiosk::take which
+// aborts on a locked item).
+//
+// Two call styles:
+//   A) Single call (legacy): pass target/typeArguments/args.
+//   B) Multi-step call:     pass `calls: [{ target, typeArguments, args }, ...]`.
+//      Steps run in order; a later step can reference an earlier step's
+//      return value with the tagged shape { "$result": "STEP:IDX" } where STEP
+//      is the 0-based producing step and IDX is the 0-based return index
+//      (IDX defaults to 0, and STEP defaults to the immediately previous step).
+//      Example: { "$result": "0" } = first return of step 0;
+//                { "$result": "0:1" } = second return of step 0.
+//
+// Argument resolution (per step args):
+//   "0xabc…"                 -> tx.object("0xabc…")            (object reference)
 //   { "$u64": "123" }        -> tx.pure.u64("123")
 //   { "$u8": "5" }           -> tx.pure.u8("5")
 //   { "$bool": true }        -> tx.pure.bool(true)
 //   { "$address": "0x…" }    -> tx.pure.address("0x…")
 //   { "$string": "hello" }   -> tx.pure.string("hello")
-//   { "$pure": "0x…" }       -> tx.pure.id("0x…")             (raw id/byte)
-//   { "$vec": ["0x…","0x…"] }-> tx.pure.vector('address', [...])  (address vec)
-//   { "$obj": "0x…" }        -> tx.object("0x…")             (explicit object)
+//   { "$pure": "0x…" }       -> tx.pure.id("0x…")              (raw id/byte)
+//   { "$obj": "0x…" }        -> tx.object("0x…")              (explicit object)
+//   { "$vec": ["0x…",…] }    -> tx.pure.vector('address', […]) (address vec)
+//   { "$result": "0" }       -> result[0] of step 0 (or "STEP:IDX")
 export async function callMove({
   dAppKit,
   client,
   target,
   typeArguments = [],
   args = [],
+  calls,
   gasBudget = 50_000_000,
 }) {
   if (!dAppKit) throw new Error('Wallet not connected');
-  if (!target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(target)) {
-    throw new Error('Target must be "package::module::function"');
-  }
   const tx = new Transaction();
-  const resolveArg = (raw) => {
+  const results = []; // results[i] = array of returned values from step i
+
+  const resolveArg = (raw, stepIndex) => {
     if (raw && typeof raw === 'object') {
+      if ('$result' in raw) {
+        const spec = String(raw.$result);
+        let si, ri;
+        if (spec.includes(':')) {
+          [si, ri] = spec.split(':');
+        } else {
+          si = String(stepIndex - 1); // default: previous step
+          ri = spec;
+        }
+        const src = results[Number(si)];
+        if (!src) throw new Error('No result at step ' + si + ' (referenced by $result:"' + spec + '")');
+        const val = src[Number(ri)];
+        if (val === undefined) throw new Error('Result step ' + si + ' has no return index ' + ri);
+        return val;
+      }
       if ('$u64' in raw) return tx.pure.u64(String(raw.$u64));
       if ('$u8' in raw) return tx.pure.u8(String(raw.$u8));
       if ('$bool' in raw) return tx.pure.bool(Boolean(raw.$bool));
@@ -1256,8 +1283,35 @@ export async function callMove({
     // Plain string literal (not an object id) -> pure string by default.
     return tx.pure.string(String(raw));
   };
-  const resolvedArgs = (args || []).map(resolveArg);
-  tx.moveCall({ target, typeArguments: typeArguments || [], arguments: resolvedArgs });
+
+  // Normalize to a list of steps.
+  let steps;
+  if (Array.isArray(calls) && calls.length) {
+    steps = calls;
+  } else {
+    if (!target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(target)) {
+      throw new Error('Target must be "package::module::function" (or provide calls[])');
+    }
+    steps = [{ target, typeArguments, args }];
+  }
+
+  for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
+    if (!step.target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(step.target)) {
+      throw new Error('Step ' + stepIndex + ' target must be "package::module::function"');
+    }
+    const resolvedArgs = (step.args || []).map((a) => resolveArg(a, stepIndex));
+    const ret = tx.moveCall({
+      target: step.target,
+      typeArguments: step.typeArguments || [],
+      arguments: resolvedArgs,
+    });
+    // Store return value(s) for later $result references. moveCall returns an
+    // opaque argument ref (or array of refs for multi-return functions).
+    if (Array.isArray(ret)) results.push(ret);
+    else results.push([ret]);
+  }
+
   if (client) {
     try { tx.setSender(client.core?.currentAddress?.() || client.currentAddress?.() || ''); } catch { /* sender optional */ }
   }

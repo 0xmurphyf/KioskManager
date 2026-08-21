@@ -484,6 +484,7 @@ body.wallet-open{overflow:hidden}
           <div class="call-move-actions">
             <button class="btn" type="button" id="cmExecBtn" onclick="executeCallMove()">Execute Move Call</button>
             <button class="btn" type="button" id="cmFillBtn" onclick="fillCallMoveFromSelected()">Fill from selected object</button>
+            <button class="btn" type="button" id="cmExtractBtn" onclick="fillExtractLockedTemplate()">Extract locked VOXX</button>
             <span class="call-move-status" id="cmStatus"></span>
           </div>
           <details class="call-move-help">
@@ -1598,19 +1599,28 @@ async function executeCallMove(){
   const typeArgsRaw=document.getElementById('cmTypeArgs')?.value?.trim()||'';
   const argsRaw=document.getElementById('cmArgs')?.value?.trim();
   const btn=document.getElementById('cmExecBtn');
-  if(!target){ setCmStatus('Target is required.', 'err'); return; }
-  let args;
-  try{ args=JSON.parse(argsRaw||'[]'); }
-  catch(e){ setCmStatus('Args is not valid JSON: '+e.message, 'err'); return; }
-  if(!Array.isArray(args)){ setCmStatus('Args must be a JSON array.', 'err'); return; }
-  const typeArguments=typeArgsRaw.split(/\s+/).map(s=>s.trim()).filter(Boolean);
   const dAppKit=window.theArchiveWallet?.dAppKit;
   const client=window.theArchiveWallet?.client;
   if(!dAppKit){ setCmStatus('Wallet not connected.', 'err'); return; }
+  const typeArguments=typeArgsRaw.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+  let calls;
+  try{
+    const parsed=JSON.parse(argsRaw||'[]');
+    // Multi-step form: an array of step objects each carrying its own target.
+    if(Array.isArray(parsed) && parsed.length && parsed[0] && typeof parsed[0]==='object' && parsed[0].target){
+      calls=parsed.map(s=>({ target:s.target, typeArguments:s.typeArguments||[], args:s.args||[] }));
+    } else if(target){
+      let args=parsed;
+      if(!Array.isArray(args)){ setCmStatus('Args must be a JSON array.', 'err'); return; }
+      calls=undefined; // single-call path
+    } else {
+      setCmStatus('Target is required (or provide calls[] in Args).', 'err'); return;
+    }
+  }catch(e){ setCmStatus('Args is not valid JSON: '+e.message, 'err'); return; }
   if(btn){ btn.disabled=true; btn.textContent='Signing…'; }
   try{
     setCmStatus('Building + signing PTB…');
-    const result=await window.theArchiveTx.callMove({ dAppKit, client, target, typeArguments, args });
+    const result=await window.theArchiveTx.callMove({ dAppKit, client, target, typeArguments, args:calls?undefined:JSON.parse(argsRaw||'[]'), calls });
     const digest=result?.digest||result?.transaction?.digest||'';
     setCmStatus('✅ Executed. Digest: '+(digest||'(see wallet)'), 'ok');
   }catch(err){
@@ -1619,6 +1629,32 @@ async function executeCallMove(){
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='Execute Move Call'; }
   }
+}
+
+// Build a multi-step call template that extracts a locked Kiosk item via
+// list_with_purchase_cap -> purchase_with_cap (purchase_with_cap removes the
+// kiosk::Lock field, unlike kiosk::take which aborts on a locked item).
+// Requires: the selected object sits in a Kiosk with a known KioskOwnerCap.
+function fillExtractLockedTemplate(){
+  const card=document.querySelector('[data-step="1"] .option.selected');
+  if(!card || !card.dataset.objectId){ alert('Select a Kiosk item first.'); return; }
+  const kioskId=card.dataset.kioskId||'';
+  const capId=card.dataset.kioskOwnerCapId||'';
+  const itemType=card.dataset.type||'';
+  if(!kioskId || !capId || !itemType){ alert('Need kioskId + KioskOwnerCap + item type. Scan the kiosk cap first (click the object to auto-resolve).'); return; }
+  const itemId=card.dataset.objectId;
+  document.getElementById('cmTarget').value='';
+  document.getElementById('cmTypeArgs').value=itemType;
+  const tmpl=[
+    { target:'0x2::kiosk::list_with_purchase_cap', typeArguments:[itemType],
+      args:[kioskId, capId, itemId, {'$u64':'0'}] },
+    { target:'0x2::kiosk::purchase_with_cap', typeArguments:[itemType],
+      args:[kioskId, {'$result':'0'}, {'$obj':'<SUI_COIN_ID>'}] },
+    { target:'0x2::transfer::public_transfer', typeArguments:[itemType],
+      args:[{'$result':'1:0'}, {'$address':'<RECIPIENT_ADDRESS>'}] }
+  ];
+  document.getElementById('cmArgs').value=JSON.stringify(tmpl, null, 0);
+  setCmStatus('Template loaded: list_with_purchase_cap → purchase_with_cap → transfer. Replace <SUI_COIN_ID> and <RECIPIENT_ADDRESS>.', 'ok');
 }
 async function doTake(){
   const box=document.getElementById('selectedObjectIds');
