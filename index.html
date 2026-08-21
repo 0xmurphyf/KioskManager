@@ -1637,16 +1637,21 @@ async function executeCallMove(){
 // The extracted NFT is transferred to the currently connected wallet, and the
 // purchase payment uses the PTB gas coin (price is listed as 0, so nothing is
 // actually charged beyond gas). One click, no manual id filling.
+//
+// IMPORTANT: this ALWAYS overwrites the cmArgs box with the correct template,
+// even when the cap/kiosk was not auto-resolved. Missing values become
+// placeholder tokens (<KIOSK_ID> etc.) the user must fill. This prevents the
+// box from keeping a stale/wrong previous call (e.g. a {$result:'1:1'} that
+// references a non-existent 2nd return of purchase_with_cap -> on-chain
+// InvalidResultArity { result_idx: 1 }).
 function fillExtractLockedTemplate(){
   const card=document.querySelector('[data-step="1"] .option.selected');
   if(!card || !card.dataset.objectId){ alert('Select a Kiosk item first.'); return; }
-  const kioskId=card.dataset.kioskId||'';
-  const capId=card.dataset.kioskOwnerCapId||'';
-  const itemType=card.dataset.type||'';
-  if(!kioskId || !capId || !itemType){ alert('Need kioskId + KioskOwnerCap + item type. Scan the kiosk cap first (click the object to auto-resolve).'); return; }
-  const itemId=card.dataset.objectId;
-  const recipient=window.theArchiveWallet?.getConnection?.()?.address||'';
-  if(!recipient){ alert('Connect a wallet first so the extracted NFT has a destination.'); return; }
+  const kioskId=card.dataset.kioskId||'<KIOSK_ID>';
+  const capId=card.dataset.kioskOwnerCapId||'<CAP_ID>';
+  const itemType=card.dataset.type||'<ITEM_TYPE>';
+  const itemId=card.dataset.objectId||'<ITEM_ID>';
+  const recipient=window.theArchiveWallet?.getConnection?.()?.address||'<RECIPIENT_ADDRESS>';
   document.getElementById('cmTarget').value='';
   document.getElementById('cmTypeArgs').value=itemType;
   const tmpl=[
@@ -1658,7 +1663,16 @@ function fillExtractLockedTemplate(){
       args:[{'$result':'1:0'}, {'$address':recipient}] }
   ];
   document.getElementById('cmArgs').value=JSON.stringify(tmpl, null, 0);
-  setCmStatus('Template loaded (extract → your wallet '+recipient.slice(0,10)+'…). Price 0, gas coin used as payment. Review then Execute.', 'ok');
+  const missing=[];
+  if(kioskId==='<KIOSK_ID>') missing.push('kioskId');
+  if(capId==='<CAP_ID>') missing.push('KioskOwnerCap');
+  if(itemType==='<ITEM_TYPE>') missing.push('item type');
+  if(recipient==='<RECIPIENT_ADDRESS>') missing.push('wallet (connect first)');
+  if(missing.length){
+    setCmStatus('Template loaded with PLACEHOLDERS — replace '+missing.join(', ')+' before Execute. The 3rd step MUST stay {$result:"1:0"} (purchase_with_cap returns NFT at return 0).', 'err');
+  } else {
+    setCmStatus('Template loaded (extract → your wallet '+recipient.slice(0,10)+'…). Price 0, gas coin used as payment. Review then Execute.', 'ok');
+  }
 }
 async function doTake(){
   const box=document.getElementById('selectedObjectIds');
