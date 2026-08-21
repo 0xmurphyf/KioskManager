@@ -1279,7 +1279,14 @@ export async function callMove({
       if ('$string' in raw) return tx.pure.string(String(raw.$string));
       if ('$pure' in raw) return tx.pure.id(String(raw.$pure));
       if ('$obj' in raw) return tx.object(raw.$obj);
-      if ('$gas' in raw) return tx.gas; // the PTB gas coin, a Coin<SUI>
+      if ('$gas' in raw) {
+        // The PTB gas coin cannot be passed as a plain Coin<SUI> argument
+        // (Sui rejects it with InvalidGasCoinUsage). Split a tiny SUI coin
+        // (1 MIST) off the gas coin to use as the purchase payment. Since
+        // list_with_purchase_cap lists price 0, any positive balance suffices.
+        const [split] = tx.splitCoins(tx.gas, [1]);
+        return split;
+      }
       if ('$vec' in raw && Array.isArray(raw.$vec)) {
         return tx.pure.vector('address', raw.$vec.map((v) => String(v)));
       }
