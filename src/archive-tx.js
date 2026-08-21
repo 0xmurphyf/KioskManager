@@ -1272,6 +1272,7 @@ export async function callMove({
       if ('$string' in raw) return tx.pure.string(String(raw.$string));
       if ('$pure' in raw) return tx.pure.id(String(raw.$pure));
       if ('$obj' in raw) return tx.object(raw.$obj);
+      if ('$gas' in raw) return tx.gas; // the PTB gas coin, a Coin<SUI>
       if ('$vec' in raw && Array.isArray(raw.$vec)) {
         return tx.pure.vector('address', raw.$vec.map((v) => String(v)));
       }

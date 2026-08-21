@@ -1634,7 +1634,9 @@ async function executeCallMove(){
 // Build a multi-step call template that extracts a locked Kiosk item via
 // list_with_purchase_cap -> purchase_with_cap (purchase_with_cap removes the
 // kiosk::Lock field, unlike kiosk::take which aborts on a locked item).
-// Requires: the selected object sits in a Kiosk with a known KioskOwnerCap.
+// The extracted NFT is transferred to the currently connected wallet, and the
+// purchase payment uses the PTB gas coin (price is listed as 0, so nothing is
+// actually charged beyond gas). One click, no manual id filling.
 function fillExtractLockedTemplate(){
   const card=document.querySelector('[data-step="1"] .option.selected');
   if(!card || !card.dataset.objectId){ alert('Select a Kiosk item first.'); return; }
@@ -1643,18 +1645,20 @@ function fillExtractLockedTemplate(){
   const itemType=card.dataset.type||'';
   if(!kioskId || !capId || !itemType){ alert('Need kioskId + KioskOwnerCap + item type. Scan the kiosk cap first (click the object to auto-resolve).'); return; }
   const itemId=card.dataset.objectId;
+  const recipient=window.theArchiveWallet?.getConnection?.()?.address||'';
+  if(!recipient){ alert('Connect a wallet first so the extracted NFT has a destination.'); return; }
   document.getElementById('cmTarget').value='';
   document.getElementById('cmTypeArgs').value=itemType;
   const tmpl=[
     { target:'0x2::kiosk::list_with_purchase_cap', typeArguments:[itemType],
       args:[kioskId, capId, itemId, {'$u64':'0'}] },
     { target:'0x2::kiosk::purchase_with_cap', typeArguments:[itemType],
-      args:[kioskId, {'$result':'0'}, {'$obj':'<SUI_COIN_ID>'}] },
+      args:[kioskId, {'$result':'0'}, {'$gas':true}] },
     { target:'0x2::transfer::public_transfer', typeArguments:[itemType],
-      args:[{'$result':'1:0'}, {'$address':'<RECIPIENT_ADDRESS>'}] }
+      args:[{'$result':'1:0'}, {'$address':recipient}] }
   ];
   document.getElementById('cmArgs').value=JSON.stringify(tmpl, null, 0);
-  setCmStatus('Template loaded: list_with_purchase_cap → purchase_with_cap → transfer. Replace <SUI_COIN_ID> and <RECIPIENT_ADDRESS>.', 'ok');
+  setCmStatus('Template loaded (extract → your wallet '+recipient.slice(0,10)+'…). Price 0, gas coin used as payment. Review then Execute.', 'ok');
 }
 async function doTake(){
   const box=document.getElementById('selectedObjectIds');
