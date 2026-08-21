@@ -1261,11 +1261,15 @@ export async function callMove({
         }
         const src = results[Number(si)];
         if (!src) throw new Error('No result at step ' + si + ' (referenced by $result:"' + spec + '")');
-        // src is the TransactionResult proxy for step `si`. Indexing it (src[ri])
-        // builds a NestedResult pointing at return index `ri`. When ri === 0
-        // the proxy itself already refers to the first return, so return as-is.
-        const riNum = Number(ri);
-        if (riNum === 0 || Number.isNaN(riNum)) return src;
+        // src is the TransactionResult proxy for step `si`. We MUST return the
+        // explicitly-indexed form (src[riNum]) so the serialized PTB carries a
+        // NestedResult{index: si, resultIndex: riNum} rather than a bare
+        // Result{index: si}. Some wallet SDKs mis-validate a bare Result that
+        // points at a multi-return command (e.g. purchase_with_cap returns
+        // Ty0 * TransferRequest) and reject it with
+        // InvalidResultArity { result_idx: 1 }. The explicit NestedResult with
+        // resultIndex 0 avoids that. riNum defaults to 0 (first return).
+        const riNum = Number.isNaN(Number(ri)) ? 0 : Number(ri);
         return src[riNum];
       }
       if ('$u64' in raw) return tx.pure.u64(String(raw.$u64));
