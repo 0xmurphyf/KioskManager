@@ -1261,9 +1261,12 @@ export async function callMove({
         }
         const src = results[Number(si)];
         if (!src) throw new Error('No result at step ' + si + ' (referenced by $result:"' + spec + '")');
-        const val = src[Number(ri)];
-        if (val === undefined) throw new Error('Result step ' + si + ' has no return index ' + ri);
-        return val;
+        // src is the TransactionResult proxy for step `si`. Indexing it (src[ri])
+        // builds a NestedResult pointing at return index `ri`. When ri === 0
+        // the proxy itself already refers to the first return, so return as-is.
+        const riNum = Number(ri);
+        if (riNum === 0 || Number.isNaN(riNum)) return src;
+        return src[riNum];
       }
       if ('$u64' in raw) return tx.pure.u64(String(raw.$u64));
       if ('$u8' in raw) return tx.pure.u8(String(raw.$u8));
@@ -1307,10 +1310,14 @@ export async function callMove({
       typeArguments: step.typeArguments || [],
       arguments: resolvedArgs,
     });
-    // Store return value(s) for later $result references. moveCall returns an
-    // opaque argument ref (or array of refs for multi-return functions).
-    if (Array.isArray(ret)) results.push(ret);
-    else results.push([ret]);
+    // `tx.moveCall` returns a single TransactionResult proxy. For functions
+    // with multiple returns (e.g. kiosk::purchase_with_cap returns
+    // `Ty0 * TransferRequest<Ty0>`), individual returns are accessed by
+    // indexing the proxy: ret[0] === the NFT, ret[1] === the TransferRequest.
+    // Store the raw proxy (NOT an array wrapper) so $result references can use
+    // proxy indexing to build the correct NestedResult with the right return
+    // index — otherwise Sui rejects the command with InvalidResultArity.
+    results.push(ret);
   }
 
   if (client) {
