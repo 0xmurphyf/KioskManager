@@ -1165,6 +1165,16 @@ export async function takeFromKiosk({
   if (!sender) {
     throw new Error('Connected wallet address is required to receive the taken object.');
   }
+  // The Sui kiosk module has NO `unlock` entry — once an item is locked via
+  // kiosk::lock it can only be released by the contract that locked it (e.g. a
+  // marketplace cancel). kiosk::take aborts with EItemLocked (code 8) on a
+  // locked item, so fail early with a clear message instead of a cryptic abort.
+  if (await isKioskItemLocked(kioskId, itemId)) {
+    throw new Error(
+      'Item is locked in the Kiosk (kiosk::Lock). The standard kiosk::take cannot remove a locked item — 0x2::kiosk has no unlock entry, so this item cannot be taken via the standard path. ' +
+      'If it was locked by a marketplace listing, cancel that listing through the marketplace first; otherwise it stays locked on-chain.'
+    );
+  }
   const tx = new Transaction();
   const isPersonal = kioskCapKind === 'personal-kiosk-cap';
   if (isPersonal) {
