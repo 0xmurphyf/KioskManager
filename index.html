@@ -1544,6 +1544,36 @@ function syncCallMovePanel(card){
     if(card.dataset.kioskOwnerCapId) arr.push(card.dataset.kioskOwnerCapId);
     argsBox.value=JSON.stringify(arr);
   }
+  // Auto-resolve a KioskOwnerCap for Shared kiosks that carry no cap on the
+  // card (the standard scan path drops it for shared kiosks). Once found we
+  // fill it into the Call-Move args so the user can operate (take/custom
+  // contract) on the shared kiosk without manually hunting the cap.
+  // Validated on mainnet: cap.for==kioskId, scan {kiosk.owner, prevTx sender}.
+  const kioskId=card.dataset.kioskId||'';
+  if(kioskId && !card.dataset.kioskOwnerCapId && window.theArchiveTx && window.theArchiveTx.findKioskCapFor){
+    window.theArchiveTx.findKioskCapFor(kioskId).then(cap=>{
+      if(!cap || !cap.capId) return;
+      card.dataset.kioskOwnerCapId=cap.capId;
+      card.dataset.kioskCapKind=card.dataset.kioskCapKind||'standard-kiosk-owner-cap';
+      const box=document.getElementById('cmArgs');
+      if(box && !box.value.trim()){
+        const arr=[];
+        if(card.dataset.objectId) arr.push(card.dataset.objectId);
+        if(kioskId) arr.push(kioskId);
+        arr.push(cap.capId);
+        box.value=JSON.stringify(arr);
+      } else if(box){
+        try{
+          const arr=JSON.parse(box.value||'[]');
+          if(Array.isArray(arr) && !arr.includes(cap.capId)){ arr.push(cap.capId); box.value=JSON.stringify(arr); }
+        }catch(_){}
+      }
+      // Re-render the selected-ids box so the resolved cap shows (and the
+      // "NO CAP" warning clears if a cap is now present).
+      if(typeof renderSelectedIds==='function') renderSelectedIds(card);
+      setCmStatus('Auto-resolved cap '+cap.capId.slice(0,10)+'… → filled into Call-Move.','ok');
+    }).catch(()=>{});
+  }
 }
 function fillCallMoveFromSelected(){
   const card=document.querySelector('[data-step="1"] .option.selected');

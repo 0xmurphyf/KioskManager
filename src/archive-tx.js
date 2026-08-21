@@ -239,6 +239,64 @@ export async function isKioskItemLocked(kioskId, itemId) {
   }
 }
 
+// Given a Kiosk id, locate the KioskOwnerCap that points to it (cap.for ==
+// kioskId) WITHOUT scanning the entire chain. Strategy validated on mainnet:
+//   1. read the kiosk's internal `owner` field (creator/profit address) -> candidate
+//   2. read the kiosk's previousTransaction sender -> candidate (shared kiosks
+//      mutated by market contracts leave the cap holder as the tx sender)
+//   3. scan ONLY those candidate addresses' KioskOwnerCaps, matching for==kioskId
+// This collapses "find the cap for a shared kiosk" from a full-chain scan to a
+// 1-2 address scan. Sui GraphQL `objects` first<=50, so we paginate.
+// Returns { capId, holder, for } or null.
+export async function findKioskCapFor(kioskId) {
+  if (!kioskId) return null;
+  const target = String(kioskId).toLowerCase();
+  try {
+    const info = await graphqlFetch(
+      `query KioskCapInfo($id: String!) {
+        object(address: $id) {
+          asMoveObject { contents { json } }
+          previousTransaction { sender { address } }
+        }
+      }`,
+      { id: kioskId }
+    );
+    const o = info?.object || {};
+    const json = o?.asMoveObject?.contents?.json || {};
+    const ownerField = json?.owner || '';
+    const sender = o?.previousTransaction?.sender?.address || '';
+    const candidates = [...new Set([ownerField, sender].filter(Boolean))];
+    const CAP_TYPE = '0x0000000000000000000000000000000000000000000000000000000000000002::kiosk::KioskOwnerCap';
+    for (const addr of candidates) {
+      let after = null;
+      for (let page = 0; page < 20; page += 1) {
+        const vars = { t: CAP_TYPE, o: addr };
+        let g =
+          'query($t:String!,$o:String!){ objects(first:50,filter:{type:$t,owner:$o}){ nodes{ address asMoveObject{ contents{ json } } } pageInfo{ hasNextPage endCursor } } }';
+        if (after) {
+          vars.a = after;
+          g = 'query($t:String!,$o:String!,$a:String!){ objects(first:50,after:$a,filter:{type:$t,owner:$o}){ nodes{ address asMoveObject{ contents{ json } } } pageInfo{ hasNextPage endCursor } } }';
+        }
+        const r = await graphqlFetch(g, vars);
+        const objs = r?.objects || {};
+        for (const c of objs.nodes || []) {
+          const j = c?.asMoveObject?.contents?.json || {};
+          if (String(j?.for || '').toLowerCase() === target) {
+            return { capId: c.address, holder: addr, for: j.for };
+          }
+        }
+        const pi = objs.pageInfo || {};
+        if (!pi.hasNextPage) break;
+        after = pi.endCursor;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.debug('[findKioskCapFor] failed', error);
+    return null;
+  }
+}
+
 function decodeDenyListKey(value){
   try{
     const binary=atob(String(value||''));
@@ -1200,6 +1258,7 @@ window.theArchiveTx = {
   archiveObject,
   takeFromKiosk,
   callMove,
+  findKioskCapFor,
   fetchArchivePolicy,
   estimateArchiveGas,
   fetchSuiBalance,
