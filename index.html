@@ -1644,7 +1644,8 @@ async function doTake(){
   try{
     const dAppKit=window.theArchiveWallet?.dAppKit;
     if(!dAppKit) throw new Error('Wallet not connected');
-    await window.theArchiveTx.takeFromKiosk({ dAppKit, kioskId, capId, itemId, itemType, kioskCapKind });
+    const sender=window.theArchiveWallet?.getConnection?.()?.address;
+    await window.theArchiveTx.takeFromKiosk({ dAppKit, kioskId, capId, itemId, itemType, kioskCapKind, sender });
     alert('✅ Taken out of Kiosk. The object should now appear in your wallet.');
     if(window.theArchiveWallet?.getConnection?.()) void loadWizardObjects();
   }catch(err){

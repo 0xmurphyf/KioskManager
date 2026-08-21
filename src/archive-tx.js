@@ -1157,9 +1157,13 @@ export async function takeFromKiosk({
   itemId,
   itemType,
   kioskCapKind,
+  sender,
 }) {
   if (!dAppKit || !kioskId || !capId || !itemId || !itemType) {
     throw new Error('Missing kiosk / cap / item info needed to take the object out.');
+  }
+  if (!sender) {
+    throw new Error('Connected wallet address is required to receive the taken object.');
   }
   const tx = new Transaction();
   const isPersonal = kioskCapKind === 'personal-kiosk-cap';
@@ -1168,21 +1172,26 @@ export async function takeFromKiosk({
       target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::borrow_val`,
       arguments: [tx.object(capId)],
     });
-    tx.moveCall({
+    // kiosk::take returns the extracted object (no `drop` ability), so its
+    // result MUST be captured and transferred — otherwise the PTB fails with
+    // UnusedValueWithoutDrop.
+    const taken = tx.moveCall({
       target: '0x2::kiosk::take',
       typeArguments: [itemType],
       arguments: [tx.object(kioskId), cap, tx.pure.id(itemId)],
     });
+    tx.transferObjects([taken], tx.pure.address(sender));
     tx.moveCall({
       target: `${PERSONAL_KIOSK_PACKAGE}::personal_kiosk::return_val`,
       arguments: [tx.object(capId), cap, borrow],
     });
   } else {
-    tx.moveCall({
+    const taken = tx.moveCall({
       target: '0x2::kiosk::take',
       typeArguments: [itemType],
       arguments: [tx.object(kioskId), tx.object(capId), tx.pure.id(itemId)],
     });
+    tx.transferObjects([taken], tx.pure.address(sender));
   }
   const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
   return result;
