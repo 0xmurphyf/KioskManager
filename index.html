@@ -1668,21 +1668,27 @@ async function fillExtractLockedTemplate() {
     args: [kioskId, { '$result': '0' }, { '$gas': true }],
   });
 
-  // VOXX's TransferPolicy uses the dedicated mainnet kiosk rule package
-  // (NOT 0x2::royalty_rule). The browser sandbox blocks reading the policy's
-  // `rules` set from chain (asMoveObject / getTransferPolicies both come back
-  // empty in-browser), so we HARDCODE the two STANDARD rules a VOXX locked NFT
-  // uses — both live in this package:
-  //   0x434b5bd8f6a7b05fede0ff46c6e511d71ea326ed38056e3bcd681d2d7c2a7879
-  //     ::royalty_rule   (fee_amount + split + pay)
-  //     ::kiosk_lock_rule (prove — no coin)
-  // confirm_request requires exactly one receipt per rule, so BOTH must run.
-  const RULE_PKG = '0x434b5bd8f6a7b05fede0ff46c6e511d71ea326ed38056e3bcd681d2d7c2a7879';
+  // VOXX's TransferPolicy rules likely live in VOXX's OWN published package
+  // (0xdca282f30ff...), not the generic 0x434b... kiosk rule package. The
+  // 0x434b...::royalty_rule::fee_amount gave InvalidLinkage, meaning the
+  // policy's `type_name` points at VOXX's package. Use VOXX's own package id.
+  const RULE_PKG = '0xdca282f30ff2acc0083c5c90969ae97c59a638a6a50ab9112f7ea17507cdd2b7';
   let nextIdx = 2;
   let policyNote = '';
   try {
     const policyId = await window.theArchiveTx.fetchTransferPolicyId(itemType);
     policyNote = ' (policy ' + policyId.slice(0, 10) + '…)';
+    // DEBUG: pull the policy object's raw bcs so we can read its `rules` set
+    // (the chain returns the rule TypeNames as strings inside the bcs blob).
+    try {
+      const q = 'query($id:String!){ objects(filter:{type:$id},first:1){ nodes{ address asMoveObject{ contents{ bcs } } } } }';
+      const rr = await graphqlFetch(q, { id: '0x2::transfer_policy::TransferPolicy<' + itemType + '>' });
+      const bcsHex = rr?.objects?.nodes?.[0]?.asMoveObject?.contents?.bcs;
+      policyNote += ' | bcsLen=' + (bcsHex ? String(bcsHex.length) : 'EMPTY');
+      window.__voxxPolicyBcs = bcsHex || null;
+    } catch (bcsErr) {
+      policyNote += ' | bcsErr=' + String(bcsErr).slice(0, 80);
+    }
   } catch (e) {
     console.warn('[fillExtractLockedTemplate] policy id resolve failed', e);
   }
