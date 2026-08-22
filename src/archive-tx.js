@@ -1363,9 +1363,9 @@ export async function callMove({
 // derived from the type). Mirrors `kioskClient.getTransferPolicies({type})`.
 async function fetchTransferPolicyId(itemType) {
   const t = `0x2::transfer_policy::TransferPolicy<${itemType}>`;
-  const q = 'query($t:String!){ objects(filter:{type:$t}, first:1){ data{ address } } }';
+  const q = 'query($t:String!){ objects(filter:{type:$t}, first:1){ nodes{ address } } }';
   const r = await graphqlFetch(q, { t });
-  const addr = r?.objects?.data?.[0]?.address;
+  const addr = r?.objects?.nodes?.[0]?.address;
   if (!addr) {
     throw new Error(
       'No TransferPolicy on-chain for type ' + itemType +
