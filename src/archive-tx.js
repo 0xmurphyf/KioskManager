@@ -1327,8 +1327,12 @@ export async function callMove({
     if (step.splitCoins) {
       const fromArg = step.splitCoins.from === '$gas' ? tx.gas : await resolveArg(step.splitCoins.from, stepIndex);
       const amtArg = await resolveArg(step.splitCoins.amount, stepIndex);
-      const [sCoin] = tx.splitCoins(fromArg, [amtArg]);
-      results.push(sCoin);
+      // tx.splitCoins returns an ARRAY of coin proxies ([coinProxy]); push the
+      // whole array (not a destructured single proxy) so $result:"IDX:0"
+      // resolves to results[idx][0] correctly. Pushing a single proxy would
+      // make results[idx][0] === undefined -> "Invalid type: ... undefined".
+      const splitResult = tx.splitCoins(fromArg, [amtArg]);
+      results.push(splitResult);
       continue;
     }
     if (!step.target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(step.target)) {
