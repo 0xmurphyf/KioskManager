@@ -1698,10 +1698,10 @@ async function fillExtractLockedTemplate() {
     target: RULE_PKG + '::royalty_rule::pay', typeArguments: [itemType],
     args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
   });
-  // 2) kiosk_lock_rule: prove(policy, request, kiosk) — note: `prove`, no coin
+  // 2) kiosk_lock_rule: prove(request, kiosk) — 2 args, NO policy, NO coin
   calls.push({
     target: RULE_PKG + '::kiosk_lock_rule::prove', typeArguments: [itemType],
-    args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, kioskId],
+    args: [{ '$result': purchaseIdx + ':1' }, kioskId],
   });
   policyNote += ' | royalty+lock resolved (0x434b…)';
 
