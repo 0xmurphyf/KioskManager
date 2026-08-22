@@ -1668,44 +1668,34 @@ async function fillExtractLockedTemplate() {
     args: [kioskId, { '$result': '0' }, { '$gas': true }],
   });
 
-  // Resolve the TransferPolicy + its rules so we can inject rule steps.
+  // Resolve the TransferPolicy so we know the type is tradable. We then
+  // UNCONDITIONALLY inject the standard 0x2::royalty_rule steps: the browser
+  // sandbox often blocks reading the policy's `rules` set (asMoveObject
+  // contents), so we must not gate royalty injection on that read. NFT types
+  // virtually always use the standard royalty rule, and injecting it when the
+  // policy has one is required for confirm_request to pass
+  // (receipts count must equal rules count).
   let nextIdx = 2;
   let policyNote = '';
   try {
     const policyId = await window.theArchiveTx.fetchTransferPolicyId(itemType);
-    const rules = await window.theArchiveTx.fetchTransferPolicyRules(policyId);
-    const royaltyRule = rules.find((r) => /::royalty_rule::RoyaltyRule/.test(r));
-    const unsupported = rules.filter((r) => !/::royalty_rule::RoyaltyRule/.test(r));
-    if (unsupported.length) {
-      setCmStatus('⚠️ TransferPolicy has unsupported rule(s): ' + unsupported.join(', ') +
-        '. Only standard royalty is auto-resolved; confirm_request will likely fail. You may still try.', 'err');
-    }
-    if (royaltyRule) {
-      // fee_amount(policy, paid) -> u64 (paid = 0, so fee = 0)
-      const feeIdx = nextIdx++;
-      calls.push({
-        target: '0x2::royalty_rule::fee_amount', typeArguments: [itemType],
-        args: [{ '$policyFor': itemType }, { '$u64': '0' }],
-      });
-      // split that amount off gas
-      const splitIdx = nextIdx++;
-      calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
-      // royalty_rule::pay(policy, request, coin) adds the receipt
-      nextIdx++;
-      calls.push({
-        target: '0x2::royalty_rule::pay', typeArguments: [itemType],
-        args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx }],
-      });
-      policyNote = ' (royalty rule auto-resolved)';
-    } else if (rules.length === 0) {
-      policyNote = ' (policy has no rules — direct confirm)';
-    }
-    console.log('[Extract] TransferPolicy', policyId, 'rules =', rules);
-    policyNote += ' | rules=[' + (rules.join(', ') || 'NONE') + ']';
+    policyNote = ' (policy ' + policyId.slice(0, 10) + '…)';
+    // Standard royalty rule: fee_amount(policy, paid=0) -> u64, split, pay.
+    const feeIdx = nextIdx++;
+    calls.push({
+      target: '0x2::royalty_rule::fee_amount', typeArguments: [itemType],
+      args: [{ '$policyFor': itemType }, { '$u64': '0' }],
+    });
+    const splitIdx = nextIdx++;
+    calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
+    calls.push({
+      target: '0x2::royalty_rule::pay', typeArguments: [itemType],
+      args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx }],
+    });
+    policyNote += ' | royalty auto-injected';
   } catch (e) {
-    // No TransferPolicy readable — still build the template; confirm_request
-    // will surface the real on-chain error if the type truly isn't tradable.
     console.warn('[fillExtractLockedTemplate] policy resolve failed', e);
+    policyNote = ' (could not resolve TransferPolicy — confirm_request may fail)';
   }
 
   // confirm_request(policy, request) destroys the TransferRequest hot potato.
