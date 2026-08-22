@@ -15,6 +15,9 @@ importers:
       '@mysten/dapp-kit-core':
         specifier: 1.6.1
         version: 1.6.1(@mysten/sui@2.23.1(typescript@6.0.3))(typescript@6.0.3)
+      '@mysten/kiosk':
+        specifier: 1.3.0
+        version: 1.3.0(@mysten/sui@2.23.1(typescript@6.0.3))
       '@mysten/sui':
         specifier: 2.23.1
         version: 2.23.1(typescript@6.0.3)
@@ -104,6 +107,12 @@ packages:
     resolution: {integrity: sha512-57zGjkw1EY/WtERThV0GRIVaFPLFjozLSPv/pOC8/GPI9EAdctiIrAH03xtdVLAcZKf4C4NbnTH7CTr+hVMYgg==}
     peerDependencies:
       '@mysten/sui': ^2.19.0
+
+  '@mysten/kiosk@1.3.0':
+    resolution: {integrity: sha512-h26DwOOOmfooFio4rSOOQZa+TGTO4HLVE77eCeHshOhjN+S/mB+V1868zjUmUp71MWqAkDbaRn2ldODKX7ymOw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@mysten/sui': ^2.18.0
 
   '@mysten/slush-wallet@1.1.7':
     resolution: {integrity: sha512-zNrhpmchmkPcw21ghxxZlmAyEixhsG3ZuivE4blZD3Pn1SW1jF9EWdnPHLobj2RyLFbRPGprDfCcg7b4wrzzIg==}
@@ -631,6 +640,12 @@ snapshots:
       nanostores: 1.4.0
     transitivePeerDependencies:
       - typescript
+
+  '@mysten/kiosk@1.3.0(@mysten/sui@2.23.1(typescript@6.0.3))':
+    dependencies:
+      '@mysten/bcs': 2.1.0
+      '@mysten/sui': 2.23.1(typescript@6.0.3)
+      '@mysten/utils': 0.4.0
 
   '@mysten/slush-wallet@1.1.7(@mysten/sui@2.23.1(typescript@6.0.3))(typescript@6.0.3)':
     dependencies:

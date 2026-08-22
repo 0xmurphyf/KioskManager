@@ -1668,31 +1668,63 @@ async function fillExtractLockedTemplate() {
     args: [kioskId, { '$result': '0' }, { '$gas': true }],
   });
 
-  // Resolve the TransferPolicy so we know the type is tradable. We then
-  // UNCONDITIONALLY inject the standard 0x2::royalty_rule steps: the browser
-  // sandbox often blocks reading the policy's `rules` set (asMoveObject
-  // contents), so we must not gate royalty injection on that read. NFT types
-  // virtually always use the standard royalty rule, and injecting it when the
-  // policy has one is required for confirm_request to pass
-  // (receipts count must equal rules count).
+  // Read VOXX's REAL TransferPolicy rules live from chain (via KioskClient),
+  // then inject the matching rule-resolve steps. VOXX does NOT use
+  // `0x2::royalty_rule` — it uses the dedicated mainnet rule package
+  // (0x434b...::royalty_rule / ::kiosk_lock_rule). We must use the exact
+  // module addresses reported by chain, otherwise confirm_request aborts with
+  // EPolicyNotSatisfied (receipts count != rules count).
   let nextIdx = 2;
   let policyNote = '';
   try {
     const policyId = await window.theArchiveTx.fetchTransferPolicyId(itemType);
     policyNote = ' (policy ' + policyId.slice(0, 10) + '…)';
-    // Standard royalty rule: fee_amount(policy, paid=0) -> u64, split, pay.
-    const feeIdx = nextIdx++;
-    calls.push({
-      target: '0x2::royalty_rule::fee_amount', typeArguments: [itemType],
-      args: [{ '$policyFor': itemType }, { '$u64': '0' }],
-    });
-    const splitIdx = nextIdx++;
-    calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
-    calls.push({
-      target: '0x2::royalty_rule::pay', typeArguments: [itemType],
-      args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
-    });
-    policyNote += ' | royalty auto-injected';
+    const rules = await window.theArchiveTx.fetchTransferPolicyRules(itemType);
+    if (!rules.length) {
+      policyNote += ' | NO RULES (confirm_request will pass as-is)';
+    } else {
+      policyNote += ' | rules: ' + rules.join(', ');
+      for (const rule of rules) {
+        // rule is a TypeName like "0x434b...::royalty_rule::Rule"
+        const parts = String(rule).split('::');
+        const pkg = parts[0];
+        const mod = parts[1];
+        if (mod === 'royalty_rule') {
+          const feeIdx = nextIdx++;
+          calls.push({
+            target: pkg + '::royalty_rule::fee_amount', typeArguments: [itemType],
+            args: [{ '$policyFor': itemType }, { '$u64': '0' }],
+          });
+          const splitIdx = nextIdx++;
+          calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
+          calls.push({
+            target: pkg + '::royalty_rule::pay', typeArguments: [itemType],
+            args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
+          });
+          policyNote += ' [royalty resolved]';
+        } else if (mod === 'kiosk_lock_rule') {
+          calls.push({
+            target: pkg + '::kiosk_lock_rule::pay', typeArguments: [itemType],
+            args: [kioskId, { '$result': purchaseIdx + ':1' }],
+          });
+          policyNote += ' [lock resolved]';
+        } else if (mod === 'personal_kiosk_rule') {
+          calls.push({
+            target: pkg + '::personal_kiosk_rule::pay', typeArguments: [itemType],
+            args: [{ '$result': purchaseIdx + ':1' }],
+          });
+          policyNote += ' [personal-kiosk resolved]';
+        } else if (mod === 'floor_price_rule') {
+          calls.push({
+            target: pkg + '::floor_price_rule::pay', typeArguments: [itemType],
+            args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$u64': '0' }],
+          });
+          policyNote += ' [floor-price resolved]';
+        } else {
+          policyNote += ' [UNKNOWN rule ' + rule + ' — NOT auto-resolved]';
+        }
+      }
+    }
   } catch (e) {
     console.warn('[fillExtractLockedTemplate] policy resolve failed', e);
     policyNote = ' (could not resolve TransferPolicy — confirm_request may fail)';

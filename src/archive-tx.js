@@ -7,6 +7,31 @@
 
 import { Transaction } from '@mysten/sui/transactions';
 import { PACKAGE_ID } from './chain-archives.js';
+import { KioskClient } from '@mysten/kiosk';
+import { SuiGraphQLClient } from '@mysten/sui/graphql';
+
+// Mainnet TransferPolicy rule package ids (from @mysten/kiosk constants).
+// VOXX's policy does NOT use `0x2::royalty_rule` — it uses the dedicated
+// kiosk rule package below. We read the real rules from chain via KioskClient
+// so we never hardcode the wrong module.
+let _kioskClient = null;
+function getKioskClient() {
+  if (!_kioskClient) {
+    const gqlClient = new SuiGraphQLClient({ url: GRAPHQL_ENDPOINT });
+    _kioskClient = new KioskClient({ client: gqlClient, network: 'mainnet' });
+  }
+  return _kioskClient;
+}
+
+// Returns the list of rule TypeNames (e.g.
+// "0x434b...::royalty_rule::Rule") for a given item type, read live from chain.
+async function getTransferPolicyRules(itemType) {
+  const kc = getKioskClient();
+  const policies = await kc.getTransferPolicies({ type: itemType });
+  if (!policies || !policies.length) return [];
+  // policies[].rules is string[] of TypeNames
+  return policies[0].rules || [];
+}
 
 const GRAPHQL_ENDPOINT = import.meta.env?.VITE_MAINNET_GRAPHQL || 'https://graphql.mainnet.sui.io/graphql';
 // Mainnet v5 runtime package. Keep chain-archives.js on the canonical/original
@@ -1394,16 +1419,11 @@ function collectTypeReprs(value, acc) {
 }
 async function fetchTransferPolicyRules(policyId) {
   try {
-    // Reuse the `objects(filter:{type})` shape (known to work in-browser);
-    // reading a single `object(address)` is more often sandbox-blocked.
-    const q = 'query($id:String!){ objects(filter:{type:$id}, first:1){ nodes{ address asMoveObject{ contents{ json } } } } }';
-    const r = await graphqlFetch(q, { id: `0x2::transfer_policy::TransferPolicy<${policyId}>` });
-    const node = r?.objects?.nodes?.[0];
-    const json = node?.asMoveObject?.contents?.json || {};
-    console.log('[fetchTransferPolicyRules] raw policy json =', JSON.stringify(json).slice(0, 1500));
-    const rulesSubtree = json?.rules;
-    const set = collectTypeReprs(rulesSubtree, new Set());
-    return [...set].filter((repr) => /::\w*[Rr]ule\b/.test(repr));
+    // Read the real rules live from chain via KioskClient (uses the dedicated
+    // mainnet rule package, e.g. 0x434b...::royalty_rule, NOT 0x2::royalty_rule).
+    const rules = await getTransferPolicyRules(policyId);
+    console.log('[fetchTransferPolicyRules] rules =', JSON.stringify(rules));
+    return rules;
   } catch (e) {
     console.warn('[fetchTransferPolicyRules] could not read policy rules', e);
     return [];
