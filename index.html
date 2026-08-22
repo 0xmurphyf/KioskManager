@@ -1701,6 +1701,7 @@ async function fillExtractLockedTemplate() {
       policyNote = ' (policy has no rules — direct confirm)';
     }
     console.log('[Extract] TransferPolicy', policyId, 'rules =', rules);
+    policyNote += ' | rules=[' + (rules.join(', ') || 'NONE') + ']';
   } catch (e) {
     // No TransferPolicy readable — still build the template; confirm_request
     // will surface the real on-chain error if the type truly isn't tradable.

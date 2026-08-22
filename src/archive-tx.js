@@ -1390,9 +1390,13 @@ function collectTypeReprs(value, acc) {
 }
 async function fetchTransferPolicyRules(policyId) {
   try {
-    const q = 'query($id:String!){ object(address:$id){ asMoveObject{ contents{ json } } } }';
-    const r = await graphqlFetch(q, { id: policyId });
-    const json = r?.object?.asMoveObject?.contents?.json || {};
+    // Reuse the `objects(filter:{type})` shape (known to work in-browser);
+    // reading a single `object(address)` is more often sandbox-blocked.
+    const q = 'query($id:String!){ objects(filter:{type:$id}, first:1){ nodes{ address asMoveObject{ contents{ json } } } } }';
+    const r = await graphqlFetch(q, { id: `0x2::transfer_policy::TransferPolicy<${policyId}>` });
+    const node = r?.objects?.nodes?.[0];
+    const json = node?.asMoveObject?.contents?.json || {};
+    console.log('[fetchTransferPolicyRules] raw policy json =', JSON.stringify(json).slice(0, 1500));
     const rulesSubtree = json?.rules;
     const set = collectTypeReprs(rulesSubtree, new Set());
     return [...set].filter((repr) => /::\w*[Rr]ule\b/.test(repr));
