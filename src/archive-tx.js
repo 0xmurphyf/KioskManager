@@ -1376,19 +1376,26 @@ async function fetchTransferPolicyId(itemType) {
 }
 
 // Read the `rules` set of a TransferPolicy object so the Extract flow can
-// decide which rule-resolving steps (e.g. royalty) to inject.
+// decide which rule-resolving steps (e.g. royalty) to inject. The Move
+// `VecSet<TypeName>` arrives through GraphQL as a nested shape
+// (rules.fields.contents[].name.type.repr) that varies by indexer; we deep
+// walk the `rules` subtree and collect every TypeName `repr`, then keep the
+// ones that look like rules.
+function collectTypeReprs(value, acc) {
+  acc = acc || new Set();
+  if (!value || typeof value !== 'object') return acc;
+  if (typeof value.repr === 'string') acc.add(value.repr);
+  for (const k of Object.keys(value)) collectTypeReprs(value[k], acc);
+  return acc;
+}
 async function fetchTransferPolicyRules(policyId) {
   try {
     const q = 'query($id:String!){ object(address:$id){ asMoveObject{ contents{ json } } } }';
     const r = await graphqlFetch(q, { id: policyId });
     const json = r?.object?.asMoveObject?.contents?.json || {};
-    const raw = json?.rules || json?.rules?.fields?.contents || [];
-    const list = [];
-    for (const x of (raw || [])) {
-      const repr = x?.name?.type?.repr || x?.repr || (typeof x === 'string' ? x : '');
-      if (repr) list.push(repr);
-    }
-    return list;
+    const rulesSubtree = json?.rules;
+    const set = collectTypeReprs(rulesSubtree, new Set());
+    return [...set].filter((repr) => /::\w*[Rr]ule\b/.test(repr));
   } catch (e) {
     console.warn('[fetchTransferPolicyRules] could not read policy rules', e);
     return [];
