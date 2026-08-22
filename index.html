@@ -1690,7 +1690,7 @@ async function fillExtractLockedTemplate() {
     calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
     calls.push({
       target: '0x2::royalty_rule::pay', typeArguments: [itemType],
-      args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx }],
+      args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
     });
     policyNote += ' | royalty auto-injected';
   } catch (e) {
