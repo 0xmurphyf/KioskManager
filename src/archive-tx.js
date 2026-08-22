@@ -1248,8 +1248,16 @@ export async function callMove({
   const tx = new Transaction();
   const results = []; // results[i] = array of returned values from step i
 
-  const resolveArg = (raw, stepIndex) => {
+  const resolveArg = async (raw, stepIndex) => {
     if (raw && typeof raw === 'object') {
+      // `$policyFor` resolves the on-chain `TransferPolicy<T>` object id for
+      // the given item type and returns it as a `tx.object(...)` reference.
+      // Sui does NOT derive the policy id from the type, so we must query it.
+      // This is what the official kiosk SDK does via `getTransferPolicies`.
+      if ('$policyFor' in raw) {
+        const id = await fetchTransferPolicyId(String(raw.$policyFor));
+        return tx.object(id);
+      }
       if ('$result' in raw) {
         const spec = String(raw.$result);
         let si, ri;
@@ -1312,10 +1320,21 @@ export async function callMove({
 
   for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
     const step = steps[stepIndex];
+    // Special step type: split coins off the gas (or another source) to use as
+    // a rule payment (e.g. royalty). `amount` may reference a prior step's
+    // return (e.g. royalty_rule::fee_amount). The produced coin is pushed to
+    // `results` so later steps can reference it via {$result:"IDX"}.
+    if (step.splitCoins) {
+      const fromArg = step.splitCoins.from === '$gas' ? tx.gas : await resolveArg(step.splitCoins.from, stepIndex);
+      const amtArg = await resolveArg(step.splitCoins.amount, stepIndex);
+      const [sCoin] = tx.splitCoins(fromArg, [amtArg]);
+      results.push(sCoin);
+      continue;
+    }
     if (!step.target || !/^(0x[0-9a-fA-F]+)::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/.test(step.target)) {
       throw new Error('Step ' + stepIndex + ' target must be "package::module::function"');
     }
-    const resolvedArgs = (step.args || []).map((a) => resolveArg(a, stepIndex));
+    const resolvedArgs = await Promise.all((step.args || []).map((a) => resolveArg(a, stepIndex)));
     const ret = tx.moveCall({
       target: step.target,
       typeArguments: step.typeArguments || [],
@@ -1339,6 +1358,43 @@ export async function callMove({
   return result;
 }
 
+// Resolve the on-chain `TransferPolicy<T>` object id for an item type by
+// querying the chain (the policy id is randomly generated at creation, NOT
+// derived from the type). Mirrors `kioskClient.getTransferPolicies({type})`.
+async function fetchTransferPolicyId(itemType) {
+  const t = `0x2::transfer_policy::TransferPolicy<${itemType}>`;
+  const q = 'query($t:String!){ objects(filter:{type:$t}, first:1){ data{ address } } }';
+  const r = await graphqlFetch(q, { t });
+  const addr = r?.objects?.data?.[0]?.address;
+  if (!addr) {
+    throw new Error(
+      'No TransferPolicy on-chain for type ' + itemType +
+      ' — this type cannot be extracted via kiosk (confirm_request needs the TransferPolicy object).'
+    );
+  }
+  return addr;
+}
+
+// Read the `rules` set of a TransferPolicy object so the Extract flow can
+// decide which rule-resolving steps (e.g. royalty) to inject.
+async function fetchTransferPolicyRules(policyId) {
+  try {
+    const q = 'query($id:String!){ object(address:$id){ asMoveObject{ contents{ json } } } }';
+    const r = await graphqlFetch(q, { id: policyId });
+    const json = r?.object?.asMoveObject?.contents?.json || {};
+    const raw = json?.rules || json?.rules?.fields?.contents || [];
+    const list = [];
+    for (const x of (raw || [])) {
+      const repr = x?.name?.type?.repr || x?.repr || (typeof x === 'string' ? x : '');
+      if (repr) list.push(repr);
+    }
+    return list;
+  } catch (e) {
+    console.warn('[fetchTransferPolicyRules] could not read policy rules', e);
+    return [];
+  }
+}
+
 // Expose the real on-chain API to the inline wizard script.
 window.theArchiveTx = {
   PACKAGE_ID,
@@ -1349,6 +1405,8 @@ window.theArchiveTx = {
   buildArchiveTransaction,
   archiveObject,
   takeFromKiosk,
+  fetchTransferPolicyId,
+  fetchTransferPolicyRules,
   callMove,
   findKioskCapFor,
   fetchArchivePolicy,

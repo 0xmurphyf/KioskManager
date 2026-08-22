@@ -1638,40 +1638,97 @@ async function executeCallMove(){
 // purchase payment uses the PTB gas coin (price is listed as 0, so nothing is
 // actually charged beyond gas). One click, no manual id filling.
 //
-// IMPORTANT: this ALWAYS overwrites the cmArgs box with the correct template,
-// even when the cap/kiosk was not auto-resolved. Missing values become
-// placeholder tokens (<KIOSK_ID> etc.) the user must fill. This prevents the
-// box from keeping a stale/wrong previous call (e.g. a {$result:'1:1'} that
-// references a non-existent 2nd return of purchase_with_cap -> on-chain
-// InvalidResultArity { result_idx: 1 }).
-function fillExtractLockedTemplate(){
-  const card=document.querySelector('[data-step="1"] .option.selected');
-  if(!card || !card.dataset.objectId){ alert('Select a Kiosk item first.'); return; }
-  const kioskId=card.dataset.kioskId||'<KIOSK_ID>';
-  const capId=card.dataset.kioskOwnerCapId||'<CAP_ID>';
-  const itemType=card.dataset.type||'<ITEM_TYPE>';
-  const itemId=card.dataset.objectId||'<ITEM_ID>';
-  const recipient=window.theArchiveWallet?.getConnection?.()?.address||'<RECIPIENT_ADDRESS>';
-  document.getElementById('cmTarget').value='';
-  document.getElementById('cmTypeArgs').value=itemType;
-  const tmpl=[
-    { target:'0x2::kiosk::list_with_purchase_cap', typeArguments:[itemType],
-      args:[kioskId, capId, itemId, {'$u64':'0'}] },
-    { target:'0x2::kiosk::purchase_with_cap', typeArguments:[itemType],
-      args:[kioskId, {'$result':'0'}, {'$gas':true}] },
-    { target:'0x2::transfer::public_transfer', typeArguments:[itemType],
-      args:[{'$result':'1:0'}, {'$address':recipient}] }
-  ];
-  document.getElementById('cmArgs').value=JSON.stringify(tmpl, null, 0);
-  const missing=[];
-  if(kioskId==='<KIOSK_ID>') missing.push('kioskId');
-  if(capId==='<CAP_ID>') missing.push('KioskOwnerCap');
-  if(itemType==='<ITEM_TYPE>') missing.push('item type');
-  if(recipient==='<RECIPIENT_ADDRESS>') missing.push('wallet (connect first)');
-  if(missing.length){
-    setCmStatus('Template loaded with PLACEHOLDERS — replace '+missing.join(', ')+' before Execute. The 3rd step MUST stay {$result:"1:0"} (purchase_with_cap returns NFT at return 0).', 'err');
+// purchase_with_cap returns (NFT, TransferRequest). The TransferRequest is a
+// hot potato that MUST be destroyed via transfer_policy::confirm_request, which
+// needs the on-chain TransferPolicy<T> object AND requires every policy rule
+// (e.g. royalty) to have been executed first. This builder resolves the
+// TransferPolicy + its rules at click time (browser-side chain read) and
+// injects the matching rule-resolving steps (standard 0x2::royalty_rule).
+async function fillExtractLockedTemplate() {
+  const card = document.querySelector('[data-step="1"] .option.selected');
+  if (!card || !card.dataset.objectId) { alert('Select a Kiosk item first.'); return; }
+  const kioskId = card.dataset.kioskId || '<KIOSK_ID>';
+  const capId = card.dataset.kioskOwnerCapId || '<CAP_ID>';
+  const itemType = card.dataset.type || '<ITEM_TYPE>';
+  const itemId = card.dataset.objectId || '<ITEM_ID>';
+  const recipient = window.theArchiveWallet?.getConnection?.()?.address || '<RECIPIENT_ADDRESS>';
+  document.getElementById('cmTarget').value = '';
+  document.getElementById('cmTypeArgs').value = itemType;
+
+  const calls = [];
+  // Step 0: list the item with a purchase cap (price 0).
+  calls.push({
+    target: '0x2::kiosk::list_with_purchase_cap', typeArguments: [itemType],
+    args: [kioskId, capId, itemId, { '$u64': '0' }],
+  });
+  // Step 1: purchase_with_cap -> (NFT, TransferRequest). Payment = 1 MIST off gas.
+  const purchaseIdx = 1;
+  calls.push({
+    target: '0x2::kiosk::purchase_with_cap', typeArguments: [itemType],
+    args: [kioskId, { '$result': '0' }, { '$gas': true }],
+  });
+
+  // Resolve the TransferPolicy + its rules so we can inject rule steps.
+  let nextIdx = 2;
+  let policyNote = '';
+  try {
+    const policyId = await window.theArchiveTx.fetchTransferPolicyId(itemType);
+    const rules = await window.theArchiveTx.fetchTransferPolicyRules(policyId);
+    const royaltyRule = rules.find((r) => /::royalty_rule::RoyaltyRule/.test(r));
+    const unsupported = rules.filter((r) => !/::royalty_rule::RoyaltyRule/.test(r));
+    if (unsupported.length) {
+      setCmStatus('⚠️ TransferPolicy has unsupported rule(s): ' + unsupported.join(', ') +
+        '. Only standard royalty is auto-resolved; confirm_request will likely fail. You may still try.', 'err');
+    }
+    if (royaltyRule) {
+      // fee_amount(policy, paid) -> u64 (paid = 0, so fee = 0)
+      const feeIdx = nextIdx++;
+      calls.push({
+        target: '0x2::royalty_rule::fee_amount', typeArguments: [itemType],
+        args: [{ '$policyFor': itemType }, { '$u64': '0' }],
+      });
+      // split that amount off gas
+      const splitIdx = nextIdx++;
+      calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
+      // royalty_rule::pay(policy, request, coin) adds the receipt
+      nextIdx++;
+      calls.push({
+        target: '0x2::royalty_rule::pay', typeArguments: [itemType],
+        args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx }],
+      });
+      policyNote = ' (royalty rule auto-resolved)';
+    } else if (rules.length === 0) {
+      policyNote = ' (policy has no rules — direct confirm)';
+    }
+  } catch (e) {
+    // No TransferPolicy readable — still build the template; confirm_request
+    // will surface the real on-chain error if the type truly isn't tradable.
+    console.warn('[fillExtractLockedTemplate] policy resolve failed', e);
+  }
+
+  // confirm_request(policy, request) destroys the TransferRequest hot potato.
+  calls.push({
+    target: '0x2::transfer_policy::confirm_request', typeArguments: [itemType],
+    args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }],
+  });
+  // transfer the extracted NFT to the connected wallet.
+  calls.push({
+    target: '0x2::transfer::public_transfer', typeArguments: [itemType],
+    args: [{ '$result': purchaseIdx + ':0' }, { '$address': recipient }],
+  });
+
+  document.getElementById('cmArgs').value = JSON.stringify(calls, null, 0);
+  const missing = [];
+  if (kioskId === '<KIOSK_ID>') missing.push('kioskId');
+  if (capId === '<CAP_ID>') missing.push('KioskOwnerCap');
+  if (itemType === '<ITEM_TYPE>') missing.push('item type');
+  if (recipient === '<RECIPIENT_ADDRESS>') missing.push('wallet (connect first)');
+  if (missing.length) {
+    setCmStatus('Template loaded with PLACEHOLDERS — replace ' + missing.join(', ') +
+      ' before Execute.', 'err');
   } else {
-    setCmStatus('Template loaded (extract → your wallet '+recipient.slice(0,10)+'…). Price 0, gas coin used as payment. Review then Execute.', 'ok');
+    setCmStatus('Template loaded (extract → your wallet ' + recipient.slice(0, 10) +
+      '…)' + policyNote + '. Price 0; gas coin used as payment; royalty auto-paid (0). Review then Execute.', 'ok');
   }
 }
 async function doTake(){
