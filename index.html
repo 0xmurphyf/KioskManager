@@ -1668,11 +1668,13 @@ async function fillExtractLockedTemplate() {
     args: [kioskId, { '$result': '0' }, { '$gas': true }],
   });
 
-  // VOXX's TransferPolicy rules likely live in VOXX's OWN published package
-  // (0xdca282f30ff...), not the generic 0x434b... kiosk rule package. The
-  // 0x434b...::royalty_rule::fee_amount gave InvalidLinkage, meaning the
-  // policy's `type_name` points at VOXX's package. Use VOXX's own package id.
-  const RULE_PKG = '0xdca282f30ff2acc0083c5c90969ae97c59a638a6a50ab9112f7ea17507cdd2b7';
+  // VOXX uses a MIXED rule setup confirmed on-chain:
+  //   royalty_rule  -> VOXX's OWN package (0xdca282f30ff...)
+  //   kiosk_lock_rule -> the standard mainnet kiosk rule package (0x434b...)
+  // (0x434b...::royalty_rule gave InvalidLinkage, 0xdca282f30ff...::royalty_rule
+  // worked; 0xdca282f30ff...::kiosk_lock_rule is absent.)
+  const ROYALTY_PKG = '0xdca282f30ff2acc0083c5c90969ae97c59a638a6a50ab9112f7ea17507cdd2b7';
+  const LOCK_PKG = '0x434b5bd8f6a7b05fede0ff46c6e511d71ea326ed38056e3bcd681d2d7c2a7879';
   let nextIdx = 2;
   let policyNote = '';
   try {
@@ -1692,24 +1694,24 @@ async function fillExtractLockedTemplate() {
   } catch (e) {
     console.warn('[fillExtractLockedTemplate] policy id resolve failed', e);
   }
-  // 1) royalty_rule: fee_amount(policy, paid=0) -> u64, split, pay(policy, request, coin)
+  // 1) royalty_rule (VOXX pkg): fee_amount(policy, paid=0) -> u64, split, pay(policy, request, coin)
   const feeIdx = nextIdx++;
   calls.push({
-    target: RULE_PKG + '::royalty_rule::fee_amount', typeArguments: [itemType],
+    target: ROYALTY_PKG + '::royalty_rule::fee_amount', typeArguments: [itemType],
     args: [{ '$policyFor': itemType }, { '$u64': '0' }],
   });
   const splitIdx = nextIdx++;
   calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
   calls.push({
-    target: RULE_PKG + '::royalty_rule::pay', typeArguments: [itemType],
+    target: ROYALTY_PKG + '::royalty_rule::pay', typeArguments: [itemType],
     args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
   });
-  // 2) kiosk_lock_rule: prove(request, kiosk) — 2 args, NO policy, NO coin
+  // 2) kiosk_lock_rule (standard pkg): prove(request, kiosk) — 2 args, NO policy, NO coin
   calls.push({
-    target: RULE_PKG + '::kiosk_lock_rule::prove', typeArguments: [itemType],
+    target: LOCK_PKG + '::kiosk_lock_rule::prove', typeArguments: [itemType],
     args: [{ '$result': purchaseIdx + ':1' }, kioskId],
   });
-  policyNote += ' | royalty+lock resolved (0x434b…)';
+  policyNote += ' | royalty(VOXX)+lock(0x434b) resolved';
 
   // confirm_request(policy, request) destroys the TransferRequest hot potato.
   calls.push({
