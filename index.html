@@ -1668,67 +1668,42 @@ async function fillExtractLockedTemplate() {
     args: [kioskId, { '$result': '0' }, { '$gas': true }],
   });
 
-  // Read VOXX's REAL TransferPolicy rules live from chain (via KioskClient),
-  // then inject the matching rule-resolve steps. VOXX does NOT use
-  // `0x2::royalty_rule` — it uses the dedicated mainnet rule package
-  // (0x434b...::royalty_rule / ::kiosk_lock_rule). We must use the exact
-  // module addresses reported by chain, otherwise confirm_request aborts with
-  // EPolicyNotSatisfied (receipts count != rules count).
+  // VOXX's TransferPolicy uses the dedicated mainnet kiosk rule package
+  // (NOT 0x2::royalty_rule). The browser sandbox blocks reading the policy's
+  // `rules` set from chain (asMoveObject / getTransferPolicies both come back
+  // empty in-browser), so we HARDCODE the two STANDARD rules a VOXX locked NFT
+  // uses — both live in this package:
+  //   0x434b5bd8f6a7b05fede0ff46c6e511d71ea326ed38056e3bcd681d2d7c2a7879
+  //     ::royalty_rule   (fee_amount + split + pay)
+  //     ::kiosk_lock_rule (prove — no coin)
+  // confirm_request requires exactly one receipt per rule, so BOTH must run.
+  const RULE_PKG = '0x434b5bd8f6a7b05fede0ff46c6e511d71ea326ed38056e3bcd681d2d7c2a7879';
   let nextIdx = 2;
   let policyNote = '';
   try {
     const policyId = await window.theArchiveTx.fetchTransferPolicyId(itemType);
     policyNote = ' (policy ' + policyId.slice(0, 10) + '…)';
-    const rules = await window.theArchiveTx.fetchTransferPolicyRules(itemType);
-    if (!rules.length) {
-      policyNote += ' | NO RULES (confirm_request will pass as-is)';
-    } else {
-      policyNote += ' | rules: ' + rules.join(', ');
-      for (const rule of rules) {
-        // rule is a TypeName like "0x434b...::royalty_rule::Rule"
-        const parts = String(rule).split('::');
-        const pkg = parts[0];
-        const mod = parts[1];
-        if (mod === 'royalty_rule') {
-          const feeIdx = nextIdx++;
-          calls.push({
-            target: pkg + '::royalty_rule::fee_amount', typeArguments: [itemType],
-            args: [{ '$policyFor': itemType }, { '$u64': '0' }],
-          });
-          const splitIdx = nextIdx++;
-          calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
-          calls.push({
-            target: pkg + '::royalty_rule::pay', typeArguments: [itemType],
-            args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
-          });
-          policyNote += ' [royalty resolved]';
-        } else if (mod === 'kiosk_lock_rule') {
-          calls.push({
-            target: pkg + '::kiosk_lock_rule::pay', typeArguments: [itemType],
-            args: [kioskId, { '$result': purchaseIdx + ':1' }],
-          });
-          policyNote += ' [lock resolved]';
-        } else if (mod === 'personal_kiosk_rule') {
-          calls.push({
-            target: pkg + '::personal_kiosk_rule::pay', typeArguments: [itemType],
-            args: [{ '$result': purchaseIdx + ':1' }],
-          });
-          policyNote += ' [personal-kiosk resolved]';
-        } else if (mod === 'floor_price_rule') {
-          calls.push({
-            target: pkg + '::floor_price_rule::pay', typeArguments: [itemType],
-            args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$u64': '0' }],
-          });
-          policyNote += ' [floor-price resolved]';
-        } else {
-          policyNote += ' [UNKNOWN rule ' + rule + ' — NOT auto-resolved]';
-        }
-      }
-    }
   } catch (e) {
-    console.warn('[fillExtractLockedTemplate] policy resolve failed', e);
-    policyNote = ' (could not resolve TransferPolicy — confirm_request may fail)';
+    console.warn('[fillExtractLockedTemplate] policy id resolve failed', e);
   }
+  // 1) royalty_rule: fee_amount(policy, paid=0) -> u64, split, pay(policy, request, coin)
+  const feeIdx = nextIdx++;
+  calls.push({
+    target: RULE_PKG + '::royalty_rule::fee_amount', typeArguments: [itemType],
+    args: [{ '$policyFor': itemType }, { '$u64': '0' }],
+  });
+  const splitIdx = nextIdx++;
+  calls.push({ splitCoins: { from: '$gas', amount: { '$result': feeIdx + ':0' } } });
+  calls.push({
+    target: RULE_PKG + '::royalty_rule::pay', typeArguments: [itemType],
+    args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, { '$result': splitIdx + ':0' }],
+  });
+  // 2) kiosk_lock_rule: prove(policy, request, kiosk) — note: `prove`, no coin
+  calls.push({
+    target: RULE_PKG + '::kiosk_lock_rule::prove', typeArguments: [itemType],
+    args: [{ '$policyFor': itemType }, { '$result': purchaseIdx + ':1' }, kioskId],
+  });
+  policyNote += ' | royalty+lock resolved (0x434b…)';
 
   // confirm_request(policy, request) destroys the TransferRequest hot potato.
   calls.push({
