@@ -1608,7 +1608,7 @@ async function executeCallMove(){
     const parsed=JSON.parse(argsRaw||'[]');
     // Multi-step form: an array of step objects each carrying its own target.
     if(Array.isArray(parsed) && parsed.length && parsed[0] && typeof parsed[0]==='object' && parsed[0].target){
-      calls=parsed.map(s=>({ target:s.target, typeArguments:s.typeArguments||[], args:s.args||[] }));
+      calls=parsed.map(s=>({ ...s }));
     } else if(target){
       let args=parsed;
       if(!Array.isArray(args)){ setCmStatus('Args must be a JSON array.', 'err'); return; }
